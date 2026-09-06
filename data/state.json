@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "derivedAt": "2026-09-07T00:00:00+02:00",
+  "settings": {
+    "githubRepos": [
+      "shinobione/shinobiwan-suno-bridge",
+      "shinobione/shino-os",
+      "shinobione/shinobiwan-studio",
+      "shinobione/tran-french-teacher",
+      "shinobione/risotools",
+      "shinobione/touch_plus_source_code",
+      "shinobione/ShinoBiWan-Launchpad"
+    ],
+    "manualMappings": {}
+  },
+  "projects": [
+    {"id":"music","name":"SHINOBIWAN Music","universe":"MUSIC","repo":null,"description":"Artist universe: tracks, Suno workflow, artwork, distribution and promotion."},
+    {"id":"suno-bridge","name":"SUNO BRIDGE","universe":"DEV / MUSIC","repo":"shinobione/shinobiwan-suno-bridge","description":"Bridge that prepares Suno generations without repetitive field-by-field copy/paste."},
+    {"id":"studio","name":"STUDIO","universe":"MUSIC / PRODUCT","repo":"shinobione/shinobiwan-studio","description":"SHINOBIWAN Studio product and reliability program."},
+    {"id":"french-tranquille","name":"FRENCH TRANQUILLE","universe":"PRODUCT","repo":"shinobione/tran-french-teacher","description":"French learning product for Trân."},
+    {"id":"shino-os","name":"SHINO-OS","universe":"SYSTEM","repo":"shinobione/shino-os","description":"Personal Jarvis-style operating interface and assistant shell."},
+    {"id":"risotools","name":"RISOTOOLS / SHINOASTEA","universe":"RISO / FIELD","repo":"shinobione/risotools","description":"ASTEA and RISO field-service utilities."},
+    {"id":"touch-plus","name":"TOUCH+ REVIVAL","universe":"DEV / HARDWARE","repo":"shinobione/touch_plus_source_code","description":"Touch+ revival, fingertip tracking and contact semantics."},
+    {"id":"launchpad","name":"SHINOBIWAN LAUNCHPAD","universe":"MUSIC / PRODUCT","repo":"shinobione/ShinoBiWan-Launchpad","description":"LaunchPAD application and music delivery stack."}
+  ],
+  "sources": [
+    {"id":"src-music-chat","projectId":"music","type":"chatgpt_thread","title":"ChatGPT Music context","url":null,"state":"UNSYNCED","lastObservedAt":"2026-09-07T00:00:00+02:00"},
+    {"id":"src-suno-repo","projectId":"suno-bridge","type":"github_repo","title":"shinobione/shinobiwan-suno-bridge","url":"https://github.com/shinobione/shinobiwan-suno-bridge","lastObservedAt":"2026-09-07T00:25:23+02:00"},
+    {"id":"src-studio-repo","projectId":"studio","type":"github_repo","title":"shinobione/shinobiwan-studio","url":"https://github.com/shinobione/shinobiwan-studio","lastObservedAt":"2026-08-17T22:00:00+02:00"},
+    {"id":"src-french-repo","projectId":"french-tranquille","type":"github_repo","title":"shinobione/tran-french-teacher","url":"https://github.com/shinobione/tran-french-teacher","lastObservedAt":"2026-09-02T15:56:57+02:00"},
+    {"id":"src-shinoos-repo","projectId":"shino-os","type":"github_repo","title":"shinobione/shino-os","url":"https://github.com/shinobione/shino-os","lastObservedAt":"2026-09-04T16:32:23+02:00"},
+    {"id":"src-riso-repo","projectId":"risotools","type":"github_repo","title":"shinobione/risotools","url":"https://github.com/shinobione/risotools","lastObservedAt":"2026-08-31T22:52:33+02:00"},
+    {"id":"src-touch-repo","projectId":"touch-plus","type":"github_repo","title":"shinobione/touch_plus_source_code","url":"https://github.com/shinobione/touch_plus_source_code","lastObservedAt":"2026-09-04T15:16:37+02:00"},
+    {"id":"src-launchpad-repo","projectId":"launchpad","type":"github_repo","title":"shinobione/ShinoBiWan-Launchpad","url":"https://github.com/shinobione/ShinoBiWan-Launchpad","lastObservedAt":null}
+  ],
+  "evidence": [
+    {
+      "id":"ev-music-unsynced","projectId":"music","sourceId":"src-music-chat","sourceType":"chatgpt_thread","type":"snapshot","timestamp":"2026-09-07T00:00:00+02:00","title":"Music source not synced yet","summary":"The music universe is active, but CONTROL does not yet have a first-class ChatGPT thread URL. SHINO Sync will populate track-level evidence and resume links.","confidence":0.55,"derivedStatusHint":"ACTIVE","currentStateSummary":"Music is active; automatic track-level resume state will become trustworthy once the relevant ChatGPT threads are synced.","resumeAction":"Install SHINO Sync and sync the current Music project conversation."
+    },
+    {
+      "id":"ev-suno-025","projectId":"suno-bridge","sourceId":"src-suno-repo","sourceType":"github_commit","type":"commit","timestamp":"2026-09-07T00:25:23+02:00","title":"v0.2.5 — validated smart Suno import","summary":"Live validated on Suno v5.5 Advanced. Smart Title, Style and Lyrics detection/fill works; final Create remains manual.","url":"https://github.com/shinobione/shinobiwan-suno-bridge/commit/6984e5b8a7ef85213066cff8ea82e73eb20a4b4e","confidence":0.95,"currentStateSummary":"v0.2.5 is live-validated: Title, Style and Lyrics import works safely on Suno v5.5 Advanced."
+    },
+    {
+      "id":"ev-suno-pr2","projectId":"suno-bridge","sourceId":"src-suno-repo","sourceType":"github_pr","type":"pr","timestamp":"2026-09-07T00:28:00+02:00","title":"PR #2 — v0.3 Workspace + Voice preparation","summary":"Draft requires live testing against the current Suno v5.5 UI with the actual saved Workspace and Voice names. Generation remains manual.","url":"https://github.com/shinobione/shinobiwan-suno-bridge/pull/2","confidence":0.98,"derivedStatusHint":"NEEDS TEST","currentStateSummary":"v0.2.5 is validated; v0.3 adds Workspace + Voice preparation but is waiting for a real Suno UI test.","resumeAction":"Open PR #2 and run the live Workspace + Voice selection test in Suno v5.5."
+    },
+    {
+      "id":"ev-shinoos-pr2","projectId":"shino-os","sourceId":"src-shinoos-repo","sourceType":"github_pr","type":"pr","timestamp":"2026-09-04T16:32:23+02:00","title":"PR #2 — V0.2 Jarvis-powered SHINO-OS integration","summary":"Jarvis Windows setup is complete, Ollama + Qwen3 local inference works, and the original Jarvis UI answers locally. Physical SHINO view validation is still pending.","url":"https://github.com/shinobione/shino-os/pull/2","confidence":0.98,"derivedStatusHint":"NEEDS TEST","currentStateSummary":"Jarvis + Qwen3 are working locally; the SHINO command-center view still needs to load in the real runtime and pass the 3440×1440 physical gate.","resumeAction":"Run shino.bat run, verify the native SHINO view loads, then validate real telemetry/chat on the 3440×1440 display."
+    },
+    {
+      "id":"ev-studio-closeout","projectId":"studio","sourceId":"src-studio-repo","sourceType":"github_pr","type":"closeout","timestamp":"2026-08-17T22:05:00+02:00","title":"Phase9 program closeout — COMPLETE","summary":"Accepted Build106 closes Phase9. Build107 remains unallocated; Phase10 is NEXT / SCOPE AUDIT REQUIRED.","url":"https://github.com/shinobione/shinobiwan-studio/pull/212","confidence":0.99,"derivedStatusHint":"STABLE","currentStateSummary":"Phase9 is complete on accepted Build106. There is no active Build107; Phase10 starts with a fresh scope audit.","resumeAction":"Start a read-only Phase10 scope audit before allocating Build107."
+    },
+    {
+      "id":"ev-french-257","projectId":"french-tranquille","sourceId":"src-french-repo","sourceType":"github_pr","type":"merge","timestamp":"2026-09-02T15:56:58+02:00","title":"PR #257 — Fix Foundations premature NEXT crash — MERGED","summary":"Learner-facing Foundations now ignores premature NEXT and duplicate answer taps while keeping the pure engine strict.","url":"https://github.com/shinobione/tran-french-teacher/pull/257","confidence":0.99,"derivedStatusHint":"STABLE","currentStateSummary":"The Foundations premature-NEXT crash hotfix is merged and the current main contains the regression guard.","resumeAction":"Resume from the next product milestone, not from the superseded #256 draft."
+    },
+    {
+      "id":"ev-french-256","projectId":"french-tranquille","sourceId":"src-french-repo","sourceType":"github_pr","type":"pr","timestamp":"2026-09-02T15:49:28+02:00","title":"PR #256 — draft hotfix","summary":"This older draft is superseded by merged PR #257 and must not be treated as the current resume point.","url":"https://github.com/shinobione/tran-french-teacher/pull/256","confidence":0.9
+    },
+    {
+      "id":"ev-riso-last","projectId":"risotools","sourceId":"src-riso-repo","sourceType":"github_commit","type":"commit","timestamp":"2026-08-31T22:52:33+02:00","title":"Add SAV briefing action to PC scan flow","summary":"Recent work centers on ShinoAstea desktop/mobile intervention scanning, cached stock and SAV briefing generation.","url":"https://github.com/shinobione/risotools/commit/d81119118eca341471711b92ade47f256f86fa80","confidence":0.94,"derivedStatusHint":"ACTIVE","currentStateSummary":"ShinoAstea desktop/mobile scanning and SAV briefing flows are implemented; the repo is in active utility evolution.","resumeAction":"Open the repo and continue from the latest ShinoAstea intervention/briefing flow."
+    },
+    {
+      "id":"ev-touch-mp","projectId":"touch-plus","sourceId":"src-touch-repo","sourceType":"github_pr","type":"diagnostic","timestamp":"2026-09-04T15:16:37+02:00","title":"PR #18 — MediaPipe benchmark concluded","summary":"Standalone MediaPipe identity oracle FAIL; advisory safety passes but there is no material axis advantage. No live/runtime MediaPipe integration authorized; this direction is concluded.","url":"https://github.com/shinobione/touch_plus_source_code/pull/18","confidence":0.99
+    },
+    {
+      "id":"ev-touch-17","projectId":"touch-plus","sourceId":"src-touch-repo","sourceType":"github_pr","type":"physical_gate","timestamp":"2026-08-25T17:24:15+02:00","title":"PR #17 — Phase 2C.1 contact semantics — PHYSICAL GATE PENDING","summary":"First smoke safely produced no false TOUCH_DOWN but also no intended DOWN. H-characterisation was added. OS injection remains disabled. Physical acceptance is still pending.","url":"https://github.com/shinobione/touch_plus_source_code/pull/17","confidence":0.99,"derivedStatusHint":"BLOCKED","currentStateSummary":"MediaPipe was rejected as unnecessary; the meaningful unresolved gate is Phase 2C physical contact/H characterisation.","resumeAction":"Open PR #17 and run the labelled physical H/contact characterisation on the real Touch+ hardware."
+    }
+  ],
+  "derived": [],
+  "discovered": []
+}
