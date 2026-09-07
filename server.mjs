@@ -3,18 +3,53 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deriveAll } from './lib/derive.mjs';
-import { resolveProject } from './lib/resolver.mjs';
+import { resolveProjectDetailed } from './lib/resolver.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
 const DATA = path.join(__dirname, 'data', 'state.json');
 const PORT = Number(process.env.PORT || 4177);
+const CONTROL_REPO = 'shinobione/shinobione-shino-control';
+
+function ensureSystemProjects(state) {
+  state.version ||= 1;
+  state.settings ||= {};
+  state.settings.githubRepos ||= [];
+  state.settings.manualMappings ||= {};
+  state.projects ||= [];
+  state.sources ||= [];
+  state.evidence ||= [];
+  state.discovered ||= [];
+
+  if (!state.projects.some(p => p.id === 'control')) {
+    state.projects.unshift({
+      id: 'control',
+      name: 'SHINO // CONTROL',
+      universe: 'SYSTEM / DEV',
+      repo: CONTROL_REPO,
+      description: 'Source-derived project radar and one-click resume hub for the whole SHINO ecosystem.'
+    });
+  }
+  if (!state.settings.githubRepos.includes(CONTROL_REPO)) state.settings.githubRepos.push(CONTROL_REPO);
+  if (!state.sources.some(s => s.projectId === 'control' && s.type === 'github_repo')) {
+    state.sources.push({
+      id: 'src-control-repo',
+      projectId: 'control',
+      type: 'github_repo',
+      title: CONTROL_REPO,
+      url: `https://github.com/${CONTROL_REPO}`,
+      lastObservedAt: null
+    });
+  }
+  return state;
+}
 
 function loadState() {
-  const raw = JSON.parse(fs.readFileSync(DATA, 'utf8'));
+  const raw = ensureSystemProjects(JSON.parse(fs.readFileSync(DATA, 'utf8')));
   return deriveAll(raw);
 }
 function saveState(state) {
+  ensureSystemProjects(state);
   deriveAll(state);
   fs.writeFileSync(DATA, JSON.stringify(state, null, 2));
 }
@@ -50,13 +85,13 @@ function safeId(prefix='id') { return `${prefix}-${Date.now().toString(36)}-${Ma
 function extractChatEvidence(payload, project) {
   const text = `${payload.title || ''}\n${payload.transcript || ''}`;
   const lines = text.split(/\n+/).map(x => x.trim()).filter(Boolean);
-  const important = lines.filter(l => /(pass|fail|merged|blocked|blocker|next|pending|test|validated|deployed|supersed|do not merge|resume|go |physical)/i.test(l));
+  const important = lines.filter(l => /(pass|fail|merged|blocked|blocker|next|pending|test|validated|deployed|supersed|do not merge|resume|physical|synced|sync failed|fixed|works|working|shipped)/i.test(l));
   const summary = important.slice(-5).join(' · ').slice(0, 1800) || lines.slice(-4).join(' · ').slice(0, 1800) || 'ChatGPT thread synced.';
-  const next = [...important].reverse().find(l => /(next|resume|retest|test|go |pending)/i.test(l));
+  const next = [...important].reverse().find(l => /(next|resume|retest|needs? test|pending|physical gate|live test)/i.test(l));
   let hint;
   if (/blocked|blocker/i.test(summary)) hint = 'BLOCKED';
   else if (/pending|retest|needs? test|physical gate|live test/i.test(summary)) hint = 'NEEDS TEST';
-  else if (/pass|merged|complete|stable/i.test(summary)) hint = 'ACTIVE';
+  else if (/pass|merged|complete|stable|synced|fixed|works|working|shipped/i.test(summary)) hint = 'ACTIVE';
   return {
     id: safeId('chat'), projectId: project.id, sourceType: 'chatgpt_thread', type: 'chat_sync',
     timestamp: payload.lastMessageAt || payload.clientTimestamp || new Date().toISOString(),
@@ -121,8 +156,11 @@ async function syncGithub(state, token) {
         const run = runs.workflow_runs[0];
         state.evidence.push({ id:safeId('ghci'), projectId:project.id, sourceType:'github_ci', type:'workflow', timestamp:run.updated_at, title:`Workflow: ${run.name}`, summary:`${run.status} / ${run.conclusion || 'pending'} on ${run.head_branch || 'unknown branch'}`, url:run.html_url, confidence:0.9, liveSync:true });
       }
-      const src = state.sources.find(s => s.projectId === project.id && s.type === 'github_repo');
-      if (src) src.lastObservedAt = new Date().toISOString();
+      let src = state.sources.find(s => s.projectId === project.id && s.type === 'github_repo');
+      if (!src) {
+        src = { id:safeId('src'), projectId:project.id, type:'github_repo', title:project.repo, url:`https://github.com/${project.repo}`, lastObservedAt:new Date().toISOString() };
+        state.sources.push(src);
+      } else src.lastObservedAt = new Date().toISOString();
       results.push({ repo:project.repo, ok:true });
     } catch (e) {
       results.push({ repo:project.repo, ok:false, error:String(e.message || e) });
@@ -143,24 +181,47 @@ const server = http.createServer(async (req, res) => {
       if (!payload.url || !/^https:\/\/(chatgpt\.com|chat\.openai\.com)\//i.test(payload.url)) return json(res, 400, { error:'Invalid ChatGPT URL' });
       const state = loadState();
       const key = payload.conversationKey || payload.url;
-      let project = resolveProject(`${payload.title || ''}\n${payload.transcript || ''}`, state.projects, state.settings.manualMappings);
       let source = state.sources.find(s => s.externalId === key);
+      const manualId = state.settings.manualMappings?.[key];
+      const resolved = resolveProjectDetailed({ title: payload.title || '', transcript: payload.transcript || '' }, state.projects);
+      const titleResolved = resolveProjectDetailed({ title: payload.title || '', transcript: '' }, state.projects);
+      let project = manualId ? state.projects.find(p => p.id === manualId) : null;
+
+      if (!project && source) {
+        const existing = state.projects.find(p => p.id === source.projectId) || null;
+        // Keep a thread attached once learned, except when a strong explicit title clearly identifies another project.
+        if (titleResolved && titleResolved.titleScore >= 110 && titleResolved.project.id !== existing?.id) project = titleResolved.project;
+        else project = existing || resolved?.project || null;
+      }
+      if (!project) project = resolved?.project || null;
+
       if (!project) {
         state.discovered = state.discovered.filter(d => d.externalId !== key);
         state.discovered.unshift({ id:safeId('disc'), externalId:key, type:'chatgpt_thread', title:payload.title || 'ChatGPT thread', url:payload.url, lastObservedAt:new Date().toISOString(), preview:(payload.transcript || '').slice(0,1200) });
         saveState(state);
         return json(res, 202, { mapped:false, discovered:true });
       }
+
+      state.discovered = state.discovered.filter(d => d.externalId !== key);
       if (!source) {
         source = { id:safeId('src'), projectId:project.id, type:'chatgpt_thread', externalId:key, title:payload.title, url:payload.url, lastObservedAt:new Date().toISOString(), state:'SYNCED' };
         state.sources.push(source);
       } else {
-        source.projectId = project.id; source.title = payload.title; source.url = payload.url; source.lastObservedAt = new Date().toISOString(); source.state='SYNCED';
+        source.projectId = project.id;
+        source.title = payload.title;
+        source.url = payload.url;
+        source.lastObservedAt = new Date().toISOString();
+        source.state = manualId ? 'MAPPED' : 'SYNCED';
       }
       state.evidence = state.evidence.filter(e => !(e.sourceId === source.id && e.type === 'chat_sync'));
       const ev = extractChatEvidence(payload, project); ev.sourceId = source.id; state.evidence.push(ev);
       saveState(state);
-      return json(res, 200, { mapped:true, projectId:project.id, derived:loadState().derived.find(d => d.projectId === project.id) });
+      return json(res, 200, {
+        mapped:true,
+        projectId:project.id,
+        resolution: resolved ? { score:resolved.score, titleScore:resolved.titleScore, reason:resolved.reason } : null,
+        derived:loadState().derived.find(d => d.projectId === project.id)
+      });
     }
 
     if (req.method === 'POST' && url.pathname === '/api/remap') {
