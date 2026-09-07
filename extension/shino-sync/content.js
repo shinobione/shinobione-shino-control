@@ -123,6 +123,89 @@
     return [...out.values()];
   }
 
+  function isVisible(el) {
+    if (!el || !(el instanceof Element)) return false;
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return false;
+    const style = getComputedStyle(el);
+    return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) !== 0;
+  }
+
+  function looksLikeDateOrUi(text) {
+    const t = cleanText(text);
+    if (!t || t.length < 2 || t.length > 160) return true;
+    if (/^(projects?|search projects|new|all|created by you|shared with you|name|modified|today|yesterday)$/i.test(t)) return true;
+    if (/^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2}$/i.test(t)) return true;
+    if (/^\d{1,2}[:/]\d{1,2}([/:]\d{1,4})?$/i.test(t)) return true;
+    if (/^(new chat|library|scheduled|plugins|more|pinned|recents)$/i.test(t)) return true;
+    return false;
+  }
+
+  function collectVisibleLabels(root, { exclude = [] } = {}) {
+    const ignored = new Set(exclude.map(x => cleanText(x).toLowerCase()).filter(Boolean));
+    const best = new Map();
+    const nodes = root.querySelectorAll('a,button,[role="link"],[role="button"],[tabindex],span,p,div');
+    for (const el of nodes) {
+      if (!isVisible(el)) continue;
+      const text = cleanText(el.innerText || el.textContent || el.getAttribute('aria-label') || el.getAttribute('title') || '');
+      if (looksLikeDateOrUi(text) || ignored.has(text.toLowerCase())) continue;
+      if (/\b(today|yesterday)\b/i.test(text) && text.split(/\s+/).length > 1) continue;
+      if (/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2}\b/i.test(text) && text.split(/\s+/).length > 2) continue;
+      const childText = [...el.children].map(c => cleanText(c.innerText || c.textContent || '')).filter(Boolean);
+      const nestedExact = childText.some(t => t === text);
+      const score = (nestedExact ? 50 : 0) + el.children.length * 5 + text.length / 1000;
+      const key = text.toLowerCase();
+      const prev = best.get(key);
+      if (!prev || score < prev.score) best.set(key, { title: text, score });
+    }
+    return [...best.values()].sort((a, b) => a.score - b.score).map(x => ({ title: x.title }));
+  }
+
+  async function discoverProjectLabels() {
+    let stableRounds = 0;
+    let lastCount = -1;
+    let lastHeight = -1;
+    const labels = new Map();
+
+    for (let i = 0; i < 40; i++) {
+      const main = document.querySelector('main') || document.body;
+      for (const item of collectVisibleLabels(main)) labels.set(item.title.toLowerCase(), item);
+      const root = document.scrollingElement || document.documentElement;
+      const height = Math.max(root.scrollHeight || 0, document.body?.scrollHeight || 0);
+      if (labels.size === lastCount && height === lastHeight) stableRounds += 1;
+      else stableRounds = 0;
+      lastCount = labels.size;
+      lastHeight = height;
+      if (stableRounds >= 4) break;
+      window.scrollTo(0, height);
+      await new Promise(resolve => setTimeout(resolve, 450));
+    }
+
+    return [...labels.values()].slice(0, 120);
+  }
+
+  function clickVisibleLabel(title) {
+    const target = cleanText(title).toLowerCase();
+    const root = document.querySelector('main') || document.body;
+    const matches = [...root.querySelectorAll('*')]
+      .filter(el => isVisible(el) && cleanText(el.innerText || el.textContent || el.getAttribute('aria-label') || '')?.toLowerCase() === target)
+      .sort((a, b) => {
+        const ac = a.querySelectorAll('*').length;
+        const bc = b.querySelectorAll('*').length;
+        if (ac !== bc) return ac - bc;
+        const ar = a.getBoundingClientRect();
+        const br = b.getBoundingClientRect();
+        return (ar.width * ar.height) - (br.width * br.height);
+      });
+    const el = matches[0];
+    if (!el) return { ok: false, clicked: false, error: `Visible label not found: ${title}` };
+    el.scrollIntoView({ block: 'center', inline: 'nearest' });
+    el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+    el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+    el.click();
+    return { ok: true, clicked: true, title };
+  }
+
   function discoverProjectThreads() {
     const ctx = projectContext();
     const out = new Map();
@@ -140,6 +223,13 @@
       }
     }
     return [...out.values()].slice(0, 120);
+  }
+
+  function discoverThreadLabels() {
+    const ctx = projectContext();
+    const main = document.querySelector('main') || document.body;
+    const exclude = [ctx.projectTitle, 'Files', 'Instructions', 'Project instructions', 'Add files', 'New chat'];
+    return collectVisibleLabels(main, { exclude }).slice(0, 120);
   }
 
   async function capture(reason = 'auto', override = null) {
@@ -200,8 +290,24 @@
       discoverAllProjects().then(projects => sendResponse({ ok: true, projects }));
       return true;
     }
+    if (msg?.type === 'SHINO_DISCOVER_PROJECT_LABELS') {
+      discoverProjectLabels().then(labels => sendResponse({ ok: true, labels }));
+      return true;
+    }
+    if (msg?.type === 'SHINO_CLICK_PROJECT_LABEL') {
+      sendResponse(clickVisibleLabel(msg.title || ''));
+      return;
+    }
     if (msg?.type === 'SHINO_DISCOVER_PROJECT_THREADS') {
       sendResponse({ ok: true, context: projectContext(), threads: discoverProjectThreads() });
+      return;
+    }
+    if (msg?.type === 'SHINO_DISCOVER_THREAD_LABELS') {
+      sendResponse({ ok: true, context: projectContext(), labels: discoverThreadLabels() });
+      return;
+    }
+    if (msg?.type === 'SHINO_CLICK_THREAD_LABEL') {
+      sendResponse(clickVisibleLabel(msg.title || ''));
       return;
     }
   });
