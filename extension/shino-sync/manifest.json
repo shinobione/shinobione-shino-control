@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "SHINO Sync",
-  "version": "0.1.1",
-  "description": "Sync the current ChatGPT work thread into SHINO // CONTROL.",
+  "version": "0.2.0",
+  "description": "Sync current and open ChatGPT work threads into SHINO // CONTROL.",
   "permissions": [
     "storage",
     "tabs",
-    "activeTab"
+    "activeTab",
+    "scripting"
   ],
   "host_permissions": [
     "https://chatgpt.com/*",
