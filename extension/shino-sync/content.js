@@ -40,13 +40,13 @@
       const match = u.pathname.match(/\/g\/(g-p-[^/?#]+)/i);
       if (!match) return { projectKey: null, projectTitle: null, projectUrl: null };
       const projectKey = match[1];
-      const candidates = [...document.querySelectorAll(`a[href*="/g/${projectKey}"]`)]
+      const anchors = [...document.querySelectorAll(`[href*="/g/${projectKey}"]`)];
+      const candidates = anchors
         .filter(a => !String(a.getAttribute('href') || '').includes('/c/'))
-        .map(a => cleanText(a.innerText || a.textContent || ''))
-        .filter(t => t && t.length <= 100 && !/^chatgpt$/i.test(t));
+        .map(a => cleanText(a.innerText || a.textContent || a.getAttribute('aria-label') || ''))
+        .filter(t => t && t.length <= 120 && !/^chatgpt$/i.test(t));
       const projectTitle = candidates[0] || null;
-      const projectAnchor = [...document.querySelectorAll(`a[href*="/g/${projectKey}"]`)]
-        .find(a => !String(a.getAttribute('href') || '').includes('/c/'));
+      const projectAnchor = anchors.find(a => !String(a.getAttribute('href') || '').includes('/c/'));
       const projectUrl = projectAnchor?.href || `${u.origin}/g/${projectKey}`;
       return { projectKey, projectTitle, projectUrl };
     } catch { return { projectKey: null, projectTitle: null, projectUrl: null }; }
@@ -70,19 +70,56 @@
     return '';
   }
 
-  function discoverPinnedProjects() {
-    const out = new Map();
-    for (const a of document.querySelectorAll('a[href*="/g/g-p-"]')) {
-      const href = a.href || '';
+  function addProjectLinks(out) {
+    for (const a of document.querySelectorAll('[href*="/g/g-p-"]')) {
+      const href = a.href || a.getAttribute('href') || '';
       if (!href || /\/c\//.test(href)) continue;
       const m = href.match(/\/g\/(g-p-[^/?#]+)/i);
       if (!m) continue;
       const key = m[1];
-      const title = cleanText(a.innerText || a.textContent || '');
-      if (!title || title.length > 120) continue;
+      const title = cleanText(a.innerText || a.textContent || a.getAttribute('aria-label') || a.getAttribute('title') || '');
+      if (!title || title.length > 160 || /^projects?$/i.test(title)) continue;
+      const absolute = new URL(href, location.origin).href;
       const prev = out.get(key);
-      if (!prev || title.length < prev.title.length) out.set(key, { key, title, url: href });
+      if (!prev || title.length < prev.title.length) out.set(key, { key, title, url: absolute });
     }
+  }
+
+  function discoverPinnedProjects() {
+    const out = new Map();
+    addProjectLinks(out);
+    return [...out.values()];
+  }
+
+  function projectsPageUrl() {
+    const anchors = [...document.querySelectorAll('a[href]')];
+    const exact = anchors.find(a => /^projects$/i.test(cleanText(a.innerText || a.textContent || a.getAttribute('aria-label') || '')));
+    if (exact?.href) return exact.href;
+    const candidate = anchors.find(a => /projects/i.test(a.getAttribute('href') || '') && !/g-p-/i.test(a.getAttribute('href') || ''));
+    return candidate?.href || `${location.origin}/projects`;
+  }
+
+  async function discoverAllProjects() {
+    const out = new Map();
+    let stableRounds = 0;
+    let lastCount = -1;
+    let lastHeight = -1;
+
+    for (let i = 0; i < 40; i++) {
+      addProjectLinks(out);
+      const root = document.scrollingElement || document.documentElement;
+      const height = Math.max(root.scrollHeight || 0, document.body?.scrollHeight || 0);
+      const count = out.size;
+      if (count === lastCount && height === lastHeight) stableRounds += 1;
+      else stableRounds = 0;
+      lastCount = count;
+      lastHeight = height;
+      if (stableRounds >= 4) break;
+      window.scrollTo(0, height);
+      await new Promise(resolve => setTimeout(resolve, 450));
+    }
+
+    addProjectLinks(out);
     return [...out.values()];
   }
 
@@ -97,15 +134,15 @@
         const href = a.href || '';
         if (!/^https:\/\/(chatgpt\.com|chat\.openai\.com)\//i.test(href)) continue;
         if (ctx.projectKey && href.includes('/g/g-p-') && !href.includes(`/g/${ctx.projectKey}/`)) continue;
-        const title = cleanText(a.innerText || a.textContent || '') || 'ChatGPT conversation';
+        const title = cleanText(a.innerText || a.textContent || a.getAttribute('aria-label') || '') || 'ChatGPT conversation';
         const key = conversationKey(href);
         if (!out.has(key)) out.set(key, { key, title: title.slice(0, 180), url: href, ...ctx });
       }
     }
-    return [...out.values()].slice(0, 80);
+    return [...out.values()].slice(0, 120);
   }
 
-  async function capture(reason = 'auto') {
+  async function capture(reason = 'auto', override = null) {
     const cfg = await chrome.storage.local.get({ enabled: false });
     if (!cfg.enabled) return { ok: false, error: 'SHINO Sync is OFF' };
     const transcript = extractTranscript();
@@ -114,14 +151,15 @@
       return { ok: false, error: 'Capture unavailable' };
     }
     const ctx = projectContext();
+    const forced = override || {};
     const payload = {
       url: location.href,
       title: cleanTitle(),
       transcript,
       conversationKey: conversationKey(location.href),
-      projectKey: ctx.projectKey,
-      projectTitle: ctx.projectTitle,
-      projectUrl: ctx.projectUrl,
+      projectKey: forced.projectKey || ctx.projectKey,
+      projectTitle: forced.projectTitle || ctx.projectTitle,
+      projectUrl: forced.projectUrl || ctx.projectUrl,
       clientTimestamp: new Date().toISOString(),
       lastMessageAt: new Date().toISOString(),
       reason
@@ -147,12 +185,20 @@
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg?.type === 'SHINO_CAPTURE_NOW') {
-      capture(msg.reason || 'manual').then(sendResponse);
+      capture(msg.reason || 'manual', msg.projectContext || null).then(sendResponse);
       return true;
     }
     if (msg?.type === 'SHINO_DISCOVER_PINNED_PROJECTS') {
       sendResponse({ ok: true, projects: discoverPinnedProjects() });
       return;
+    }
+    if (msg?.type === 'SHINO_FIND_PROJECTS_PAGE') {
+      sendResponse({ ok: true, url: projectsPageUrl() });
+      return;
+    }
+    if (msg?.type === 'SHINO_DISCOVER_ALL_PROJECTS') {
+      discoverAllProjects().then(projects => sendResponse({ ok: true, projects }));
+      return true;
     }
     if (msg?.type === 'SHINO_DISCOVER_PROJECT_THREADS') {
       sendResponse({ ok: true, context: projectContext(), threads: discoverProjectThreads() });
