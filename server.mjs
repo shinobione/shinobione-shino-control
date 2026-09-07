@@ -14,11 +14,10 @@ const CONTROL_REPO = 'shinobione/shinobione-shino-control';
 const SYSTEM_PROJECTS = [
   {
     id: 'control', name: 'SHINO // CONTROL', universe: 'SYSTEM / DEV', kind: 'APP', repo: CONTROL_REPO,
+    components: [
+      { id:'shino-sync', name:'SHINO Sync', kind:'EXTENSION', path:'extension/shino-sync', manifest:'extension/shino-sync/manifest.json' }
+    ],
     description: 'Source-derived project radar and one-click resume hub for the whole SHINO ecosystem.'
-  },
-  {
-    id: 'shino-sync', name: 'SHINO Sync', universe: 'DEV / EXTENSION', kind: 'EXTENSION', repo: CONTROL_REPO,
-    repoPath: 'extension/shino-sync', description: 'Chrome bridge that syncs ChatGPT project threads into SHINO // CONTROL.'
   },
   {
     id: 'shino-codes', name: 'Shino Codes', universe: 'DEV / UMBRELLA', kind: 'CHATGPT_PROJECT', repo: null,
@@ -36,7 +35,9 @@ function ensureProject(state, spec) {
     p = { ...spec };
     state.projects.push(p);
   } else {
-    for (const [k, v] of Object.entries(spec)) if (v !== undefined && (p[k] == null || ['kind','repoPath'].includes(k))) p[k] = v;
+    for (const [k, v] of Object.entries(spec)) {
+      if (v !== undefined && (p[k] == null || ['kind','repoPath','components'].includes(k))) p[k] = v;
+    }
   }
   return p;
 }
@@ -54,17 +55,68 @@ function ensureRepoSource(state, project) {
   }
 }
 
+function ensureComponentSources(state, project) {
+  for (const component of project.components || []) {
+    let src = state.sources.find(s => s.projectId === project.id && s.type === 'github_component' && s.componentId === component.id);
+    if (!src) {
+      src = {
+        id:`src-${project.id}-component-${component.id}`,
+        projectId:project.id,
+        type:'github_component',
+        componentId:component.id,
+        title:component.name,
+        url:`https://github.com/${project.repo}/tree/main/${component.path}`,
+        lastObservedAt:null,
+        state:'COMPONENT'
+      };
+      state.sources.push(src);
+    }
+  }
+}
+
+function mergeLegacyComponentProject(state, fromId, toId, label) {
+  const legacy = state.projects.find(p => p.id === fromId);
+  if (!legacy) return;
+  for (const s of state.sources.filter(s => s.projectId === fromId)) {
+    s.projectId = toId;
+    if (s.type === 'github_repo') {
+      s.type = 'github_component';
+      s.componentId = fromId;
+      s.title = label;
+      s.state = 'COMPONENT';
+    }
+  }
+  for (const e of state.evidence.filter(e => e.projectId === fromId)) {
+    e.projectId = toId;
+    if (e.title && !e.title.toLowerCase().includes(label.toLowerCase())) e.title = `${label} · ${e.title}`;
+  }
+  for (const [key, value] of Object.entries(state.settings.manualMappings || {})) {
+    if (value === fromId) state.settings.manualMappings[key] = toId;
+  }
+  for (const [key, value] of Object.entries(state.settings.chatgptProjectMappings || {})) {
+    if (value === fromId) state.settings.chatgptProjectMappings[key] = toId;
+  }
+  state.projects = state.projects.filter(p => p.id !== fromId);
+}
+
 function ensureSystemProjects(state) {
   state.version ||= 1;
   state.settings ||= {};
   state.settings.githubRepos ||= [];
   state.settings.manualMappings ||= {};
+  state.settings.chatgptProjectMappings ||= {};
   state.projects ||= [];
   state.sources ||= [];
   state.evidence ||= [];
   state.discovered ||= [];
 
-  for (const spec of SYSTEM_PROJECTS) ensureRepoSource(state, ensureProject(state, spec));
+  for (const spec of SYSTEM_PROJECTS) {
+    const project = ensureProject(state, spec);
+    ensureRepoSource(state, project);
+    ensureComponentSources(state, project);
+  }
+
+  mergeLegacyComponentProject(state, 'shino-sync', 'control', 'SHINO Sync');
 
   const suno = state.projects.find(p => p.id === 'suno-bridge');
   if (suno) suno.kind = 'EXTENSION';
@@ -207,6 +259,29 @@ async function syncGithub(state, token) {
         }
       }
 
+      for (const component of project.components || []) {
+        const manifestPath = component.manifest || `${component.path}/manifest.json`;
+        const manifestText = await githubTextFile(project.repo, manifestPath, meta.default_branch, token);
+        if (!manifestText) continue;
+        try {
+          const m = JSON.parse(manifestText);
+          state.evidence.push({
+            id:safeId('ghcomponent'), projectId:project.id, sourceType:'github_component', type:'component_manifest',
+            timestamp:commits[0]?.commit?.committer?.date || meta.pushed_at || new Date().toISOString(),
+            title:`${component.name} v${m.version || '?'}`,
+            summary:m.description || `${component.name} component manifest`,
+            url:`https://github.com/${project.repo}/blob/${meta.default_branch}/${manifestPath}`,
+            confidence:0.99, liveSync:true, componentId:component.id
+          });
+          const src = state.sources.find(s => s.projectId === project.id && s.type === 'github_component' && s.componentId === component.id);
+          if (src) {
+            src.lastObservedAt = new Date().toISOString();
+            src.state = `v${m.version || '?'} · COMPONENT`;
+            src.url = `https://github.com/${project.repo}/tree/${meta.default_branch}/${component.path}`;
+          }
+        } catch {}
+      }
+
       if (runs.workflow_runs?.length) {
         const run = runs.workflow_runs[0];
         state.evidence.push({ id:safeId('ghci'), projectId:project.id, sourceType:'github_ci', type:'workflow', timestamp:run.updated_at, title:`Workflow: ${run.name}`, summary:`${run.status} / ${run.conclusion || 'pending'} on ${run.head_branch || 'unknown branch'}`, url:run.html_url, confidence:0.9, liveSync:true });
@@ -238,9 +313,11 @@ const server = http.createServer(async (req, res) => {
       const key = payload.conversationKey || payload.url;
       let source = state.sources.find(s => s.externalId === key);
       const manualId = state.settings.manualMappings?.[key];
+      const projectMapId = payload.projectKey ? state.settings.chatgptProjectMappings?.[payload.projectKey] : null;
       const resolved = resolveProjectDetailed({ title: payload.title || '', projectTitle: payload.projectTitle || '', transcript: payload.transcript || '' }, state.projects);
       const titleResolved = resolveProjectDetailed({ title: payload.title || '', projectTitle: '', transcript: '' }, state.projects);
       let project = manualId ? state.projects.find(p => p.id === manualId) : null;
+      if (!project && projectMapId) project = state.projects.find(p => p.id === projectMapId) || null;
 
       if (!project && source) {
         const existing = state.projects.find(p => p.id === source.projectId) || null;
@@ -260,6 +337,13 @@ const server = http.createServer(async (req, res) => {
         return json(res, 202, { mapped:false, discovered:true });
       }
 
+      if (payload.projectKey) {
+        const existingMap = state.settings.chatgptProjectMappings[payload.projectKey];
+        const strongEnough = manualId || projectMapId || source || (resolved && resolved.project.id === project.id && resolved.score >= 55);
+        if (!existingMap && strongEnough) state.settings.chatgptProjectMappings[payload.projectKey] = project.id;
+        else if (manualId) state.settings.chatgptProjectMappings[payload.projectKey] = project.id;
+      }
+
       state.discovered = state.discovered.filter(d => d.externalId !== key);
       if (!source) {
         source = {
@@ -273,7 +357,7 @@ const server = http.createServer(async (req, res) => {
         source.title = payload.title;
         source.url = payload.url;
         source.lastObservedAt = new Date().toISOString();
-        source.state = manualId ? 'MAPPED' : 'SYNCED';
+        source.state = manualId ? 'MAPPED' : projectMapId ? 'AUTO-PROJECT' : 'SYNCED';
         source.chatgptProjectKey = payload.projectKey || source.chatgptProjectKey || null;
         source.chatgptProjectTitle = payload.projectTitle || source.chatgptProjectTitle || null;
         source.chatgptProjectUrl = payload.projectUrl || source.chatgptProjectUrl || null;
@@ -284,6 +368,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, {
         mapped:true,
         projectId:project.id,
+        mapping: projectMapId ? 'project-key' : manualId ? 'manual' : 'resolver',
         resolution: resolved ? { score:resolved.score, titleScore:resolved.titleScore, reason:resolved.reason } : null,
         derived:loadState().derived.find(d => d.projectId === project.id)
       });
@@ -296,6 +381,7 @@ const server = http.createServer(async (req, res) => {
       const p = state.projects.find(x => x.id === payload.projectId);
       if (!d || !p) return json(res, 404, { error:'Source/project not found' });
       state.settings.manualMappings[d.externalId || d.url] = p.id;
+      if (d.chatgptProjectKey) state.settings.chatgptProjectMappings[d.chatgptProjectKey] = p.id;
       state.sources.push({ id:safeId('src'), projectId:p.id, type:d.type, externalId:d.externalId, title:d.title, url:d.url, lastObservedAt:d.lastObservedAt, state:'MAPPED', chatgptProjectKey:d.chatgptProjectKey || null, chatgptProjectTitle:d.chatgptProjectTitle || null });
       state.discovered = state.discovered.filter(x => x.id !== d.id);
       saveState(state); return json(res, 200, { ok:true });
