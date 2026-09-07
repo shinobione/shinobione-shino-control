@@ -37,6 +37,10 @@ function isChatGptUrl(url = '') {
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
+function norm(value = '') {
+  return String(value).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+}
+
 function projectKeyFromUrl(url = '') {
   try { return new URL(url).pathname.match(/\/g\/(g-p-[^/?#]+)/i)?.[1] || null; }
   catch { return null; }
@@ -54,6 +58,31 @@ function sameRoute(a = '', b = '') {
     const ua = new URL(a), ub = new URL(b);
     return ua.origin === ub.origin && ua.pathname === ub.pathname && ua.search === ub.search;
   } catch { return a === b; }
+}
+
+function mergeProjects(...lists) {
+  const byKey = new Map();
+  const titleToKey = new Map();
+
+  for (const list of lists) {
+    for (const raw of list || []) {
+      if (!raw?.url) continue;
+      const key = projectKeyFromUrl(raw.url) || raw.key || `title:${norm(raw.title)}`;
+      const titleKey = norm(raw.title);
+      const existingKey = titleKey && titleToKey.get(titleKey);
+      const finalKey = existingKey || key;
+      const prev = byKey.get(finalKey);
+      const next = {
+        key: projectKeyFromUrl(raw.url) || raw.key || prev?.key || finalKey,
+        title: raw.title || prev?.title || 'ChatGPT project',
+        url: raw.url || prev?.url
+      };
+      byKey.set(finalKey, { ...prev, ...next });
+      if (titleKey) titleToKey.set(titleKey, finalKey);
+    }
+  }
+
+  return [...byKey.values()];
 }
 
 async function waitForTab(tabId, timeoutMs = 20000) {
@@ -107,7 +136,7 @@ async function activeChatTab() {
 }
 
 async function withTemporaryTab(url, fn) {
-  const existing = (await chrome.tabs.query({})).find(t => t.url === url);
+  const existing = (await chrome.tabs.query({})).find(t => sameRoute(t.url || '', url));
   if (existing) {
     await waitForTab(existing.id);
     return fn(existing, false);
@@ -122,19 +151,21 @@ async function withTemporaryTab(url, fn) {
   }
 }
 
-async function discoverProjectUrlsByClick(projectsPage) {
+async function discoverProjectUrlsByClick(projectsPage, knownProjects = []) {
   const worker = await chrome.tabs.create({ url: projectsPage, active: false });
   const projects = new Map();
+  const knownTitles = new Set((knownProjects || []).map(p => norm(p.title)).filter(Boolean));
   try {
     await waitForTab(worker.id);
     const labelResult = await messageTab(worker.id, { type: 'SHINO_DISCOVER_PROJECT_LABELS' });
     const labels = (labelResult?.labels || []).slice(0, 120);
     if (!labels.length) return [];
 
-    $('status').textContent = `ChatGPT exposes no project hrefs. DOM fallback: ${labels.length} visible candidates…`;
+    const missingLabels = labels.filter(item => !knownTitles.has(norm(item.title)));
+    $('status').textContent = `${knownProjects.length} direct project routes · ${labels.length} Projects-page rows · ${missingLabels.length} routes to recover…`;
 
     let attempted = 0;
-    for (const item of labels) {
+    for (const item of missingLabels) {
       if (attempted > 0) {
         await chrome.tabs.update(worker.id, { url: projectsPage });
         await waitForTab(worker.id).catch(() => null);
@@ -153,7 +184,7 @@ async function discoverProjectUrlsByClick(projectsPage) {
 
       const key = projectKeyFromUrl(nav.url) || nav.url;
       if (!projects.has(key)) projects.set(key, { key, title: item.title, url: nav.url });
-      $('status').textContent = `DOM project discovery ${attempted}/${labels.length} · ${projects.size} project routes recovered`;
+      $('status').textContent = `DOM route recovery ${attempted}/${missingLabels.length} · ${projects.size} additional projects recovered`;
     }
     return [...projects.values()];
   } finally {
@@ -258,22 +289,25 @@ $('projects').onclick = async () => {
     const pageInfo = await messageTab(seed.id, { type: 'SHINO_FIND_PROJECTS_PAGE' }).catch(() => null);
     const projectsPage = pageInfo?.url || `${new URL(seed.url).origin}/projects`;
 
-    let projects = [];
+    let directProjects = [];
     await withTemporaryTab(projectsPage, async tab => {
-      $('status').textContent = 'Scanning ALL ChatGPT project hrefs…';
+      $('status').textContent = 'Scanning direct project routes + full Projects table…';
       const result = await messageTab(tab.id, { type: 'SHINO_DISCOVER_ALL_PROJECTS' });
-      projects = result?.projects || [];
+      directProjects = result?.projects || [];
     });
 
-    if (!projects.length) {
-      projects = await discoverProjectUrlsByClick(projectsPage);
-    }
+    // IMPORTANT: direct hrefs are usually only the pinned/sidebar projects.
+    // Always scan the Projects table too and merge the two sources.
+    const domProjects = await discoverProjectUrlsByClick(projectsPage, directProjects).catch(() => []);
+    let projects = mergeProjects(directProjects, domProjects);
 
     if (!projects.length) {
       const fallback = await messageTab(seed.id, { type: 'SHINO_DISCOVER_PINNED_PROJECTS' }).catch(() => null);
-      projects = fallback?.projects || [];
+      projects = mergeProjects(fallback?.projects || []);
     }
     if (!projects.length) return void ($('status').textContent = 'No project routes recovered. Send me this popup screenshot.');
+
+    $('status').textContent = `Project inventory: ${directProjects.length} direct + ${domProjects.length} DOM recovered = ${projects.length} unique projects`;
 
     const threads = new Map();
     let projectDone = 0;
