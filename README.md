@@ -10,6 +10,28 @@ For each project, CONTROL answers:
 - Where do I click to resume: ChatGPT, a GitHub PR, repo, or live site?
 - Why did CONTROL infer this state?
 
+## v0.3.0
+
+SHINO Sync can now backfill the ChatGPT project structure instead of requiring every conversation to be opened manually.
+
+It supports:
+
+- current ChatGPT conversation sync;
+- all currently open ChatGPT tabs;
+- discovery of pinned ChatGPT projects;
+- project-page conversation discovery and one-by-one backfill;
+- ChatGPT project metadata on each synced thread;
+- stable thread mappings once a project has been learned;
+- uncertain threads routed to **Discovered** instead of guessed;
+- first-class extension tracking.
+
+Current extension projects include:
+
+- **SUNO BRIDGE** — repository-level extension project;
+- **SHINO Sync** — tracked from `extension/shino-sync` inside this repository, including path-specific commits and its extension manifest version.
+
+Current ChatGPT project aliases include SHINOBIWAN STUDIO, Music, LaunchPAD PWA, Riso, Shino Codes, Shino-OS and Aide avec mon ex conjointe. Conversation titles still override a broad project-container match when they strongly identify a more specific project, e.g. `Site de suivi projets` → SHINO // CONTROL inside Shino Codes.
+
 ## Run
 
 Requires Node 20+.
@@ -22,59 +44,36 @@ Open: `http://127.0.0.1:4177`
 
 No npm install is required; the MVP uses only Node built-ins and browser APIs.
 
-## Current seeded source snapshot
-
-The repository ships with a dated imported evidence snapshot for:
-
-- SUNO BRIDGE
-- SHINO-OS
-- STUDIO
-- FRENCH TRANQUILLE
-- RISOTOOLS / SHINOASTEA
-- TOUCH+ REVIVAL
-- SHINOBIWAN LAUNCHPAD
-- SHINOBIWAN Music (marked ChatGPT UNSYNCED until a real thread URL is captured)
-
-Seeded GitHub evidence is not presented as a live connection. Use **Sync GitHub** to refresh it.
-
 ## GitHub sync
 
-Public repositories can be queried without a token, subject to GitHub rate limits. For private repositories such as LaunchPAD, use a fine-grained GitHub token with read access.
+Public repositories can be queried without a token, subject to GitHub rate limits. For private repositories, use a fine-grained GitHub token with read access.
 
-Best option:
-
-```bash
-# PowerShell
+```powershell
 $env:GITHUB_TOKEN="github_pat_..."
 npm start
 ```
 
-Or paste a token into the Sources page for a single sync. The token sent in that request is not written to disk by CONTROL.
-
-The adapter reads recent commits, PRs, the latest workflow run, and truth files when present:
-
-- `PROJECT_STATE.md`
-- `PROJECT-STATE.md`
-- `ROADMAP.md`
-- `README.md`
+The adapter reads recent commits, PRs, workflow state and truth files. Component projects may define a repository path; SHINO Sync, for example, only consumes commits touching `extension/shino-sync` and reads its own `manifest.json` rather than treating every CONTROL commit as extension activity.
 
 ## ChatGPT ingestion
 
-The local endpoint is:
+Local endpoint:
 
 ```text
 POST /api/ingest/chatgpt
 ```
 
-Install the extension in `extension/shino-sync` to capture real ChatGPT thread URLs and current transcript evidence.
+Load the Chrome extension from `extension/shino-sync`.
 
-Chrome extension **v0.1.1** removes an invalid Manifest V3 permission and auto-saves the current toggle/endpoint before a manual sync, so checking **Auto-sync this browser** and clicking **Sync this chat now** works without a separate Save step.
+Useful buttons in **SHINO Sync v0.3.0**:
 
-Unauthenticated ingestion is accepted only from loopback when `SHINO_SYNC_TOKEN` is unset. For remote deployment, set a token:
+- **Sync this chat now**
+- **Sync ALL open ChatGPT tabs**
+- **Backfill ALL pinned ChatGPT projects**
 
-```bash
-SHINO_SYNC_TOKEN="a-long-random-secret" npm start
-```
+Pinned-project backfill discovers project links from the ChatGPT sidebar, opens project pages temporarily, discovers their conversation links and syncs those conversations into CONTROL. A safety cap limits one run to 200 discovered conversations.
+
+Unauthenticated ingestion is accepted only from loopback when `SHINO_SYNC_TOKEN` is unset. For remote deployment, set a token.
 
 ## Derivation rules
 
@@ -89,4 +88,4 @@ The engine combines evidence instead of blindly mirroring the newest PR:
 
 ## Data
 
-The MVP stores its current state in `data/state.json`. It is deliberately simple and auditable. A later deployment can swap this for Postgres/Supabase without changing the project/source/evidence model.
+Current state is stored in `data/state.json`. The model stays deliberately simple and auditable so the storage layer can later be swapped for Postgres/Supabase without changing the project/source/evidence model.
