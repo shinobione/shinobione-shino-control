@@ -1,6 +1,7 @@
 (() => {
   let debounceTimer = null;
   let lastFingerprint = '';
+  let lastLocation = location.href;
 
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -334,7 +335,7 @@
 
     const transcript = reason === 'auto' ? extractTranscript() : await waitForTranscript(18000);
     if (!transcript) {
-      await chrome.storage.local.set({ lastStatus: 'Capture unavailable', lastError: 'No readable ChatGPT message DOM found after waiting for the thread to render.' });
+      if (reason !== 'auto') await chrome.storage.local.set({ lastStatus: 'Capture unavailable', lastError: 'No readable ChatGPT message DOM found after waiting for the thread to render.' });
       return { ok: false, error: 'Capture unavailable' };
     }
 
@@ -358,9 +359,9 @@
     return chrome.runtime.sendMessage({ type: 'SHINO_POST', payload });
   }
 
-  function schedule() {
+  function schedule(delay = 3500) {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => capture('auto'), 3500);
+    debounceTimer = setTimeout(() => capture('auto'), delay);
   }
 
   const observer = new MutationObserver(() => schedule());
@@ -370,6 +371,13 @@
     schedule();
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
+
+  setInterval(() => {
+    if (location.href === lastLocation) return;
+    lastLocation = location.href;
+    lastFingerprint = '';
+    schedule(1200);
+  }, 700);
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg?.type === 'SHINO_CAPTURE_NOW') {
