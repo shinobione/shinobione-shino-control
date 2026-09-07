@@ -2,14 +2,24 @@
   let debounceTimer = null;
   let lastFingerprint = '';
 
+  function hashKey(value) {
+    let h = 2166136261;
+    for (const ch of value) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+    return `url-${(h >>> 0).toString(16)}`;
+  }
+
   function conversationKey(url) {
     try {
       const u = new URL(url);
-      const match = u.pathname.match(/\/c\/([^/?#]+)/);
-      if (match) return match[1];
-      let h = 2166136261;
-      for (const ch of `${u.origin}${u.pathname}`) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
-      return `url-${(h >>> 0).toString(16)}`;
+      const cMatch = u.pathname.match(/\/c\/([^/?#]+)/);
+      if (cMatch) return cMatch[1];
+      for (const key of ['conversationId', 'conversation', 'chatId', 'chat', 'id']) {
+        const v = u.searchParams.get(key);
+        if (v && v.length >= 8) return v;
+      }
+      const uuidish = `${u.pathname}${u.search}`.match(/[0-9a-f]{8}-[0-9a-f-]{20,}/i);
+      if (uuidish) return uuidish[0];
+      return hashKey(`${u.origin}${u.pathname}${u.search}`);
     } catch { return `unknown-${Date.now()}`; }
   }
 
@@ -76,7 +86,7 @@
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg?.type === 'SHINO_CAPTURE_NOW') {
-      capture('manual').then(sendResponse);
+      capture(msg.reason || 'manual').then(sendResponse);
       return true;
     }
   });
