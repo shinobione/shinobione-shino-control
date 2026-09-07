@@ -1,0 +1,25 @@
+name: SHINO CONTROL checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Syntax checks
+        run: |
+          node --check server.mjs
+          node --check lib/resolver.mjs
+          node --check extension/shino-sync/background.js
+          node --check extension/shino-sync/content.js
+          node --check extension/shino-sync/popup.js
+          node --check public/app.js
+      - name: Derived-state regression checks
+        run: npm run check
