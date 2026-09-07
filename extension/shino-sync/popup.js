@@ -37,13 +37,13 @@ function isChatGptUrl(url = '') {
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-async function waitForTab(tabId, timeoutMs = 15000) {
+async function waitForTab(tabId, timeoutMs = 20000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const tab = await chrome.tabs.get(tabId).catch(() => null);
     if (!tab) throw new Error('Tab disappeared');
     if (tab.status === 'complete') {
-      await sleep(850);
+      await sleep(1000);
       return tab;
     }
     await sleep(250);
@@ -56,14 +56,14 @@ async function messageTab(tabId, message) {
     return await chrome.tabs.sendMessage(tabId, message);
   } catch {
     await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
-    await sleep(250);
+    await sleep(350);
     return chrome.tabs.sendMessage(tabId, message);
   }
 }
 
-async function captureTab(tab, reason = 'manual') {
+async function captureTab(tab, reason = 'manual', projectContext = null) {
   if (!tab?.id || !isChatGptUrl(tab.url || '')) throw new Error('Not a ChatGPT tab');
-  return messageTab(tab.id, { type: 'SHINO_CAPTURE_NOW', reason });
+  return messageTab(tab.id, { type: 'SHINO_CAPTURE_NOW', reason, projectContext });
 }
 
 async function activeChatTab() {
@@ -142,10 +142,22 @@ $('projects').onclick = async () => {
     const seed = await activeChatTab();
     if (!seed) return void ($('status').textContent = 'Open ChatGPT first');
 
-    $('status').textContent = 'Discovering pinned projects…';
-    const projectResult = await messageTab(seed.id, { type: 'SHINO_DISCOVER_PINNED_PROJECTS' });
-    const projects = projectResult?.projects || [];
-    if (!projects.length) return void ($('status').textContent = 'No pinned project links found in the current ChatGPT sidebar');
+    $('status').textContent = 'Opening ChatGPT Projects index…';
+    const pageInfo = await messageTab(seed.id, { type: 'SHINO_FIND_PROJECTS_PAGE' }).catch(() => null);
+    const projectsPage = pageInfo?.url || `${new URL(seed.url).origin}/projects`;
+
+    let projects = [];
+    await withTemporaryTab(projectsPage, async tab => {
+      $('status').textContent = 'Scanning ALL ChatGPT projects…';
+      const result = await messageTab(tab.id, { type: 'SHINO_DISCOVER_ALL_PROJECTS' });
+      projects = result?.projects || [];
+    });
+
+    if (!projects.length) {
+      const fallback = await messageTab(seed.id, { type: 'SHINO_DISCOVER_PINNED_PROJECTS' }).catch(() => null);
+      projects = fallback?.projects || [];
+    }
+    if (!projects.length) return void ($('status').textContent = 'No ChatGPT project links found');
 
     const threads = new Map();
     let projectDone = 0;
@@ -153,20 +165,31 @@ $('projects').onclick = async () => {
       try {
         await withTemporaryTab(project.url, async tab => {
           const found = await messageTab(tab.id, { type: 'SHINO_DISCOVER_PROJECT_THREADS' });
-          for (const thread of found?.threads || []) if (!threads.has(thread.key)) threads.set(thread.key, thread);
+          const ctx = {
+            projectKey: project.key || found?.context?.projectKey || null,
+            projectTitle: project.title || found?.context?.projectTitle || null,
+            projectUrl: project.url || found?.context?.projectUrl || null
+          };
+          for (const thread of found?.threads || []) {
+            if (!threads.has(thread.key)) threads.set(thread.key, { ...thread, ...ctx });
+          }
         });
       } catch {}
       projectDone++;
       $('status').textContent = `Projects ${projectDone}/${projects.length} · ${threads.size} conversations discovered`;
     }
 
-    const queue = [...threads.values()].slice(0, 200);
+    const queue = [...threads.values()].slice(0, 400);
     const counts = { mapped: 0, discovered: 0, failed: 0 };
     let done = 0;
     for (const thread of queue) {
       try {
         await withTemporaryTab(thread.url, async tab => {
-          const out = await captureTab(tab, 'pinned-project-backfill');
+          const out = await captureTab(tab, 'all-project-backfill', {
+            projectKey: thread.projectKey,
+            projectTitle: thread.projectTitle,
+            projectUrl: thread.projectUrl
+          });
           if (out?.ok) out.body?.discovered ? counts.discovered++ : counts.mapped++;
           else counts.failed++;
         });
@@ -175,7 +198,7 @@ $('projects').onclick = async () => {
       $('status').textContent = `Backfill ${done}/${queue.length} · mapped ${counts.mapped} · discovered ${counts.discovered} · failed ${counts.failed}`;
     }
 
-    $('status').textContent = `Pinned-project backfill complete\n${projects.length} projects · ${counts.mapped} mapped · ${counts.discovered} discovered · ${counts.failed} failed${threads.size > 200 ? '\n200-conversation safety cap reached' : ''}`;
+    $('status').textContent = `ALL-project backfill complete\n${projects.length} projects · ${counts.mapped} mapped · ${counts.discovered} discovered · ${counts.failed} failed${threads.size > 400 ? '\n400-conversation safety cap reached' : ''}`;
   } catch (e) {
     $('status').textContent = 'Project backfill failed: ' + (e.message || String(e));
   }
