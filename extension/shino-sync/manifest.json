@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SHINO Sync",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "ChatGPT sync component for SHINO // CONTROL. Auto-syncs new threads in known projects and backfills full project history.",
   "permissions": [
     "storage",
@@ -30,7 +30,8 @@
         "https://chat.openai.com/*"
       ],
       "js": [
-        "content.js"
+        "content.js",
+        "inventory.js"
       ],
       "run_at": "document_idle"
     }
