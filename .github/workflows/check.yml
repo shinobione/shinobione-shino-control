@@ -19,7 +19,9 @@ jobs:
           node --check lib/resolver.mjs
           node --check extension/shino-sync/background.js
           node --check extension/shino-sync/content.js
+          node --check extension/shino-sync/inventory.js
           node --check extension/shino-sync/popup.js
+          node --check extension/shino-sync/popup-patch.js
           node --check public/app.js
       - name: Derived-state regression checks
         run: npm run check
