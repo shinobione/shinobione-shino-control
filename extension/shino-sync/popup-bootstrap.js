@@ -3,7 +3,7 @@ messageTab = async function(tabId, message) {
   try {
     return await chrome.tabs.sendMessage(tabId, message);
   } catch {
-    await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js', 'inventory.js', 'thread-inventory.js'] });
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js', 'inventory.js', 'thread-inventory.js', 'rate-limit.js'] });
     await sleep(500);
     return chrome.tabs.sendMessage(tabId, message);
   }
