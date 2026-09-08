@@ -18,16 +18,28 @@ jobs:
           node --check server.mjs
           node --check lib/resolver.mjs
           node --check scripts/repair-state.mjs
+          node --check scripts/generate-brand-assets.mjs
           node --check extension/shino-sync/background.js
           node --check extension/shino-sync/content.js
           node --check extension/shino-sync/inventory.js
           node --check extension/shino-sync/thread-inventory.js
+          node --check extension/shino-sync/rate-limit.js
           node --check extension/shino-sync/popup.js
           node --check extension/shino-sync/popup-bootstrap.js
           node --check extension/shino-sync/popup-patch.js
           node --check extension/shino-sync/popup-thread-patch.js
           node --check extension/shino-sync/popup-strict-thread-scope.js
+          node --check extension/shino-sync/popup-rate-limit.js
           node --check public/state-filter.js
           node --check public/app.js
+      - name: Generate brand assets
+        run: npm run assets
+      - name: Verify generated icons
+        run: |
+          test -s public/favicon-32.png
+          test -s extension/shino-sync/icons/shino-sync-16.png
+          test -s extension/shino-sync/icons/shino-sync-32.png
+          test -s extension/shino-sync/icons/shino-sync-48.png
+          test -s extension/shino-sync/icons/shino-sync-128.png
       - name: Derived-state regression checks
         run: npm run check
