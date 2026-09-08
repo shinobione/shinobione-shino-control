@@ -1,4 +1,4 @@
-// v0.5.2 thread-inventory override. Loaded after popup-patch.js.
+// v0.5.5 thread-inventory override. Loaded after popup-patch.js.
 
 function shinoMergeThreads(...lists) {
   const out = new Map();
@@ -40,6 +40,7 @@ async function shinoRecoverThreadRows(project, rows, directThreads = []) {
 
   const worker = await chrome.tabs.create({ url: project.url, active:false });
   const recovered = new Map();
+  const expectedProjectKey = project.key || projectKeyFromUrl(project.url);
   try {
     await waitForTab(worker.id);
     let attempted = 0;
@@ -50,19 +51,21 @@ async function shinoRecoverThreadRows(project, rows, directThreads = []) {
         await sleep(450);
       }
       const before = (await chrome.tabs.get(worker.id)).url;
-      const clicked = await messageTab(worker.id, { type:'SHINO_V3_CLICK_THREAD', title:row.title }).catch(() => null);
+      const clicked = await messageTab(worker.id, { type:'SHINO_V3_CLICK_THREAD', title:row.title, projectTitle:project.title }).catch(() => null);
       attempted++;
       if (!clicked?.clicked) continue;
 
       const nav = await waitForNavigation(worker.id, before, url => isChatGptUrl(url) && /\/c\//i.test(url), 4800);
       if (!nav?.url) continue;
+      const explicitProjectKey = projectKeyFromUrl(nav.url);
+      if (expectedProjectKey && explicitProjectKey && explicitProjectKey !== expectedProjectKey) continue;
       const key = conversationKeyFromUrl(nav.url);
       if (!recovered.has(key)) {
         recovered.set(key, {
           key,
           title:row.title,
           url:nav.url,
-          projectKey:project.key || projectKeyFromUrl(project.url),
+          projectKey:expectedProjectKey,
           projectTitle:project.title,
           projectUrl:project.url
         });
@@ -72,6 +75,72 @@ async function shinoRecoverThreadRows(project, rows, directThreads = []) {
   } finally {
     await chrome.tabs.remove(worker.id).catch(() => {});
   }
+}
+
+async function shinoSetRetryState(failedThreads = null) {
+  const retry = $('retry');
+  if (!retry) return;
+  let list = failedThreads;
+  if (!list) {
+    const stored = await chrome.storage.local.get({ lastFailedBackfill:[] });
+    list = stored.lastFailedBackfill || [];
+  }
+  retry.disabled = !list.length;
+  retry.textContent = list.length ? `Retry ${list.length} failed only` : 'Retry failed only';
+}
+
+async function shinoIngestQueue(queue, label = 'Backfill') {
+  const counts = { mapped:0, discovered:0, failed:0 };
+  const failedThreads = [];
+  let done = 0;
+
+  for (const thread of queue) {
+    let failure = null;
+    try {
+      await withTemporaryTab(thread.url, async tab => {
+        const out = await captureTab(tab, label === 'Retry' ? 'retry-failed-backfill' : 'all-project-backfill', {
+          projectKey:thread.projectKey,
+          projectTitle:thread.projectTitle,
+          projectUrl:thread.projectUrl
+        });
+        if (out?.ok) out.body?.discovered ? counts.discovered++ : counts.mapped++;
+        else failure = out?.error || 'capture failed';
+      });
+    } catch (e) {
+      failure = e?.message || String(e);
+    }
+    if (failure) {
+      counts.failed++;
+      failedThreads.push({ ...thread, lastError:failure });
+    }
+    done++;
+    $('status').textContent = `${label} ${done}/${queue.length} · mapped ${counts.mapped} · discovered ${counts.discovered} · failed ${counts.failed}`;
+  }
+
+  await chrome.storage.local.set({ lastFailedBackfill:failedThreads });
+  await shinoSetRetryState(failedThreads);
+  return { counts, failedThreads };
+}
+
+const retryButton = $('retry');
+if (retryButton) {
+  retryButton.onclick = async () => {
+    try {
+      const cfg = await readUiAndSave();
+      if (!cfg.enabled) return void ($('status').textContent = 'Turn on Auto-sync this browser first');
+      const stored = await chrome.storage.local.get({ lastFailedBackfill:[] });
+      const queue = stored.lastFailedBackfill || [];
+      if (!queue.length) return void ($('status').textContent = 'No failed conversations to retry');
+      $('status').textContent = `Retrying ${queue.length} failed conversations only…`;
+      const { counts, failedThreads } = await shinoIngestQueue(queue, 'Retry');
+      const final = `FAILED-ONLY RETRY COMPLETE\n${queue.length} attempted · ${counts.mapped} mapped · ${counts.discovered} discovered · ${counts.failed} still failed${failedThreads.length ? `\n${failedThreads.slice(0,6).map(t => t.title || t.url).join(' · ')}` : ''}`;
+      $('status').textContent = final;
+      await chrome.storage.local.set({ lastStatus:final, lastError:'' });
+    } catch (e) {
+      $('status').textContent = 'Retry failed: ' + (e.message || String(e));
+    }
+  };
+  shinoSetRetryState().catch(() => {});
 }
 
 $('projects').onclick = async () => {
@@ -113,43 +182,26 @@ $('projects').onclick = async () => {
       try { inv = await shinoThreadInventoryForProject(project); } catch {}
 
       let recovered = [];
-      // Important: merge thread sources instead of using fallbacks only when direct=0.
-      // This fixes projects where ChatGPT exposes just one href but renders many clickable rows.
       if (inv.rows.length) recovered = await shinoRecoverThreadRows(project, inv.rows, inv.direct).catch(() => []);
 
       const merged = shinoMergeThreads(inv.direct, recovered);
       for (const thread of merged) if (!threads.has(thread.key)) threads.set(thread.key, thread);
       perProject.push({ title:project.title, direct:inv.direct.length, rows:inv.rows.length, recovered:recovered.length, total:merged.length });
       projectDone++;
-      $('status').textContent = `THREAD INVENTORY ${projectDone}/${projects.length}\n${project.title}: ${merged.length} threads (${inv.direct.length} href + ${recovered.length} row recovered; ${inv.rows.length} row candidates)\nTOTAL: ${threads.size}`;
+      $('status').textContent = `THREAD INVENTORY ${projectDone}/${projects.length}\n${project.title}: ${merged.length} threads (${inv.direct.length} href + ${recovered.length} row recovered; ${inv.rows.length} row candidates)\nTOTAL UNIQUE: ${threads.size}`;
     }
 
     const queue = [...threads.values()].slice(0, 400);
     const report = perProject.map(x => `${x.title}: ${x.total}`).join(' · ');
     if (!queue.length) return void ($('status').textContent = `PROJECTS OK (${projects.length}) but 0 conversations recovered.\n${report}`);
 
-    $('status').textContent = `THREAD INVENTORY COMPLETE: ${queue.length} conversations\n${report}\nStarting ingestion…`;
+    $('status').textContent = `THREAD INVENTORY COMPLETE: ${queue.length} unique conversations\n${report}\nStarting ingestion…`;
     await sleep(900);
 
-    const counts = { mapped:0, discovered:0, failed:0 };
-    let done = 0;
-    for (const thread of queue) {
-      try {
-        await withTemporaryTab(thread.url, async tab => {
-          const out = await captureTab(tab, 'all-project-backfill', {
-            projectKey:thread.projectKey,
-            projectTitle:thread.projectTitle,
-            projectUrl:thread.projectUrl
-          });
-          if (out?.ok) out.body?.discovered ? counts.discovered++ : counts.mapped++;
-          else counts.failed++;
-        });
-      } catch { counts.failed++; }
-      done++;
-      $('status').textContent = `Backfill ${done}/${queue.length} · mapped ${counts.mapped} · discovered ${counts.discovered} · failed ${counts.failed}`;
-    }
-
-    $('status').textContent = `ALL-project backfill complete\n${projects.length} projects · ${queue.length} conversations\n${counts.mapped} mapped · ${counts.discovered} discovered · ${counts.failed} failed\n${report}${threads.size > 400 ? '\n400-conversation safety cap reached' : ''}`;
+    const { counts, failedThreads } = await shinoIngestQueue(queue, 'Backfill');
+    const final = `ALL-project backfill complete\n${projects.length} projects · ${queue.length} unique conversations\n${counts.mapped} mapped · ${counts.discovered} discovered · ${counts.failed} failed\n${report}${threads.size > 400 ? '\n400-conversation safety cap reached' : ''}${failedThreads.length ? `\nRetry button armed for ${failedThreads.length} failures` : ''}`;
+    $('status').textContent = final;
+    await chrome.storage.local.set({ lastStatus:final, lastError:'', lastBackfillProjectReport:perProject });
   } catch (e) {
     $('status').textContent = 'Project backfill failed: ' + (e.message || String(e));
   }
