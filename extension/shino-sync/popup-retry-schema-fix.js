@@ -1,9 +1,8 @@
-// v0.6.1 — retry queue provenance guard.
+// v0.6.3 — retry queue provenance guard for the active-tab engine.
 // Failed-only retry is NOT the same thing as CONTROL's UNSYNCED state.
-// This invalidates stale failed queues created by pre-main-anchor backfills and
-// stamps new queues so Retry only replays failures from the current inventory strategy.
+// Old hidden/background-worker retry queues are invalidated on upgrade.
 
-const SHINO_RETRY_SCHEMA = 'main-anchor-v1';
+const SHINO_RETRY_SCHEMA = 'active-tab-v1';
 
 function shinoRetryProjectSummary(list = []) {
   const names = [...new Set((list || []).map(item => item?.projectTitle).filter(Boolean))];
@@ -25,18 +24,16 @@ async function shinoRefreshRetryButton() {
     retry.disabled = true;
     retry.textContent = 'Retry failed only';
     retry.title = valid
-      ? 'No failed conversations from the latest main-anchor backfill.'
-      : 'Old retry queue invalidated; run a fresh main-anchor backfill first.';
+      ? 'No failed conversations from the latest active-tab ingestion.'
+      : 'Old retry queue invalidated; use the active-tab inventory/ingestion flow first.';
     return;
   }
   const summary = shinoRetryProjectSummary(list);
   retry.disabled = false;
   retry.textContent = `Retry ${list.length} failed only${summary ? ` · ${summary}` : ''}`;
-  retry.title = 'Retries only conversations that actually failed during the latest compatible backfill. This does not target CONTROL projects merely marked UNSYNCED.';
+  retry.title = 'Retries only conversations that failed during the latest compatible active-tab ingestion. CONTROL UNSYNCED state is separate.';
 }
 
-// Invalidate any pre-v0.6.1 queue once. Extension storage survives version upgrades,
-// which is why an old NaughtyShare failure could still appear after LRC Maker was UNSYNCED.
 (async () => {
   const stored = await chrome.storage.local.get({
     lastFailedBackfill:[],
@@ -49,17 +46,17 @@ async function shinoRefreshRetryButton() {
       staleRetryQueueClearedAt:Date.now()
     });
   } else if (!stored.lastFailedBackfillSchema) {
-    await chrome.storage.local.set({ lastFailedBackfillSchema:SHINO_RETRY_SCHEMA });
+    await chrome.storage.local.set({lastFailedBackfillSchema:SHINO_RETRY_SCHEMA});
   }
   await shinoRefreshRetryButton();
 })().catch(() => {});
 
-// Stamp all future failed queues created by the current main-anchor ingestion path.
+// Keep legacy ingestion helpers schema-compatible if one is used manually.
 if (typeof shinoIngestQueue === 'function') {
   const shinoIngestQueueBeforeRetrySchema = shinoIngestQueue;
   shinoIngestQueue = async function(...args) {
     const result = await shinoIngestQueueBeforeRetrySchema(...args);
-    await chrome.storage.local.set({ lastFailedBackfillSchema:SHINO_RETRY_SCHEMA });
+    await chrome.storage.local.set({lastFailedBackfillSchema:SHINO_RETRY_SCHEMA});
     await shinoRefreshRetryButton();
     return result;
   };
