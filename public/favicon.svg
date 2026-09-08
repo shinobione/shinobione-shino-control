@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SHINO CONTROL">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#121925"/>
+      <stop offset="1" stop-color="#080d14"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4cf71"/>
+      <stop offset="1" stop-color="#c89432"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="url(#bg)" stroke="#2a3950" stroke-width="2"/>
+  <path d="M19 44 L30 18 H37 L26 44 Z" fill="url(#gold)"/>
+  <path d="M31 44 L42 18 H49 L38 44 Z" fill="url(#gold)"/>
+  <circle cx="49" cy="15" r="4" fill="#65dcff"/>
+  <path d="M14 49 H46" stroke="#65dcff" stroke-width="2.4" stroke-linecap="round" opacity=".75"/>
+</svg>
