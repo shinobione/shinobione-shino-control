@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="SHINO Sync">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#152136"/>
+      <stop offset="1" stop-color="#090e17"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4cf71"/>
+      <stop offset="1" stop-color="#c89432"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8be8ff"/>
+      <stop offset="1" stop-color="#35aee8"/>
+    </linearGradient>
+  </defs>
+  <rect x="5" y="5" width="118" height="118" rx="30" fill="url(#bg)" stroke="#314966" stroke-width="4"/>
+  <path d="M23 62 A42 42 0 0 1 91 31" fill="none" stroke="url(#cyan)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M87 22 L103 29 L92 43 Z" fill="#65dcff"/>
+  <path d="M105 66 A42 42 0 0 1 37 97" fill="none" stroke="url(#cyan)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M41 106 L25 99 L36 85 Z" fill="#65dcff"/>
+  <path d="M43 88 L59 40 H70 L54 88 Z" fill="url(#gold)"/>
+  <path d="M62 88 L78 40 H89 L73 88 Z" fill="url(#gold)"/>
+</svg>
