@@ -17,6 +17,7 @@ jobs:
         run: |
           node --check server.mjs
           node --check lib/resolver.mjs
+          node --check scripts/repair-state.mjs
           node --check extension/shino-sync/background.js
           node --check extension/shino-sync/content.js
           node --check extension/shino-sync/inventory.js
