@@ -6,6 +6,19 @@ async function settings() {
   });
 }
 
+function stableProjectId(value = '') {
+  try {
+    const path = /^https?:/i.test(String(value)) ? new URL(value).pathname : String(value);
+    return path.match(/\/g\/(g-p-[0-9a-f]{32})(?:-[^/?#]+)?(?:\/|$)/i)?.[1] ||
+      String(value).match(/^(g-p-[0-9a-f]{32})(?:-.+)?$/i)?.[1] || null;
+  } catch { return null; }
+}
+
+function canonicalPayload(payload = {}) {
+  const stable = stableProjectId(payload.projectUrl) || stableProjectId(payload.url) || stableProjectId(payload.projectKey);
+  return stable ? { ...payload, projectKey: stable } : payload;
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type !== 'SHINO_POST') return;
   (async () => {
@@ -23,7 +36,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           'Content-Type': 'application/json',
           ...(cfg.token ? { Authorization: `Bearer ${cfg.token}` } : {})
         },
-        body: JSON.stringify(msg.payload)
+        body: JSON.stringify(canonicalPayload(msg.payload))
       });
       const body = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
