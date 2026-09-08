@@ -1,7 +1,8 @@
-// v0.6.4 — recover project routes from the visible Projects table.
+// v0.6.5 — recover project routes from the visible Projects table at human speed.
 // ChatGPT's /projects page may render project rows as client-side clickable rows with no href.
-// v0.6.3 only trusted direct anchors, so it could report zero routes even when the rows were visible.
-// This patch is loaded last and replaces only the Inventory button handler.
+// v0.6.4 recovered those rows correctly, but navigated far too quickly and could trigger
+// ChatGPT's transient "Try again" render failure. v0.6.5 deliberately slows route recovery
+// and per-project inventory, gives each visible render time to settle, and keeps ingestion separate.
 (() => {
   const statusEl = document.getElementById('status');
   const inventoryButton = document.getElementById('projects');
@@ -10,6 +11,7 @@
 
   const INVENTORY_SCHEMA = 'active-tab-inventory-v1';
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const jitter = (min, max) => Math.round(min + Math.random() * Math.max(0, max - min));
 
   function stableProjectId(url = '') {
     if (typeof shinoStableProjectId === 'function') return shinoStableProjectId(url);
@@ -61,19 +63,29 @@
   async function navigateVisible(tabId, url, expectedProjectKey = null) {
     await chrome.tabs.update(tabId, { url, active:true });
     await waitForTab(tabId, 22000);
-    await wait(650);
+    // Important: do not interrogate ChatGPT immediately after browser load completes.
+    await wait(jitter(1800, 2600));
 
     let reloaded = false;
     for (let i=0; i<18; i++) {
       const h = await health(tabId);
-      if (!h) { await wait(350); continue; }
+      if (!h) { await wait(500); continue; }
       if (h.rateLimited) throw new Error('RATE_LIMITED');
       if (h.tryAgain) {
+        // A fast succession of client-side navigations can transiently produce Try again.
+        // Give the active page a grace period before spending our one reload.
+        statusEl.textContent = 'ChatGPT displayed Try again. Cooling down 4s before one clean reload…';
+        await wait(4000);
+        const afterGrace = await health(tabId);
+        if (afterGrace && !afterGrace.tryAgain && afterGrace.hasMain && afterGrace.mainChars >= 20) {
+          const current = await chrome.tabs.get(tabId);
+          const currentKey = stableProjectId(current.url || '');
+          if (!expectedProjectKey || currentKey === expectedProjectKey) return current;
+        }
         if (reloaded) throw new Error(`RENDER_FAILED_TRY_AGAIN: ${h.tryAgain}`);
-        statusEl.textContent = 'ChatGPT displayed Try again. One clean reload…';
         await chrome.tabs.reload(tabId);
         await waitForTab(tabId, 22000);
-        await wait(650);
+        await wait(jitter(2200, 3200));
         reloaded = true;
         continue;
       }
@@ -81,7 +93,7 @@
       const current = await chrome.tabs.get(tabId);
       const currentKey = stableProjectId(current.url || '');
       if (h.hasMain && h.mainChars >= 20 && (!expectedProjectKey || currentKey === expectedProjectKey)) return current;
-      await wait(400);
+      await wait(500);
     }
     throw new Error('RENDER_NOT_READY');
   }
@@ -150,7 +162,7 @@
 
     try {
       if (isDoc) window.scrollTo(0,0); else scrollRoot.scrollTop = 0;
-      await sleepLocal(180);
+      await sleepLocal(300);
       for (let pass=0; pass<50; pass++) {
         const found = find();
         if (found) return realClick(found);
@@ -160,11 +172,10 @@
         if (pos + view >= max - 8) break;
         const next = Math.min(max, pos + Math.max(260, view * 0.75));
         if (isDoc) window.scrollTo(0,next); else scrollRoot.scrollTop = next;
-        await sleepLocal(220);
+        await sleepLocal(300);
       }
       return {clicked:false,error:`Project title not found: ${title}`};
     } finally {
-      // If navigation does not happen the caller will revisit /projects anyway.
       if (document.visibilityState === 'visible') {
         if (isDoc) window.scrollTo(0,original); else scrollRoot.scrollTop = original;
       }
@@ -173,6 +184,7 @@
 
   async function recoverProjectRoutes(tab, projectsPage) {
     await navigateVisible(tab.id, projectsPage);
+    await wait(jitter(1200, 1800));
 
     const directResult = await messageTab(tab.id, {type:'SHINO_DISCOVER_ALL_PROJECTS'}).catch(() => null);
     let direct = mergeProjects(directResult?.projects || []);
@@ -185,7 +197,7 @@
     }
     labels = [...new Map(labels.map(title => [String(title).trim().toLowerCase(), String(title).trim()])).values()];
 
-    statusEl.textContent = `PROJECT ROUTE RECOVERY\n${direct.length} direct hrefs · ${labels.length} visible project rows\nRecovering row routes visibly…`;
+    statusEl.textContent = `PROJECT ROUTE RECOVERY\n${direct.length} direct hrefs · ${labels.length} visible project rows\nRecovering row routes at human speed…`;
 
     const byTitle = new Map(direct.map(p => [String(p.title || '').trim().toLowerCase(), p]));
     const recovered = [];
@@ -194,7 +206,14 @@
       const title = labels[i];
       if (byTitle.has(title.toLowerCase())) continue;
 
+      if (i > 0) {
+        const cool = jitter(2800, 4200);
+        statusEl.textContent = `PROJECT ROUTE RECOVERY ${i+1}/${labels.length}\n${title}\nPacing ${(cool/1000).toFixed(1)}s before next visible navigation…`;
+        await wait(cool);
+      }
+
       await navigateVisible(tab.id, projectsPage);
+      await wait(jitter(900, 1500));
       statusEl.textContent = `PROJECT ROUTE RECOVERY ${i+1}/${labels.length}\n${title}\nClicking the visible Projects row…`;
       const before = (await chrome.tabs.get(tab.id)).url;
       const injected = await chrome.scripting.executeScript({target:{tabId:tab.id},func:clickProjectTitleInPage,args:[title]}).catch(() => null);
@@ -203,7 +222,7 @@
 
       const nav = await waitForNavigation(tab.id, before, url => {
         return isChatGptUrl(url) && /\/g\/g-p-/i.test(url) && !/\/c\//i.test(url);
-      }, 8000);
+      }, 10000);
       if (!nav?.url) continue;
 
       const key = stableProjectId(nav.url);
@@ -211,7 +230,9 @@
       const item = {key,title,url:projectHomeUrl(nav.url)};
       recovered.push(item);
       byTitle.set(title.toLowerCase(), item);
-      await wait(250);
+
+      // Let the clicked project finish its own client-side hydration before returning to /projects.
+      await wait(jitter(2200, 3400));
     }
 
     const projects = mergeProjects(direct, recovered);
@@ -258,8 +279,14 @@
         const project = projects[i];
         const home = projectHomeUrl(project.url);
         const expectedKey = stableProjectId(home) || project.key || null;
+        if (i > 0) {
+          const cool = jitter(2600, 4200);
+          statusEl.textContent = `ACTIVE-TAB INVENTORY ${i+1}/${projects.length}\n${project.title}\nPacing ${(cool/1000).toFixed(1)}s before next project…`;
+          await wait(cool);
+        }
         statusEl.textContent = `ACTIVE-TAB INVENTORY ${i+1}/${projects.length}\n${project.title}\nNavigating visible ChatGPT tab…`;
         await navigateVisible(tab.id, home, expectedKey);
+        await wait(jitter(1200, 1900));
         const injected = await chrome.scripting.executeScript({target:{tabId:tab.id},func:shinoMainProjectAnchorsInPage,args:[project.title]}).catch(() => null);
         const result = injected?.[0]?.result || {direct:[],diag:{reason:'no-result'}};
         const ctx = {projectKey:expectedKey || result.projectKey,projectTitle:project.title,projectUrl:home};
