@@ -26,6 +26,7 @@ jobs:
           node --check extension/shino-sync/popup-bootstrap.js
           node --check extension/shino-sync/popup-patch.js
           node --check extension/shino-sync/popup-thread-patch.js
+          node --check public/state-filter.js
           node --check public/app.js
       - name: Derived-state regression checks
         run: npm run check
