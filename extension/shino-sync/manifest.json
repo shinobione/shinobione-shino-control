@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SHINO Sync",
-  "version": "0.5.8",
-  "description": "ChatGPT sync component for SHINO // CONTROL. Central project thread scope, collision safety, rate-limit-safe pacing, failed-only retry, and branded icons.",
+  "version": "0.5.9",
+  "description": "ChatGPT sync component for SHINO // CONTROL. Diagnostic single-project DOM probe, rate-limit-safe sync, collision guards, failed-only retry, and branded icons.",
   "permissions": [
     "storage",
     "tabs",
