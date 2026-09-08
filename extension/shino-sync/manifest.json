@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SHINO Sync",
-  "version": "0.5.5",
-  "description": "ChatGPT sync component for SHINO // CONTROL. Auto-syncs new threads in known projects, backfills full project/thread history, excludes sidebar contamination, and retries failed captures only.",
+  "version": "0.5.6",
+  "description": "ChatGPT sync component for SHINO // CONTROL. Auto-syncs new threads in known projects, uses strict per-project thread scope with cross-project collision safety, and retries failed captures only.",
   "permissions": [
     "storage",
     "tabs",
