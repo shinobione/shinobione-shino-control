@@ -43,24 +43,69 @@
     }
     return null;
   }
-  function scrollRoot() {
-    const main = document.querySelector('main') || document.body;
+
+  function exactHeading(projectTitle = '') {
+    const wanted = norm(projectTitle);
+    if (!wanted) return null;
+    return [...document.querySelectorAll('h1,h2,h3,[role="heading"]')]
+      .find(el => visible(el) && norm(textOf(el)) === wanted) || null;
+  }
+
+  function contentRoot(projectTitle = '') {
+    const main = document.querySelector('main');
+    if (main && visible(main)) return main;
+    const roleMain = document.querySelector('[role="main"]');
+    if (roleMain && visible(roleMain)) return roleMain;
+
+    const heading = exactHeading(projectTitle);
+    if (heading) {
+      let cur = heading.parentElement;
+      let best = null;
+      for (let i = 0; cur && i < 7; i++, cur = cur.parentElement) {
+        if (!visible(cur)) continue;
+        const r = cur.getBoundingClientRect();
+        if (r.width >= Math.min(700, Math.max(420, innerWidth * 0.38)) && r.height >= 220) best = cur;
+      }
+      if (best && best !== document.body && best !== document.documentElement) return best;
+    }
+    return document.body;
+  }
+
+  function sidebarLike(el, root) {
+    if (!el || !(el instanceof Element)) return true;
+    const semantic = el.closest('aside,nav,[role="navigation"],[data-testid*="sidebar" i],[class*="sidebar" i],[id*="sidebar" i]');
+    if (semantic && semantic !== root) return true;
+    if (root === document.body && innerWidth >= 900) {
+      const r = el.getBoundingClientRect();
+      const railEdge = Math.min(430, innerWidth * 0.24);
+      if (r.right <= railEdge) return true;
+    }
+    return false;
+  }
+
+  function scopedNodes(root, selector) {
+    return [...root.querySelectorAll(selector)].filter(el => visible(el) && !sidebarLike(el, root));
+  }
+
+  function scrollRoot(projectTitle = '') {
+    const root = contentRoot(projectTitle);
     let winner = null;
     let delta = 0;
-    for (const el of [main, ...main.querySelectorAll('div,section')]) {
-      if (!visible(el)) continue;
+    const candidates = [root, ...root.querySelectorAll('div,section')];
+    for (const el of candidates) {
+      if (!visible(el) || sidebarLike(el, root)) continue;
       const d = (el.scrollHeight || 0) - (el.clientHeight || 0);
       if (d <= delta + 40) continue;
       const oy = getComputedStyle(el).overflowY;
-      if (el === main || oy === 'auto' || oy === 'scroll') { winner = el; delta = d; }
+      if (el === root || oy === 'auto' || oy === 'scroll') { winner = el; delta = d; }
     }
-    return winner || document.scrollingElement || document.documentElement;
+    return { root, scroll: winner || document.scrollingElement || document.documentElement };
   }
 
-  function directThreadsNow(projectKey) {
+  function directThreadsNow(projectKey, projectTitle = '') {
     const out = new Map();
-    const main = document.querySelector('main') || document.body;
-    for (const a of main.querySelectorAll('a[href]')) {
+    const root = contentRoot(projectTitle);
+    for (const a of scopedNodes(root, 'a[href]')) {
       const raw = a.href || a.getAttribute('href') || '';
       if (!raw || !/\/c\//i.test(raw)) continue;
       let absolute;
@@ -76,13 +121,12 @@
   }
 
   function threadRowsNow(projectTitle = '') {
-    const main = document.querySelector('main') || document.body;
+    const root = contentRoot(projectTitle);
     const exclude = new Set([norm(projectTitle), 'files', 'instructions', 'project instructions', 'add files', 'new chat']);
     const best = new Map();
-    const nodes = main.querySelectorAll('a,button,[role="link"],[role="button"],[tabindex],div,span,p');
+    const nodes = scopedNodes(root, 'a,button,[role="link"],[role="button"],[tabindex],div,span,p');
 
     for (const el of nodes) {
-      if (!visible(el)) continue;
       const title = textOf(el);
       const key = norm(title);
       if (!key || exclude.has(key) || isUi(title) || title.length > 180) continue;
@@ -91,7 +135,7 @@
       const r = el.getBoundingClientRect();
       if (r.height > 96 || r.width < 70) continue;
       const click = clickableAncestor(el, 4);
-      if (!click) continue;
+      if (!click || sidebarLike(click, root)) continue;
       const clickText = textOf(click);
       if (clickText.length > 220) continue;
       const descendants = el.querySelectorAll('*').length;
@@ -107,7 +151,8 @@
     const projectKey = projectKeyFromUrl();
     const direct = new Map();
     const rows = new Map();
-    const root = scrollRoot();
+    const scoped = scrollRoot(projectTitle);
+    const root = scoped.scroll;
     const isDoc = root === document.scrollingElement || root === document.documentElement || root === document.body;
     const original = isDoc ? window.scrollY : root.scrollTop;
     try {
@@ -116,7 +161,7 @@
       let stable = 0;
       let lastFingerprint = '';
       for (let i = 0; i < 55; i++) {
-        for (const t of directThreadsNow(projectKey)) direct.set(t.key, t);
+        for (const t of directThreadsNow(projectKey, projectTitle)) direct.set(t.key, t);
         for (const row of threadRowsNow(projectTitle)) rows.set(norm(row.title), row);
         const max = isDoc ? Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0) : root.scrollHeight;
         const pos = isDoc ? window.scrollY : root.scrollTop;
@@ -129,7 +174,7 @@
         if (isDoc) window.scrollTo(0, next); else root.scrollTop = next;
         await sleep(300);
       }
-      for (const t of directThreadsNow(projectKey)) direct.set(t.key, t);
+      for (const t of directThreadsNow(projectKey, projectTitle)) direct.set(t.key, t);
       for (const row of threadRowsNow(projectTitle)) rows.set(norm(row.title), row);
     } finally {
       if (isDoc) window.scrollTo(0, original); else root.scrollTop = original;
@@ -152,11 +197,11 @@
     return target;
   }
 
-  function clickThreadRow(title) {
+  function clickThreadRow(title, projectTitle = '') {
     const targetNorm = norm(title);
-    const main = document.querySelector('main') || document.body;
-    const matches = [...main.querySelectorAll('a,button,[role="link"],[role="button"],[tabindex],div,span,p')]
-      .filter(el => visible(el) && norm(textOf(el)) === targetNorm && clickableAncestor(el, 4))
+    const root = contentRoot(projectTitle);
+    const matches = scopedNodes(root, 'a,button,[role="link"],[role="button"],[tabindex],div,span,p')
+      .filter(el => norm(textOf(el)) === targetNorm && clickableAncestor(el, 4))
       .sort((a,b) => {
         const ad = a.querySelectorAll('*').length, bd = b.querySelectorAll('*').length;
         if (ad !== bd) return ad - bd;
@@ -173,7 +218,7 @@
       return true;
     }
     if (msg?.type === 'SHINO_V3_CLICK_THREAD') {
-      sendResponse(clickThreadRow(msg.title || ''));
+      sendResponse(clickThreadRow(msg.title || '', msg.projectTitle || ''));
       return;
     }
   });
