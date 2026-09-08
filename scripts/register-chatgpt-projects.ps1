@@ -11,7 +11,9 @@ $catalog = @(
     [pscustomobject]@{ id='matos-informatique'; name='Matos informatique'; universe='HARDWARE / IT'; kind='CHATGPT_PROJECT'; repo=$null; description='Hardware, PC and IT workstream.' },
     [pscustomobject]@{ id='analyse-ia-musique'; name='Analyse IA de musique'; universe='MUSIC / AI'; kind='CHATGPT_PROJECT'; repo=$null; description='AI music analysis and model benchmarking workstream.' },
     [pscustomobject]@{ id='track-to-market-engine'; name='Track-to-Market ENGINE'; universe='MUSIC / DEV'; kind='CHATGPT_PROJECT'; repo=$null; description='Track-to-market automation and release workflow.' },
-    [pscustomobject]@{ id='lrc-maker'; name='LRC Maker'; universe='MUSIC / DEV'; kind='CHATGPT_PROJECT'; repo=$null; description='Lyrics timing, LRC generation and Musixmatch injection tooling.' }
+    [pscustomobject]@{ id='lrc-maker'; name='LRC Maker'; universe='MUSIC / DEV'; kind='CHATGPT_PROJECT'; repo=$null; description='Lyrics timing, LRC generation and Musixmatch injection tooling.' },
+    [pscustomobject]@{ id='web-app'; name='web app'; universe='DEV / WEB'; kind='CHATGPT_PROJECT'; repo=$null; description='Web application development workspace discovered from ChatGPT Projects.' },
+    [pscustomobject]@{ id='canva-spotify-gem'; name='canva spotify Gem'; universe='MUSIC / VISUAL'; kind='CHATGPT_PROJECT'; repo=$null; description='Spotify Canva/Gem visual workflow workspace discovered from ChatGPT Projects.' }
 )
 
 $added = @()
