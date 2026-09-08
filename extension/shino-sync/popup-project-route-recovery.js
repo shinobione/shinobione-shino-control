@@ -1,8 +1,8 @@
-// v0.6.5 — recover project routes from the visible Projects table at human speed.
-// ChatGPT's /projects page may render project rows as client-side clickable rows with no href.
-// v0.6.4 recovered those rows correctly, but navigated far too quickly and could trigger
-// ChatGPT's transient "Try again" render failure. v0.6.5 deliberately slows route recovery
-// and per-project inventory, gives each visible render time to settle, and keeps ingestion separate.
+// v0.6.6 — single-pass, resumable active-tab project inventory.
+// Key change: when a project row is opened to recover its route, scan that project immediately.
+// Do NOT open every project once for route recovery and then open all of them a second time.
+// Progress and recovered routes are persisted after every project, so a ChatGPT Try again page
+// pauses safely and the next click resumes from the first unfinished project instead of restarting.
 (() => {
   const statusEl = document.getElementById('status');
   const inventoryButton = document.getElementById('projects');
@@ -10,8 +10,13 @@
   if (!inventoryButton || !statusEl) return;
 
   const INVENTORY_SCHEMA = 'active-tab-inventory-v1';
+  const DRAFT_SCHEMA = 'single-pass-inventory-v1';
+  const ROUTE_CACHE_SCHEMA = 'project-route-cache-v1';
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
   const jitter = (min, max) => Math.round(min + Math.random() * Math.max(0, max - min));
+
+  const clean = value => String(value || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+  const norm = value => clean(value).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
 
   function stableProjectId(url = '') {
     if (typeof shinoStableProjectId === 'function') return shinoStableProjectId(url);
@@ -33,23 +38,36 @@
     } catch { return raw; }
   }
 
+  function conversationKey(url = '') {
+    if (typeof conversationKeyFromUrl === 'function') return conversationKeyFromUrl(url);
+    try { return new URL(url, 'https://chatgpt.com').pathname.match(/\/c\/([^/?#]+)/i)?.[1] || url; }
+    catch { return url; }
+  }
+
   async function activeVisibleChatTab() {
     const [tab] = await chrome.tabs.query({ active:true, currentWindow:true });
     return tab?.id && isChatGptUrl(tab.url || '') ? tab : null;
   }
 
   function pageHealthInPage() {
-    const clean = v => String(v || '').replace(/\s+/g, ' ').trim();
+    const tidy = value => String(value || '').replace(/\s+/g, ' ').trim();
     const main = document.querySelector('main') || document.querySelector('[role="main"]');
-    const body = clean(document.body?.innerText || '');
+    const body = tidy(document.body?.innerText || document.body?.textContent || '');
     const controls = [...document.querySelectorAll('button,[role="button"]')]
-      .map(el => clean(el.innerText || el.textContent || el.getAttribute('aria-label') || ''))
+      .map(el => tidy(el.innerText || el.textContent || el.getAttribute('aria-label') || ''))
       .filter(Boolean);
-    const tryAgain = controls.find(t => /^(try again|retry|réessayer|reessayer)$/i.test(t)) || null;
+    const tryAgain = controls.find(text => /^(try again|retry|réessayer|reessayer)$/i.test(text)) || null;
+    const projectKey = (() => {
+      try { return location.pathname.match(/\/g\/(g-p-[0-9a-f]{32})(?:-[^/?#]+)?(?:\/|$)/i)?.[1] || null; }
+      catch { return null; }
+    })();
     return {
+      url:location.href,
       visibility:document.visibilityState,
       hasMain:!!main,
-      mainChars:clean(main?.innerText || '').length,
+      mainChars:tidy(main?.innerText || main?.textContent || '').length,
+      mainAnchors:main ? main.querySelectorAll('a[href*="/c/"]').length : 0,
+      projectKey,
       tryAgain,
       rateLimited:/too many requests|requests too quickly|temporarily limited access|please wait a few minutes/i.test(body)
     };
@@ -60,183 +78,171 @@
     return out?.[0]?.result || null;
   }
 
-  async function navigateVisible(tabId, url, expectedProjectKey = null) {
-    await chrome.tabs.update(tabId, { url, active:true });
-    await waitForTab(tabId, 22000);
-    // Important: do not interrogate ChatGPT immediately after browser load completes.
-    await wait(jitter(1800, 2600));
-
+  async function ensureRendered(tabId, expectedProjectKey = null, allowOneReload = true) {
     let reloaded = false;
-    for (let i=0; i<18; i++) {
+    for (let i = 0; i < 22; i++) {
       const h = await health(tabId);
       if (!h) { await wait(500); continue; }
       if (h.rateLimited) throw new Error('RATE_LIMITED');
       if (h.tryAgain) {
-        // A fast succession of client-side navigations can transiently produce Try again.
-        // Give the active page a grace period before spending our one reload.
-        statusEl.textContent = 'ChatGPT displayed Try again. Cooling down 4s before one clean reload…';
-        await wait(4000);
-        const afterGrace = await health(tabId);
-        if (afterGrace && !afterGrace.tryAgain && afterGrace.hasMain && afterGrace.mainChars >= 20) {
-          const current = await chrome.tabs.get(tabId);
-          const currentKey = stableProjectId(current.url || '');
-          if (!expectedProjectKey || currentKey === expectedProjectKey) return current;
-        }
-        if (reloaded) throw new Error(`RENDER_FAILED_TRY_AGAIN: ${h.tryAgain}`);
+        statusEl.textContent = 'ChatGPT displayed Try again. Waiting 6s before the one allowed reload…';
+        await wait(6000);
+        const grace = await health(tabId);
+        if (grace && !grace.tryAgain && grace.hasMain && grace.mainChars >= 20 && (!expectedProjectKey || grace.projectKey === expectedProjectKey)) return grace;
+        if (!allowOneReload || reloaded) throw new Error(`RENDER_FAILED_TRY_AGAIN: ${h.tryAgain}`);
         await chrome.tabs.reload(tabId);
         await waitForTab(tabId, 22000);
-        await wait(jitter(2200, 3200));
+        await wait(jitter(2600, 3600));
         reloaded = true;
         continue;
       }
       if (h.visibility !== 'visible') throw new Error('ACTIVE_TAB_NOT_VISIBLE — keep the driven ChatGPT tab selected');
-      const current = await chrome.tabs.get(tabId);
-      const currentKey = stableProjectId(current.url || '');
-      if (h.hasMain && h.mainChars >= 20 && (!expectedProjectKey || currentKey === expectedProjectKey)) return current;
+      if (h.hasMain && h.mainChars >= 20 && (!expectedProjectKey || h.projectKey === expectedProjectKey)) return h;
       await wait(500);
     }
     throw new Error('RENDER_NOT_READY');
   }
 
-  async function clickProjectTitleInPage(title) {
-    const sleepLocal = ms => new Promise(resolve => setTimeout(resolve, ms));
-    const clean = v => String(v || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
-    const norm = v => clean(v).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
-    const visible = el => {
-      if (!el || !(el instanceof Element)) return false;
-      const r = el.getBoundingClientRect();
-      if (r.width < 1 || r.height < 1) return false;
-      const s = getComputedStyle(el);
-      return s.display !== 'none' && s.visibility !== 'hidden' && Number(s.opacity || 1) !== 0;
-    };
-    const target = norm(title);
-    const main = document.querySelector('main') || document.body;
-
-    const scrollRoot = (() => {
-      let winner = document.scrollingElement || document.documentElement;
-      let delta = (winner.scrollHeight || 0) - (winner.clientHeight || 0);
-      for (const el of [main, ...main.querySelectorAll('div,section')]) {
-        if (!visible(el)) continue;
-        const d = (el.scrollHeight || 0) - (el.clientHeight || 0);
-        const oy = getComputedStyle(el).overflowY;
-        if (d > delta + 40 && (el === main || oy === 'auto' || oy === 'scroll')) { winner = el; delta = d; }
-      }
-      return winner;
-    })();
-    const isDoc = scrollRoot === document.scrollingElement || scrollRoot === document.documentElement || scrollRoot === document.body;
-    const original = isDoc ? window.scrollY : scrollRoot.scrollTop;
-
-    function clickableAncestor(el) {
-      let cur = el;
-      for (let i=0; cur && i<9; i++, cur=cur.parentElement) {
-        const role = String(cur.getAttribute?.('role') || '').toLowerCase();
-        const tag = String(cur.tagName || '').toLowerCase();
-        const cursor = getComputedStyle(cur).cursor;
-        const tabIndex = cur.getAttribute?.('tabindex');
-        if (tag === 'a' || tag === 'button' || role === 'link' || role === 'button' || cursor === 'pointer' || (tabIndex != null && Number(tabIndex) >= 0)) return cur;
-      }
-      return el;
-    }
-
-    function find() {
-      const candidates = [...main.querySelectorAll('a,button,[role="link"],[role="button"],[tabindex],span,p,div')]
-        .filter(el => visible(el) && norm(el.innerText || el.textContent || el.getAttribute?.('aria-label') || el.getAttribute?.('title') || '') === target)
-        .sort((a,b) => a.querySelectorAll('*').length - b.querySelectorAll('*').length);
-      return candidates[0] || null;
-    }
-
-    function realClick(el) {
-      const clickTarget = clickableAncestor(el);
-      clickTarget.scrollIntoView({block:'center', inline:'nearest'});
-      const r = clickTarget.getBoundingClientRect();
-      const x = r.left + Math.max(2, r.width / 2);
-      const y = r.top + Math.max(2, r.height / 2);
-      const base = {bubbles:true,cancelable:true,composed:true,view:window,clientX:x,clientY:y,button:0};
-      try { clickTarget.dispatchEvent(new PointerEvent('pointerdown',{...base,pointerId:1,pointerType:'mouse',isPrimary:true,buttons:1})); } catch {}
-      clickTarget.dispatchEvent(new MouseEvent('mousedown',{...base,buttons:1}));
-      try { clickTarget.dispatchEvent(new PointerEvent('pointerup',{...base,pointerId:1,pointerType:'mouse',isPrimary:true,buttons:0})); } catch {}
-      clickTarget.dispatchEvent(new MouseEvent('mouseup',{...base,buttons:0}));
-      clickTarget.dispatchEvent(new MouseEvent('click',{...base,buttons:0}));
-      return { clicked:true, tag:clickTarget.tagName, role:clickTarget.getAttribute?.('role') || null };
-    }
-
-    try {
-      if (isDoc) window.scrollTo(0,0); else scrollRoot.scrollTop = 0;
-      await sleepLocal(300);
-      for (let pass=0; pass<50; pass++) {
-        const found = find();
-        if (found) return realClick(found);
-        const max = isDoc ? Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0) : scrollRoot.scrollHeight;
-        const pos = isDoc ? window.scrollY : scrollRoot.scrollTop;
-        const view = isDoc ? window.innerHeight : scrollRoot.clientHeight;
-        if (pos + view >= max - 8) break;
-        const next = Math.min(max, pos + Math.max(260, view * 0.75));
-        if (isDoc) window.scrollTo(0,next); else scrollRoot.scrollTop = next;
-        await sleepLocal(300);
-      }
-      return {clicked:false,error:`Project title not found: ${title}`};
-    } finally {
-      if (document.visibilityState === 'visible') {
-        if (isDoc) window.scrollTo(0,original); else scrollRoot.scrollTop = original;
-      }
-    }
+  async function navigateVisible(tabId, url, expectedProjectKey = null) {
+    await chrome.tabs.update(tabId, { url, active:true });
+    await waitForTab(tabId, 22000);
+    await wait(jitter(1800, 2600));
+    return ensureRendered(tabId, expectedProjectKey, true);
   }
 
-  async function recoverProjectRoutes(tab, projectsPage) {
-    await navigateVisible(tab.id, projectsPage);
-    await wait(jitter(1200, 1800));
+  async function scanCurrentProject(tabId, project) {
+    const home = projectHomeUrl(project.url);
+    const expectedKey = stableProjectId(home) || project.key || null;
+    await ensureRendered(tabId, expectedKey, true);
+    await wait(jitter(1000, 1600));
+    const injected = await chrome.scripting.executeScript({
+      target:{tabId},
+      func:shinoMainProjectAnchorsInPage,
+      args:[project.title]
+    }).catch(() => null);
+    const result = injected?.[0]?.result || {direct:[],diag:{reason:'no-result'}};
+    const ctx = {projectKey:expectedKey || result.projectKey, projectTitle:project.title, projectUrl:home};
+    const threads = (result.direct || []).map(item => ({...item,...ctx,key:item.key || conversationKey(item.url)}));
+    return {project:{...project,key:ctx.projectKey,url:home},threads,diag:result.diag || {}};
+  }
+
+  async function readProjectsIndex(tab, projectsPage) {
+    await navigateVisible(tab.id, projectsPage, null);
+    await wait(jitter(1000, 1500));
 
     const directResult = await messageTab(tab.id, {type:'SHINO_DISCOVER_ALL_PROJECTS'}).catch(() => null);
-    let direct = mergeProjects(directResult?.projects || []);
+    const direct = mergeProjects(directResult?.projects || []);
 
     let rowResult = await messageTab(tab.id, {type:'SHINO_V2_DISCOVER_PROJECT_ROWS'}).catch(() => null);
-    let labels = (rowResult?.rows || []).map(x => x?.title).filter(Boolean);
+    let labels = (rowResult?.rows || []).map(item => clean(item?.title)).filter(Boolean);
     if (!labels.length) {
       const fallback = await messageTab(tab.id, {type:'SHINO_DISCOVER_PROJECT_LABELS'}).catch(() => null);
-      labels = (fallback?.labels || []).map(x => x?.title).filter(Boolean);
+      labels = (fallback?.labels || []).map(item => clean(item?.title)).filter(Boolean);
     }
-    labels = [...new Map(labels.map(title => [String(title).trim().toLowerCase(), String(title).trim()])).values()];
+    labels = [...new Map(labels.map(title => [norm(title), title])).values()];
 
-    statusEl.textContent = `PROJECT ROUTE RECOVERY\n${direct.length} direct hrefs · ${labels.length} visible project rows\nRecovering row routes at human speed…`;
+    // Direct routes first: they cost only one project navigation. Then rows that still need recovery.
+    const directByTitle = new Map(direct.map(item => [norm(item.title), {...item,url:projectHomeUrl(item.url)}]));
+    const targets = [];
+    const seen = new Set();
+    for (const item of direct) {
+      const key = norm(item.title);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      targets.push({title:item.title,key:item.key || stableProjectId(item.url),url:projectHomeUrl(item.url),routeKnown:true});
+    }
+    for (const title of labels) {
+      const key = norm(title);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      const directItem = directByTitle.get(key);
+      targets.push(directItem
+        ? {title:directItem.title,key:directItem.key || stableProjectId(directItem.url),url:projectHomeUrl(directItem.url),routeKnown:true}
+        : {title,url:null,key:null,routeKnown:false});
+    }
+    return {direct,labels,targets};
+  }
 
-    const byTitle = new Map(direct.map(p => [String(p.title || '').trim().toLowerCase(), p]));
-    const recovered = [];
+  async function recoverRouteByVisibleRow(tab, projectsPage, title) {
+    await navigateVisible(tab.id, projectsPage, null);
+    await wait(jitter(900, 1400));
+    statusEl.textContent = `Recovering route for ${title}\nClicking its visible Projects row…`;
+    const before = (await chrome.tabs.get(tab.id)).url;
 
-    for (let i=0; i<labels.length; i++) {
-      const title = labels[i];
-      if (byTitle.has(title.toLowerCase())) continue;
+    let clicked = await messageTab(tab.id, {type:'SHINO_V2_CLICK_PROJECT_ROW',title}).catch(() => null);
+    if (!clicked?.clicked) clicked = await messageTab(tab.id, {type:'SHINO_CLICK_PROJECT_LABEL',title}).catch(() => null);
+    if (!clicked?.clicked) throw new Error(`PROJECT_ROW_NOT_CLICKABLE: ${title}`);
 
-      if (i > 0) {
-        const cool = jitter(2800, 4200);
-        statusEl.textContent = `PROJECT ROUTE RECOVERY ${i+1}/${labels.length}\n${title}\nPacing ${(cool/1000).toFixed(1)}s before next visible navigation…`;
-        await wait(cool);
+    const nav = await waitForNavigation(tab.id, before, url => {
+      return isChatGptUrl(url) && /\/g\/g-p-/i.test(url) && !/\/c\//i.test(url);
+    }, 10000);
+    if (!nav?.url) throw new Error(`PROJECT_ROUTE_NOT_RECOVERED: ${title}`);
+
+    const key = stableProjectId(nav.url);
+    if (!key) throw new Error(`PROJECT_ID_NOT_FOUND: ${title}`);
+    const project = {title,key,url:projectHomeUrl(nav.url),routeKnown:true};
+    await ensureRendered(tab.id, key, true);
+    return project;
+  }
+
+  async function loadRouteCache() {
+    const stored = await chrome.storage.local.get({lastProjectRouteCache:null});
+    const cache = stored.lastProjectRouteCache;
+    if (cache?.schema !== ROUTE_CACHE_SCHEMA || !Array.isArray(cache.projects)) return new Map();
+    return new Map(cache.projects.filter(item => item?.title && item?.url).map(item => [norm(item.title),item]));
+  }
+
+  async function saveRouteCache(routeMap) {
+    await chrome.storage.local.set({
+      lastProjectRouteCache:{
+        schema:ROUTE_CACHE_SCHEMA,
+        updatedAt:Date.now(),
+        projects:[...routeMap.values()]
       }
+    });
+  }
 
-      await navigateVisible(tab.id, projectsPage);
-      await wait(jitter(900, 1500));
-      statusEl.textContent = `PROJECT ROUTE RECOVERY ${i+1}/${labels.length}\n${title}\nClicking the visible Projects row…`;
-      const before = (await chrome.tabs.get(tab.id)).url;
-      const injected = await chrome.scripting.executeScript({target:{tabId:tab.id},func:clickProjectTitleInPage,args:[title]}).catch(() => null);
-      const clicked = injected?.[0]?.result;
-      if (!clicked?.clicked) continue;
+  function emptyDraft(projectsPage, targets) {
+    return {
+      schema:DRAFT_SCHEMA,
+      createdAt:Date.now(),
+      updatedAt:Date.now(),
+      projectsPage,
+      targets,
+      entries:{},
+      complete:false,
+      lastError:''
+    };
+  }
 
-      const nav = await waitForNavigation(tab.id, before, url => {
-        return isChatGptUrl(url) && /\/g\/g-p-/i.test(url) && !/\/c\//i.test(url);
-      }, 10000);
-      if (!nav?.url) continue;
+  async function loadDraft() {
+    const stored = await chrome.storage.local.get({lastSinglePassInventoryDraft:null});
+    const draft = stored.lastSinglePassInventoryDraft;
+    return draft?.schema === DRAFT_SCHEMA && Array.isArray(draft.targets) ? draft : null;
+  }
 
-      const key = stableProjectId(nav.url);
-      if (!key) continue;
-      const item = {key,title,url:projectHomeUrl(nav.url)};
-      recovered.push(item);
-      byTitle.set(title.toLowerCase(), item);
+  async function saveDraft(draft) {
+    draft.updatedAt = Date.now();
+    await chrome.storage.local.set({lastSinglePassInventoryDraft:draft});
+    await refreshInventoryButton(draft);
+  }
 
-      // Let the clicked project finish its own client-side hydration before returning to /projects.
-      await wait(jitter(2200, 3400));
+  function draftProgress(draft) {
+    const total = draft?.targets?.length || 0;
+    const done = Object.values(draft?.entries || {}).filter(entry => entry?.done).length;
+    return {done,total};
+  }
+
+  async function refreshInventoryButton(draftArg = undefined) {
+    const draft = draftArg === undefined ? await loadDraft() : draftArg;
+    const {done,total} = draftProgress(draft);
+    if (draft && !draft.complete && total > 0 && done < total) {
+      inventoryButton.textContent = `Resume inventory ${done}/${total}`;
+      inventoryButton.title = 'Progress was saved. Continue from the first unfinished project; completed projects will not be reopened.';
+    } else {
+      inventoryButton.textContent = 'Inventory ALL projects (active tab)';
+      inventoryButton.title = 'Single-pass inventory: each opened project is scanned immediately and progress is saved after every project.';
     }
-
-    const projects = mergeProjects(direct, recovered);
-    return {projects,directCount:direct.length,rowCount:labels.length,recoveredCount:recovered.length};
   }
 
   async function setIngestButton(inventory) {
@@ -246,103 +252,171 @@
     ingestButton.textContent = valid ? `Ingest ${inventory.threads.length} inventoried chats` : 'Ingest inventoried chats';
   }
 
+  function buildInventoryFromDraft(draft) {
+    const entries = Object.values(draft.entries || {}).filter(entry => entry?.done);
+    const threads = new Map();
+    const owners = new Map();
+    const collisions = [];
+    const perProject = [];
+
+    for (const entry of entries) {
+      const project = entry.project || {title:entry.title,key:entry.projectKey,url:entry.projectUrl};
+      const list = Array.isArray(entry.threads) ? entry.threads : [];
+      for (const thread of list) {
+        const key = thread.key || conversationKey(thread.url);
+        const previous = owners.get(key);
+        if (previous && previous !== project.title) {
+          collisions.push({key,a:previous,b:project.title,title:thread.title});
+          continue;
+        }
+        owners.set(key,project.title);
+        if (!threads.has(key)) threads.set(key,{...thread,key});
+      }
+      perProject.push({title:project.title,total:list.length,projectKey:project.key,diag:entry.diag || {}});
+    }
+
+    return {threads,collisions,perProject};
+  }
+
   inventoryButton.onclick = async () => {
     const tab = await activeVisibleChatTab();
     if (!tab) return void(statusEl.textContent='Open ChatGPT in the current selected tab first.');
     const originalUrl = tab.url;
+    let restoreOriginal = false;
     try {
       const cfg = await readUiAndSave();
       if (!cfg.enabled) return void(statusEl.textContent='Turn on Auto-sync this browser first');
       if (typeof shinoGuardButtonRun === 'function' && await shinoGuardButtonRun()) return;
 
-      await chrome.storage.local.set({lastActiveTabInventory:null});
       await setIngestButton(null);
+      let draft = await loadDraft();
+      let routeMap = await loadRouteCache();
 
-      let projectsPage = `${new URL(originalUrl).origin}/projects`;
-      try {
-        const info = await messageTab(tab.id,{type:'SHINO_FIND_PROJECTS_PAGE'});
-        if (info?.url) projectsPage = info.url;
-      } catch {}
+      if (!draft || draft.complete) {
+        let projectsPage = `${new URL(originalUrl).origin}/projects`;
+        try {
+          const info = await messageTab(tab.id,{type:'SHINO_FIND_PROJECTS_PAGE'});
+          if (info?.url) projectsPage = info.url;
+        } catch {}
 
-      const routeInfo = await recoverProjectRoutes(tab, projectsPage);
-      const projects = routeInfo.projects;
-      if (!projects.length) throw new Error(`No project routes recovered (${routeInfo.directCount} direct hrefs · ${routeInfo.rowCount} rows · ${routeInfo.recoveredCount} clicked routes)`);
+        statusEl.textContent = 'SINGLE-PASS INVENTORY\nReading visible Projects index…';
+        const index = await readProjectsIndex(tab, projectsPage);
+        if (!index.targets.length) throw new Error('No project rows/routes found on Projects index');
 
-      statusEl.textContent = `PROJECT ROUTES OK\n${projects.length} projects (${routeInfo.directCount} direct + ${routeInfo.recoveredCount} row recovered).\nNow reading project conversations visibly…`;
-
-      const threads = new Map();
-      const owners = new Map();
-      const collisions = [];
-      const perProject = [];
-
-      for (let i=0; i<projects.length; i++) {
-        const project = projects[i];
-        const home = projectHomeUrl(project.url);
-        const expectedKey = stableProjectId(home) || project.key || null;
-        if (i > 0) {
-          const cool = jitter(2600, 4200);
-          statusEl.textContent = `ACTIVE-TAB INVENTORY ${i+1}/${projects.length}\n${project.title}\nPacing ${(cool/1000).toFixed(1)}s before next project…`;
-          await wait(cool);
-        }
-        statusEl.textContent = `ACTIVE-TAB INVENTORY ${i+1}/${projects.length}\n${project.title}\nNavigating visible ChatGPT tab…`;
-        await navigateVisible(tab.id, home, expectedKey);
-        await wait(jitter(1200, 1900));
-        const injected = await chrome.scripting.executeScript({target:{tabId:tab.id},func:shinoMainProjectAnchorsInPage,args:[project.title]}).catch(() => null);
-        const result = injected?.[0]?.result || {direct:[],diag:{reason:'no-result'}};
-        const ctx = {projectKey:expectedKey || result.projectKey,projectTitle:project.title,projectUrl:home};
-        const list = (result.direct || []).map(item => ({...item,...ctx}));
-
-        for (const thread of list) {
-          const key = thread.key || conversationKeyFromUrl(thread.url);
-          const previous = owners.get(key);
-          if (previous && previous !== project.title) {
-            collisions.push({key,a:previous,b:project.title,title:thread.title});
-            continue;
-          }
-          owners.set(key,project.title);
-          if (!threads.has(key)) threads.set(key,{...thread,key});
-        }
-        perProject.push({title:project.title,total:list.length,projectKey:ctx.projectKey,diag:result.diag});
-        statusEl.textContent = `ACTIVE-TAB INVENTORY ${i+1}/${projects.length}\n${project.title}: ${list.length}\nTOTAL UNIQUE: ${threads.size}`;
+        // Merge previously cached routes into the fresh target list by title.
+        const targets = index.targets.map(target => {
+          const cached = routeMap.get(norm(target.title));
+          return cached ? {...target,...cached,routeKnown:true} : target;
+        });
+        draft = emptyDraft(projectsPage, targets);
+        await chrome.storage.local.set({lastActiveTabInventory:null});
+        await saveDraft(draft);
       }
 
-      const report = perProject.map(item => `${item.title}: ${item.total}`).join(' · ');
-      if (collisions.length) {
-        const sample = collisions.slice(0,8).map(item => `${item.a} ↔ ${item.b}: ${item.title || item.key}`).join('\n');
+      const {done:alreadyDone,total} = draftProgress(draft);
+      statusEl.textContent = `SINGLE-PASS INVENTORY\n${alreadyDone}/${total} projects already saved.\nCompleted projects will NOT be reopened.`;
+      await wait(900);
+
+      for (let i = 0; i < draft.targets.length; i++) {
+        const target = draft.targets[i];
+        const titleKey = norm(target.title);
+        if (draft.entries?.[titleKey]?.done) continue;
+
+        const progress = draftProgress(draft);
+        if (progress.done > 0) {
+          const cool = jitter(4200, 6500);
+          statusEl.textContent = `SINGLE-PASS INVENTORY ${progress.done}/${progress.total}\nNext: ${target.title}\nSafety pacing ${(cool/1000).toFixed(1)}s…`;
+          await wait(cool);
+        }
+
+        let project = null;
+        const cached = routeMap.get(titleKey);
+        if (target.url || cached?.url) {
+          project = {...target,...cached,url:projectHomeUrl(cached?.url || target.url),routeKnown:true};
+          project.key = stableProjectId(project.url) || project.key;
+          statusEl.textContent = `SINGLE-PASS INVENTORY ${progress.done+1}/${progress.total}\n${target.title}\nOpening cached/direct project route…`;
+          await navigateVisible(tab.id, project.url, project.key);
+        } else {
+          statusEl.textContent = `SINGLE-PASS INVENTORY ${progress.done+1}/${progress.total}\n${target.title}\nRecovering route from Projects index…`;
+          project = await recoverRouteByVisibleRow(tab, draft.projectsPage, target.title);
+        }
+
+        // Crucial v0.6.6 behavior: scan NOW, while this project is already open.
+        const scanned = await scanCurrentProject(tab.id, project);
+        project = scanned.project;
+        routeMap.set(titleKey, project);
+        await saveRouteCache(routeMap);
+
+        draft.entries[titleKey] = {
+          done:true,
+          title:project.title,
+          project,
+          threads:scanned.threads,
+          diag:scanned.diag,
+          completedAt:Date.now()
+        };
+        draft.lastError = '';
+        await saveDraft(draft);
+
+        const after = draftProgress(draft);
+        statusEl.textContent = `SAVED ${after.done}/${after.total}\n${project.title}: ${scanned.threads.length} conversations\nProgress persisted — this project will not be reopened.`;
+      }
+
+      const built = buildInventoryFromDraft(draft);
+      if (built.collisions.length) {
+        const sample = built.collisions.slice(0,8).map(item => `${item.a} ↔ ${item.b}: ${item.title || item.key}`).join('\n');
         throw new Error(`INVENTORY COLLISION SAFETY STOP\n${sample}`);
       }
 
-      const nonEmpty = perProject.filter(item => item.total > 0).length;
-      const minimumHealthy = projects.length >= 10 ? Math.ceil(projects.length * 0.7) : Math.max(1,Math.ceil(projects.length * 0.5));
-      const approved = projects.length >= 10 && nonEmpty >= minimumHealthy && threads.size > 0;
+      const projectCount = draft.targets.length;
+      const nonEmpty = built.perProject.filter(item => item.total > 0).length;
+      const minimumHealthy = projectCount >= 10 ? Math.ceil(projectCount * 0.7) : Math.max(1,Math.ceil(projectCount * 0.5));
+      const approved = projectCount >= 10 && nonEmpty >= minimumHealthy && built.threads.size > 0;
       const inventory = {
         schema:INVENTORY_SCHEMA,
         createdAt:Date.now(),
         approved,
-        projectCount:projects.length,
+        projectCount,
         nonEmptyProjects:nonEmpty,
-        perProject,
-        threads:[...threads.values()]
+        perProject:built.perProject,
+        threads:[...built.threads.values()]
       };
-      await chrome.storage.local.set({lastActiveTabInventory:inventory,lastBackfillProjectReport:perProject});
+
+      await chrome.storage.local.set({lastActiveTabInventory:inventory,lastBackfillProjectReport:built.perProject});
       await setIngestButton(inventory);
+      draft.complete = true;
+      draft.completedAt = Date.now();
+      await saveDraft(draft);
+      restoreOriginal = true;
 
-      if (!approved) {
-        const msg = `ACTIVE-TAB INVENTORY SAFETY STOP\n${projects.length} projects · ${nonEmpty} with conversations · ${threads.size} unique chats.\nNothing was ingested.\n${report}`;
-        statusEl.textContent = msg;
-        await chrome.storage.local.set({lastStatus:msg,lastError:'Suspicious active-tab inventory coverage'});
-        return;
-      }
-
-      const msg = `ACTIVE-TAB INVENTORY COMPLETE — NO INGESTION YET\n${projects.length} projects · ${threads.size} unique conversations\n${report}\n\nReview these counts before ingestion.`;
+      const report = built.perProject.map(item => `${item.title}: ${item.total}`).join(' · ');
+      const msg = approved
+        ? `SINGLE-PASS INVENTORY COMPLETE — NO INGESTION YET\n${projectCount} projects · ${built.threads.size} unique conversations\n${report}\n\nReview these counts before ingestion.`
+        : `SINGLE-PASS INVENTORY SAFETY STOP\n${projectCount} projects · ${nonEmpty} with conversations · ${built.threads.size} unique chats.\nNothing was ingested.\n${report}`;
       statusEl.textContent = msg;
-      await chrome.storage.local.set({lastStatus:msg,lastError:''});
+      await chrome.storage.local.set({lastStatus:msg,lastError:approved ? '' : 'Suspicious single-pass inventory coverage'});
     } catch (e) {
       const error = e?.message || String(e);
-      statusEl.textContent = `ACTIVE-TAB INVENTORY STOPPED\nNothing was ingested.\n${error}`;
+      const draft = await loadDraft();
+      if (draft && !draft.complete) {
+        draft.lastError = error;
+        draft.lastErrorAt = Date.now();
+        await saveDraft(draft);
+        const {done,total} = draftProgress(draft);
+        statusEl.textContent = `INVENTORY PAUSED — PROGRESS SAVED\n${done}/${total} projects safely stored.\nNothing was ingested.\n${error}\n\nClick “Resume inventory ${done}/${total}” later; completed projects will not be reopened.`;
+      } else {
+        statusEl.textContent = `ACTIVE-TAB INVENTORY STOPPED\nNothing was ingested.\n${error}`;
+      }
       await chrome.storage.local.set({lastStatus:statusEl.textContent,lastError:error});
+      // Intentionally do not restore the original page after a render/rate-limit failure.
+      // That avoids one more ChatGPT navigation at the exact moment it is unhappy.
     } finally {
-      await chrome.tabs.update(tab.id,{url:originalUrl,active:true}).catch(()=>{});
+      if (restoreOriginal) {
+        await wait(1200);
+        await chrome.tabs.update(tab.id,{url:originalUrl,active:true}).catch(()=>{});
+      }
     }
   };
+
+  refreshInventoryButton().catch(()=>{});
 })();
