@@ -1,10 +1,13 @@
 {
   "name": "shino-control",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "private": true,
   "type": "module",
   "scripts": {
+    "assets": "node scripts/generate-brand-assets.mjs",
+    "prestart": "npm run assets",
     "start": "node server.mjs",
+    "predev": "npm run assets",
     "dev": "node --watch server.mjs",
     "check": "node scripts-check.mjs",
     "repair": "node scripts/repair-state.mjs"
