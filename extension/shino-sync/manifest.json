@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SHINO Sync",
-  "version": "0.6.6",
-  "description": "ChatGPT sync component for SHINO // CONTROL. Single-pass resumable active-tab inventory with persisted project routes/progress, separate ingestion, stable project-ID normalization, retry provenance, rate-limit safety, collision guards, and branded icons.",
+  "version": "0.6.7",
+  "description": "ChatGPT sync component for SHINO // CONTROL. Deep project conversation enumeration for lazy/virtualized lists, single-pass resumable active-tab inventory, persisted routes/progress, separate ingestion, stable project-ID normalization, retry provenance, rate-limit safety, collision guards, and branded icons.",
   "permissions": [
     "storage",
     "tabs",
