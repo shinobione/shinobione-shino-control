@@ -1,6 +1,6 @@
 {
   "name": "shino-control",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,9 @@
     "predev": "npm run assets",
     "dev": "node --watch server.mjs",
     "check": "node scripts-check.mjs",
-    "repair": "node scripts/repair-state.mjs"
+    "repair": "node scripts/repair-state.mjs",
+    "chat:audit": "node scripts/chatgpt-state-hygiene.mjs",
+    "chat:repair": "node scripts/chatgpt-state-hygiene.mjs --apply"
   },
   "engines": { "node": ">=20" }
 }
