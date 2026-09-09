@@ -16,7 +16,9 @@ jobs:
       - name: Syntax checks
         run: |
           node --check server.mjs
+          node --check server-entry.mjs
           node --check lib/resolver.mjs
+          node --check lib/chatgpt-inventory.mjs
           node --check scripts/repair-state.mjs
           node --check scripts/generate-brand-assets.mjs
           node --check scripts/chatgpt-state-hygiene.mjs
