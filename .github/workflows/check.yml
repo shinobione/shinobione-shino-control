@@ -39,6 +39,7 @@ jobs:
           node --check extension/shino-sync/popup-project-route-recovery.js
           node --check extension/shino-sync/popup-deep-project-scan.js
           node --check extension/shino-sync/popup-project-conversation-parser.js
+          node --check extension/shino-sync/popup-api-project-inventory.js
           node --check public/state-filter.js
           node --check public/app.js
       - name: Generate brand assets
