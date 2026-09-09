@@ -19,6 +19,7 @@ jobs:
           node --check lib/resolver.mjs
           node --check scripts/repair-state.mjs
           node --check scripts/generate-brand-assets.mjs
+          node --check scripts/chatgpt-state-hygiene.mjs
           node --check extension/shino-sync/background.js
           node --check extension/shino-sync/content.js
           node --check extension/shino-sync/inventory.js
