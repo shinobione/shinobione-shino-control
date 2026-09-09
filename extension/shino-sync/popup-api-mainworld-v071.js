@@ -1,7 +1,7 @@
-// v0.7.1 — clean MAIN-world API project inventory.
+// v0.7.2 — clean MAIN-world API project inventory + CONTROL metadata reconciliation.
 // This intentionally avoids every DOM/project-list crawler. The API call runs in the page MAIN world,
-// using the same authenticated origin as ChatGPT. All errors are returned as serializable diagnostics so
-// the popup never collapses them into a useless NO_API_INVENTORY_RESULT.
+// using the same authenticated origin as ChatGPT. The authoritative inventory is also posted to CONTROL
+// so historical backfill captures regain their real ChatGPT update timestamps without reopening chats.
 
 async function shinoMainWorldProjectApi(mode = 'current', requestedProjectKey = null) {
   let stage = 'start';
@@ -186,6 +186,40 @@ async function shinoMainWorldProjectApi(mode = 'current', requestedProjectKey = 
     return result;
   }
 
+  async function pushInventoryMetadataToControl(inventory) {
+    const stored = await chrome.storage.local.get({
+      endpoint:'http://127.0.0.1:4177/api/ingest/chatgpt',
+      token:''
+    });
+    const endpoint = new URL(stored.endpoint || 'http://127.0.0.1:4177/api/ingest/chatgpt');
+    endpoint.pathname = '/api/ingest/chatgpt-inventory';
+    endpoint.search = '';
+    endpoint.hash = '';
+    const headers = {'Content-Type':'application/json'};
+    if (stored.token) headers.Authorization = `Bearer ${stored.token}`;
+    const response = await fetch(endpoint.href, {
+      method:'POST',
+      headers,
+      body:JSON.stringify({
+        source:inventory.source,
+        projectCount:inventory.projectCount,
+        threads:inventory.threads.map(thread => ({
+          key:thread.key,
+          title:thread.title,
+          url:thread.url,
+          projectKey:thread.projectKey,
+          projectTitle:thread.projectTitle,
+          projectUrl:thread.projectUrl,
+          updatedAt:thread.updatedAt || null,
+          createdAt:thread.createdAt || null
+        }))
+      })
+    });
+    const data = await response.json().catch(()=>({}));
+    if (!response.ok || !data?.ok) throw new Error(data?.error || `CONTROL_METADATA_HTTP_${response.status}`);
+    return data;
+  }
+
   async function setIngest(inventory) {
     if (!ingestButton) return;
     const valid = inventory?.schema === INVENTORY_SCHEMA && inventory?.source === SOURCE && inventory?.approved && Array.isArray(inventory?.threads) && inventory.threads.length > 0;
@@ -278,10 +312,22 @@ async function shinoMainWorldProjectApi(mode = 'current', requestedProjectKey = 
       };
       await chrome.storage.local.set({lastActiveTabInventory:inventory,lastBackfillProjectReport:perProject,lastSinglePassInventoryDraft:null});
       await setIngest(inventory);
+
+      let metadata = null;
+      let metadataError = '';
+      if (approved) {
+        statusEl.textContent = `API PROJECT INVENTORY\n${inventory.projectCount} projects · ${inventory.threads.length} conversations\nReconciling real ChatGPT timestamps into CONTROL…`;
+        try { metadata = await pushInventoryMetadataToControl(inventory); }
+        catch (error) { metadataError = error?.message || String(error); }
+      }
+
       const report = perProject.map(item=>`${item.title}: ${item.total}`).join(' · ');
-      const message = `${approved ? 'API PROJECT INVENTORY COMPLETE — NO INGESTION YET' : 'API PROJECT INVENTORY SAFETY STOP'}\n${perProject.length} projects · ${threads.size} unique conversations\nMusic reference: ${music ? `${music.total}/33` : 'missing'} ${musicOk?'✅':'❌'}${collisions.length ? `\n${collisions.length} collision(s)` : ''}\n${report}\n\n${approved ? 'Counts came from ChatGPT API pagination. Ingestion is enabled.' : 'Nothing was ingested.'}`;
+      const metadataLine = metadata
+        ? `\nCONTROL metadata: ${metadata.refreshed}/${metadata.current} refreshed · ${metadata.archived} legacy/out-of-inventory archived${metadata.missing ? ` · ${metadata.missing} missing` : ''}`
+        : metadataError ? `\nCONTROL metadata WARNING: ${metadataError}` : '';
+      const message = `${approved ? 'API PROJECT INVENTORY COMPLETE — NO INGESTION YET' : 'API PROJECT INVENTORY SAFETY STOP'}\n${perProject.length} projects · ${threads.size} unique conversations\nMusic reference: ${music ? `${music.total}/33` : 'missing'} ${musicOk?'✅':'❌'}${collisions.length ? `\n${collisions.length} collision(s)` : ''}${metadataLine}\n${report}\n\n${approved ? 'Counts came from ChatGPT API pagination. CONTROL now uses the API timestamps; no conversation pages were reopened.' : 'Nothing was ingested.'}`;
       statusEl.textContent = message;
-      await chrome.storage.local.set({lastStatus:message,lastError:approved?'':'API inventory safety guard failed'});
+      await chrome.storage.local.set({lastStatus:message,lastError:approved && !metadataError ? '' : metadataError || 'API inventory safety guard failed'});
     } catch (error) {
       await setIngest(null);
       statusEl.textContent = `API PROJECT INVENTORY FAILED\nNothing was ingested.\n${error?.message || String(error)}`;
