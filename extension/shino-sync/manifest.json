@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SHINO Sync",
-  "version": "0.7.0",
-  "description": "ChatGPT sync component for SHINO // CONTROL. API-backed project and conversation inventory using ChatGPT's authenticated paginated project feeds, with separate ingestion, stable project-ID normalization, retry provenance, rate-limit safety, collision guards, and branded icons.",
+  "version": "0.7.1",
+  "description": "ChatGPT sync component for SHINO // CONTROL. Clean MAIN-world API-backed project inventory with precise diagnostics, cursor pagination, separate paced ingestion, retry provenance, collision guards, and branded icons.",
   "permissions": [
     "storage",
     "tabs",
