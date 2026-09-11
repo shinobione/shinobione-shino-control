@@ -50,6 +50,7 @@ function stats(){
     test:ds.filter(d=>d.status==='NEEDS TEST').length,
     blocked:ds.filter(d=>d.status==='BLOCKED').length,
     stable:ds.filter(d=>d.status==='STABLE').length,
+    empty:ds.filter(d=>d.status==='EMPTY').length,
     unsynced:ds.filter(d=>d.status==='UNSYNCED').length
   };
 }
@@ -62,7 +63,7 @@ function matchesFilter(p){
 }
 function priorityScore(p){
   const d=projectState(p.id); if(!d)return -1;
-  const rank={BLOCKED:500,'NEEDS TEST':400,ACTIVE:300,WAITING:200,STABLE:100,UNSYNCED:0}[d.status]??50;
+  const rank={BLOCKED:500,'NEEDS TEST':400,ACTIVE:300,WAITING:200,STABLE:100,EMPTY:-50,UNSYNCED:-100}[d.status]??50;
   const age=d.lastMovementAt?Math.max(0,30-(Date.now()-new Date(d.lastMovementAt))/86400000):0;
   return rank+age;
 }
@@ -70,7 +71,8 @@ function isAttention(p){
   const d=projectState(p.id);
   return !!d && ['BLOCKED','NEEDS TEST'].includes(d.status);
 }
-function syncedProjects(){return state.projects.filter(p=>projectState(p.id)?.status!=='UNSYNCED'&&matchesFilter(p)).sort((a,b)=>priorityScore(b)-priorityScore(a))}
+function syncedProjects(){return state.projects.filter(p=>!['UNSYNCED','EMPTY'].includes(projectState(p.id)?.status)&&matchesFilter(p)).sort((a,b)=>priorityScore(b)-priorityScore(a))}
+function emptyProjects(){return state.projects.filter(p=>projectState(p.id)?.status==='EMPTY'&&matchesFilter(p)).sort((a,b)=>a.name.localeCompare(b.name))}
 function unsyncedProjects(){return state.projects.filter(p=>projectState(p.id)?.status==='UNSYNCED'&&matchesFilter(p)).sort((a,b)=>a.name.localeCompare(b.name))}
 function noisyStateText(value=''){
   const text=String(value||'');
@@ -108,9 +110,10 @@ function radarView(s){
   const synced=syncedProjects();
   const attention=synced.filter(isAttention);
   const regular=synced.filter(p=>!isAttention(p));
+  const empty=emptyProjects();
   const unsynced=unsyncedProjects();
   return `<div class="topbar">
-    <div class="titleblock"><h2>Project Radar</h2><p>Les blocages et tests d’abord. Les projets actifs restent visibles sans être artificiellement urgents.</p></div>
+    <div class="titleblock"><h2>Project Radar</h2><p>Les blocages et tests d’abord. Les projets vides restent visibles sans être signalés comme cassés.</p></div>
     <div class="actions"><button class="btn gold" id="syncBtn">↻ Sync GitHub</button></div>
   </div>
   <section class="stats">
@@ -118,15 +121,16 @@ function radarView(s){
     <div class="stat stat-test"><span>Needs test</span><b>${s.test}</b></div>
     <div class="stat stat-blocked"><span>Blocked</span><b>${s.blocked}</b></div>
     <div class="stat stat-stable"><span>Stable</span><b>${s.stable}</b></div>
-    <div class="stat stat-unsynced"><span>Unsynced</span><b>${s.unsynced}</b></div>
+    <div class="stat stat-unsynced"><span>Empty</span><b>${s.empty}</b></div>
   </section>
-  <div class="toolbar"><input id="search" class="search" placeholder="Search project, evidence, repo…" value="${esc(query)}"><select id="statusFilter" class="select">${['ALL','ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','UNSYNCED'].map(x=>`<option ${statusFilter===x?'selected':''}>${x}</option>`).join('')}</select></div>
+  <div class="toolbar"><input id="search" class="search" placeholder="Search project, evidence, repo…" value="${esc(query)}"><select id="statusFilter" class="select">${['ALL','ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','EMPTY','UNSYNCED'].map(x=>`<option ${statusFilter===x?'selected':''}>${x}</option>`).join('')}</select></div>
   ${sectionHeading('Needs attention', `${attention.length} projet${attention.length===1?'':'s'} avec blocage ou test explicite`, 'attention-title')}
   ${attention.length?`<section class="grid attention-grid">${attention.map(projectCard).join('')}</section>`:'<div class="empty compact-empty">Aucun blocage ni test explicite dans le filtre actuel.</div>'}
   ${sectionHeading('Synced projects', `${regular.length} projet${regular.length===1?'':'s'} avec état reconstruit`, '')}
   ${regular.length?`<section class="grid">${regular.map(projectCard).join('')}</section>`:'<div class="empty compact-empty">Aucun autre projet synchronisé dans ce filtre.</div>'}
-  ${sectionHeading('Not synced yet', `${unsynced.length} projet${unsynced.length===1?'':'s'} sans preuve exploitable`, 'muted-title')}
-  ${unsynced.length?`<section class="unsynced-grid">${unsynced.map(unsyncedCard).join('')}</section>`:'<div class="empty compact-empty">Tout ce qui correspond au filtre possède déjà une source.</div>'}`;
+  ${sectionHeading('Empty projects', `${empty.length} projet${empty.length===1?'':'s'} mappé${empty.length===1?'':'s'} mais sans conversation`, 'muted-title')}
+  ${empty.length?`<section class="unsynced-grid">${empty.map(emptyCard).join('')}</section>`:'<div class="empty compact-empty">Aucun projet vide dans le filtre actuel.</div>'}
+  ${unsynced.length?`${sectionHeading('Not synced yet', `${unsynced.length} projet${unsynced.length===1?'':'s'} sans preuve exploitable`, 'muted-title')}<section class="unsynced-grid">${unsynced.map(unsyncedCard).join('')}</section>`:''}`;
 }
 function sectionHeading(title, subtitle, cls=''){return `<div class="section-head ${cls}"><div><h3>${esc(title)}</h3><p>${esc(subtitle)}</p></div></div>`}
 function projectCard(p){
@@ -140,6 +144,13 @@ function projectCard(p){
     <div class="resume"><div class="meta-label">Resume from here</div><p>${esc(resume)}</p></div>
     <div class="source-row">${badges.map(g=>`<span class="chip ${sourceClass(g.type)}">${esc(g.label)}${g.count>1?` ×${g.count}`:''}</span>`).join('')}<span class="confidence">${esc(d.confidence)} confidence</span></div>
     <div class="card-actions">${c.chat?`<a class="btn small gold" href="${esc(c.chat.url)}" target="_blank" data-stop>Continue in ChatGPT</a>`:''}${c.pr?`<a class="btn small" href="${esc(c.pr.url)}" target="_blank" data-stop>Open PR</a>`:''}${c.repo?`<a class="btn small ghost" href="${esc(c.repo)}" target="_blank" data-stop>GitHub</a>`:''}<button class="btn small why" data-why="${p.id}">Why this state?</button></div>
+  </article>`;
+}
+function emptyCard(p){
+  const d=projectState(p.id);
+  return `<article class="unsynced-card" data-open-project="${p.id}">
+    <div><strong>${esc(p.name)}</strong><span>EMPTY · ${esc(p.universe||'PROJECT')} · No conversations yet</span></div>
+    <div class="unsynced-actions"><button class="mini-link" data-why="${p.id}">Why?</button></div>
   </article>`;
 }
 function unsyncedCard(p){
@@ -170,9 +181,9 @@ function projectModal(id){
   return `<div class="modal-backdrop" id="modalBackdrop"><section class="modal ${statusClass(d.status)}">
     <div class="modal-head"><div><div class="universe">${esc(p.universe||'PROJECT')}</div><h2>${esc(p.name)} <span class="pill ${esc(d.status)}">${esc(d.status)}</span></h2></div><button class="btn ghost" id="closeModal">✕</button></div>
     <div class="modal-body"><div><p class="big-state">${esc(summary)}</p><div class="info-grid"><div class="info"><span class="meta-label">Last known movement</span><b>${esc(fmt(d.lastMovementAt))}</b></div><div class="info"><span class="meta-label">Freshness</span><b class="fresh-${d.freshness}">${esc(d.freshness)}</b></div><div class="info"><span class="meta-label">Confidence</span><b>${esc(d.confidence)}</b></div></div>
-      <div class="panel resume-panel"><span class="meta-label">Recommended resume point</span><p>${esc(resume)}</p><div class="actions">${c.chat?`<a class="btn gold" href="${esc(c.chat.url)}" target="_blank">Continue in ChatGPT</a>`:`<button class="btn" disabled>No synced ChatGPT thread yet</button>`}${c.pr?`<a class="btn" href="${esc(c.pr.url)}" target="_blank">Open PR</a>`:''}${c.repo?`<a class="btn ghost" href="${esc(c.repo)}" target="_blank">Open repo</a>`:''}</div></div>
+      <div class="panel resume-panel"><span class="meta-label">Recommended resume point</span><p>${esc(resume)}</p><div class="actions">${c.chat?`<a class="btn gold" href="${esc(c.chat.url)}" target="_blank">Continue in ChatGPT</a>`:`<button class="btn" disabled>${d.status==='EMPTY'?'No conversations yet':'No synced ChatGPT thread yet'}</button>`}${c.pr?`<a class="btn" href="${esc(c.pr.url)}" target="_blank">Open PR</a>`:''}${c.repo?`<a class="btn ghost" href="${esc(c.repo)}" target="_blank">Open repo</a>`:''}</div></div>
       <h3 class="timeline-title">Evidence timeline</h3><div class="timeline">${ev.length?ev.map(item=>`<div class="event ${sourceClass(item.sourceType==='chatgpt_thread'?'chatgpt_thread':item.sourceType==='github_component'?'github_component':item.sourceType?.startsWith('github_')?'github_repo':'other')}"><time>${esc(fmt(item.timestamp))} · ${esc(item.sourceType)}</time><strong>${esc(item.title)}</strong><p>${esc(item.summary)}</p>${item.url?`<a class="link" href="${esc(item.url)}" target="_blank">Open evidence ↗</a>`:''}</div>`).join(''):'<div class="empty compact-empty">No current evidence ingested yet.</div>'}</div>
-    </div><aside><div class="why-box"><h3>Why this state?</h3><p class="note">CONTROL derived <b>${esc(d.status)}</b> from ${d.evidenceIds.length} recent evidence items. Archived/out-of-inventory chats are excluded from this current view.</p><ul class="note">${d.evidenceIds.map(id=>{const item=state.evidence.find(x=>x.id===id&&x.inventoryCurrent!==false);return item?`<li>${esc(item.title)}</li>`:''}).join('')}</ul></div><div class="panel source-health"><h3>Source health</h3>${src.length?src.map(s=>`<p class="note"><b>${esc(sourceLabel(s))}</b><br>${esc(s.state||'registered')} · ${esc(rel(s.conversationUpdatedAt||s.lastObservedAt))} ago</p>`).join(''):'<p class="note">No current source yet.</p>'}</div></aside></div>
+    </div><aside><div class="why-box"><h3>Why this state?</h3><p class="note">${d.status==='EMPTY'?`CONTROL connaît ce projet ChatGPT et son mapping, mais l’inventaire courant ne contient aucune conversation.`:`CONTROL derived <b>${esc(d.status)}</b> from ${d.evidenceIds.length} recent evidence items. Archived/out-of-inventory chats are excluded from this current view.`}</p><ul class="note">${d.evidenceIds.map(id=>{const item=state.evidence.find(x=>x.id===id&&x.inventoryCurrent!==false);return item?`<li>${esc(item.title)}</li>`:''}).join('')}</ul></div><div class="panel source-health"><h3>Source health</h3>${src.length?src.map(s=>`<p class="note"><b>${esc(sourceLabel(s))}</b><br>${esc(s.state||'registered')} · ${esc(rel(s.conversationUpdatedAt||s.lastObservedAt))} ago</p>`).join(''):'<p class="note">No current source yet.</p>'}</div></aside></div>
   </section></div>`;
 }
 
@@ -189,7 +200,7 @@ function bind(){
   $('#closeModal')?.addEventListener('click',()=>{modalProject=null;render()});
   $('#modalBackdrop')?.addEventListener('click',e=>{if(e.target.id==='modalBackdrop'){modalProject=null;render()}});
   document.querySelectorAll('[data-map]').forEach(b=>b.onclick=async()=>{const id=b.dataset.map;const projectId=$(`[data-map-select="${id}"]`).value;await api('/api/remap',{method:'POST',body:JSON.stringify({discoveredId:id,projectId})});await load();toast('Source mapped')});
-  document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=async()=>{await api('/api/discovered/ignore',{method:'POST',body:JSON.stringify({id:b.dataset.ignore})});await load()});
+  document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=async()=>{await api('/api/discovered/ignore',{method:'POST',body:JSON.stringify({id:b.dataset.ignore})});await load();toast('Source ignored')});
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modalProject){modalProject=null;render()}});
 load().catch(e=>{$('#app').innerHTML=`<div style="padding:30px;color:white">Failed to load CONTROL: ${esc(e.message)}</div>`});
