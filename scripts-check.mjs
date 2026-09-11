@@ -2,21 +2,12 @@ import fs from 'node:fs';
 import { deriveAll, deriveProjectState } from './lib/derive.mjs';
 import { applyChatgptInventoryMetadata } from './lib/chatgpt-inventory.mjs';
 
-// Print the user's/live state for visibility, but do not assert mutable project statuses against it.
-// Regression assertions below use deterministic fixtures so `npm run check` remains valid on a live
-// CONTROL state that has newer GitHub/chat evidence than the repository seed data.
 const live = deriveAll(JSON.parse(fs.readFileSync('./data/state.json','utf8')));
 for (const d of live.derived) console.log(`${d.projectId.padEnd(18)} ${d.status.padEnd(11)} ${d.confidence.padEnd(6)} ${d.nextAction}`);
 
 function expectStatus(projectId, expectedStatus, evidence) {
-  const derived = deriveProjectState(
-    {id:projectId,name:projectId},
-    evidence,
-    {inventoryPresent:true,currentChatCount:1}
-  );
-  if (derived.status !== expectedStatus) {
-    throw new Error(`${projectId}: expected ${expectedStatus}, got ${derived.status}`);
-  }
+  const derived = deriveProjectState({id:projectId,name:projectId}, evidence, {inventoryPresent:true,currentChatCount:1});
+  if (derived.status !== expectedStatus) throw new Error(`${projectId}: expected ${expectedStatus}, got ${derived.status}`);
 }
 
 const now = new Date().toISOString();
@@ -36,12 +27,9 @@ expectStatus('fixture-stable','STABLE',[{
   derivedStatusHint:'STABLE'
 }]);
 
-// Regression: an explicit unresolved structured hint must beat a newer unrelated generic positive
-// commit. This is the SHINO-OS / TOUCH+ class of bug that previously produced false STABLE states.
-const gateProject = {id:'fixture-gate',name:'fixture-gate'};
-const gateState = deriveProjectState(gateProject,[
+const gateState = deriveProjectState({id:'fixture-gate',name:'fixture-gate'},[
   {
-    id:'newer',projectId:'fixture-gate',sourceType:'github_commit',timestamp:new Date(Date.now()).toISOString(),
+    id:'newer',projectId:'fixture-gate',sourceType:'github_commit',timestamp:new Date().toISOString(),
     title:'Complete unrelated cleanup',summary:'Green build.',confidence:0.92
   },
   {
@@ -52,9 +40,6 @@ const gateState = deriveProjectState(gateProject,[
 ],{inventoryPresent:true,currentChatCount:1});
 if (gateState.status !== 'NEEDS TEST') throw new Error(`authoritative hint precedence: expected NEEDS TEST, got ${gateState.status}`);
 
-// Regression: a zero-conversation ChatGPT project has no thread row from which CONTROL can learn
-// its existence. The authoritative project list must create the exact project-key mapping and
-// derive EMPTY without any conversation ingest.
 const emptyState = {
   settings:{chatgptProjectMappings:{}},
   projects:[{id:'lrc-maker',name:'LRC Maker'}],
@@ -74,10 +59,9 @@ if (emptyState.settings.chatgptProjectMappings['g-p-lrc-maker-test'] !== 'lrc-ma
 if (empty?.status !== 'EMPTY') throw new Error(`empty-project: expected EMPTY, got ${empty?.status}`);
 if (!/aucune conversation/i.test(empty.summary)) throw new Error('empty-project: missing explicit empty summary');
 
-// Regression: legacy v0.7.2 state has only aggregate API totals. Current thread sources carry 16
-// distinct real project keys and 16 unique conversations, but there is an extra current source row
-// for one already-known conversation. Raw source count is therefore 17 while authoritative API count
-// is 16. The duplicate must not break the conservation proof for the sole empty project.
+// Legacy v0.7.2 regression matching the real state class: 17 API projects, 16 distinct current
+// project keys, all API conversations represented, plus one extra current source row that is not a
+// distinct API conversation. Raw source count must not prevent the sole no-thread project being EMPTY.
 const legacyMappings = Object.fromEntries(Array.from({length:19}, (_,i) => [`g-p-stale-or-current-${i}`, `mapped-${i}`]));
 const legacySources = Array.from({length:16}, (_,i) => ({
   id:`src-${i}`,
@@ -88,12 +72,11 @@ const legacySources = Array.from({length:16}, (_,i) => ({
   url:`https://chatgpt.com/c/conversation-${i}`
 }));
 legacySources.push({
-  id:'src-duplicate',
+  id:'src-extra-unkeyed-row',
   projectId:'mapped-0',
   type:'chatgpt_thread',
   inventoryCurrent:true,
-  chatgptProjectKey:'g-p-current-0',
-  url:'https://chatgpt.com/c/conversation-0'
+  chatgptProjectKey:'g-p-current-0'
 });
 const legacyState = {
   settings:{
