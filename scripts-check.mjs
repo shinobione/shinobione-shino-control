@@ -75,16 +75,26 @@ if (empty?.status !== 'EMPTY') throw new Error(`empty-project: expected EMPTY, g
 if (!/aucune conversation/i.test(empty.summary)) throw new Error('empty-project: missing explicit empty summary');
 
 // Regression: legacy v0.7.2 state has only aggregate API totals. Current thread sources carry 16
-// distinct real project keys and account for every inventoried conversation; stale remembered mapping
-// keys are deliberately present and must NOT break the conservation proof for the sole empty project.
+// distinct real project keys and 16 unique conversations, but there is an extra current source row
+// for one already-known conversation. Raw source count is therefore 17 while authoritative API count
+// is 16. The duplicate must not break the conservation proof for the sole empty project.
 const legacyMappings = Object.fromEntries(Array.from({length:19}, (_,i) => [`g-p-stale-or-current-${i}`, `mapped-${i}`]));
 const legacySources = Array.from({length:16}, (_,i) => ({
   id:`src-${i}`,
   projectId:`mapped-${i}`,
   type:'chatgpt_thread',
   inventoryCurrent:true,
-  chatgptProjectKey:`g-p-current-${i}`
+  chatgptProjectKey:`g-p-current-${i}`,
+  url:`https://chatgpt.com/c/conversation-${i}`
 }));
+legacySources.push({
+  id:'src-duplicate',
+  projectId:'mapped-0',
+  type:'chatgpt_thread',
+  inventoryCurrent:true,
+  chatgptProjectKey:'g-p-current-0',
+  url:'https://chatgpt.com/c/conversation-0'
+});
 const legacyState = {
   settings:{
     chatgptProjectMappings:legacyMappings,
