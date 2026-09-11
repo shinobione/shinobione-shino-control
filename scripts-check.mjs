@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { deriveAll, deriveProjectState } from './lib/derive.mjs';
+import { applyChatgptInventoryMetadata } from './lib/chatgpt-inventory.mjs';
 
 const s = deriveAll(JSON.parse(fs.readFileSync('./data/state.json','utf8')));
 for (const d of s.derived) console.log(`${d.projectId.padEnd(18)} ${d.status.padEnd(11)} ${d.confidence.padEnd(6)} ${d.nextAction}`);
@@ -10,13 +11,25 @@ for (const [id,status] of Object.entries(expected)) {
   if (got !== status) throw new Error(`${id}: expected ${status}, got ${got}`);
 }
 
-const emptyState = deriveAll({
-  settings:{chatgptProjectMappings:{'g-p-empty':'empty-project'}},
-  projects:[{id:'empty-project',name:'Empty project'}],
+// Regression: a zero-conversation ChatGPT project has no thread row from which CONTROL can learn
+// its existence. The authoritative project list must create the exact project-key mapping and
+// derive EMPTY without any conversation ingest.
+const emptyState = {
+  settings:{chatgptProjectMappings:{}},
+  projects:[{id:'lrc-maker',name:'LRC Maker'}],
   sources:[],
   evidence:[]
+};
+const metadata = applyChatgptInventoryMetadata(emptyState, {
+  source:'test-project-api',
+  projectCount:1,
+  projects:[{key:'g-p-lrc-maker-test',title:'LRC Maker',conversationCount:0}],
+  threads:[]
 });
-const empty = emptyState.derived.find(d=>d.projectId==='empty-project');
+deriveAll(emptyState);
+const empty = emptyState.derived.find(d=>d.projectId==='lrc-maker');
+if (metadata.projects !== 1) throw new Error(`empty-project metadata: expected 1 project, got ${metadata.projects}`);
+if (emptyState.settings.chatgptProjectMappings['g-p-lrc-maker-test'] !== 'lrc-maker') throw new Error('empty-project: exact API title did not create project-key mapping');
 if (empty?.status !== 'EMPTY') throw new Error(`empty-project: expected EMPTY, got ${empty?.status}`);
 if (!/aucune conversation/i.test(empty.summary)) throw new Error('empty-project: missing explicit empty summary');
 
@@ -26,7 +39,7 @@ const resume = deriveProjectState(
     id:'chat-todo', projectId:'personnel', sourceType:'chatgpt_thread', type:'chat_sync',
     timestamp:new Date().toISOString(), title:'Extraction de todo list', summary:'ChatGPT thread synced.', confidence:0.87
   }],
-  {chatgptMapped:true,currentChatCount:1}
+  {inventoryPresent:true,currentChatCount:1}
 );
 if (!/roadmap PERSONNEL/i.test(resume.nextAction)) throw new Error(`resume engine: unexpected action: ${resume.nextAction}`);
 
