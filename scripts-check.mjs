@@ -12,7 +12,7 @@ for (const [id,status] of Object.entries(expected)) {
 
 const emptyState = deriveAll({
   settings:{chatgptProjectMappings:{'g-p-empty':'empty-project'}},
-  projects:[{id:'empty-project',name:'Empty project',kind:'CHATGPT_PROJECT'}],
+  projects:[{id:'empty-project',name:'Empty project'}],
   sources:[],
   evidence:[]
 });
