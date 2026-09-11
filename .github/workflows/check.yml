@@ -32,6 +32,7 @@ jobs:
           node --check extension/shino-sync/popup-retry-schema-fix.js
           node --check extension/shino-sync/popup-active-tab-backfill.js
           node --check extension/shino-sync/popup-api-mainworld-v071.js
+          node --check extension/shino-sync/popup-project-metadata-v073.js
           node --check public/state-filter.js
           node --check public/app.js
       - name: Generate brand assets
