@@ -3,5 +3,6 @@ node_modules/
 .env.*
 .DS_Store
 *.log
+dist/
 public/favicon-32.png
 extension/shino-sync/icons/*.png
