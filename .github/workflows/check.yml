@@ -25,6 +25,7 @@ jobs:
           node --check lib/chatgpt-inventory.mjs
           node --check scripts-check.mjs
           node --check scripts-status-check.mjs
+          node --check scripts-derivation-cache-check.mjs
           node --check scripts/repair-state.mjs
           node --check scripts/generate-brand-assets.mjs
           node --check scripts/generate-build-info.mjs
@@ -52,7 +53,7 @@ jobs:
           test -s public/favicon-32.png
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.9.4' public/build-info.js
+          grep -q '0.9.5' public/build-info.js
           test -s extension/shino-sync/icons/shino-sync-16.png
           test -s extension/shino-sync/icons/shino-sync-32.png
           test -s extension/shino-sync/icons/shino-sync-48.png
@@ -67,7 +68,7 @@ jobs:
           test -s dist/app.js
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.9.4"' dist/state.json
+          grep -q '"version": "0.9.5"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'https://chatgpt.com/c/' dist/state.json; then
             echo 'Private ChatGPT conversation URL leaked into public snapshot'
