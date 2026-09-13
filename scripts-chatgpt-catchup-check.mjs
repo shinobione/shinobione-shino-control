@@ -25,6 +25,14 @@ const state = {
       projectId:'music',
       url:'https://chatgpt.com/c/old',
       conversationUpdatedAt:'2026-09-12T10:00:00.000Z'
+    },
+    {
+      id:'src-observed-only',
+      type:'chatgpt_thread',
+      externalId:'observed-only',
+      projectId:'control',
+      url:'https://chatgpt.com/c/observed-only',
+      lastObservedAt:'2026-09-13T23:00:00.000Z'
     }
   ],
   evidence:[
@@ -47,6 +55,7 @@ const inventory = {
     {key:'a',title:'A unchanged',updatedAt:'2026-09-10T10:00:00.000Z'},
     {key:'b',title:'B unchanged by evidence',updatedAt:'2026-09-12T12:00:00.000Z'},
     {key:'old',title:'Old became newer',updatedAt:'2026-09-13T10:00:00.000Z'},
+    {key:'observed-only',title:'Known but no source-native baseline',updatedAt:'2026-09-13T09:00:00.000Z'},
     {key:'new',title:'Brand new',updatedAt:'2026-09-13T11:00:00.000Z',projectKey:'g-p-cccccccccccccccccccccccccccccccc'},
     {key:'new',title:'Brand new latest duplicate',updatedAt:'2026-09-13T12:00:00.000Z',projectKey:'g-p-cccccccccccccccccccccccccccccccc'},
     {key:'no-ts',title:'No timestamp'}
@@ -54,15 +63,17 @@ const inventory = {
 };
 
 const result = planChatgptCatchup(state, inventory, {maxPlan:10});
-assert.equal(result.inventoryCount, 5);
-assert.equal(result.known, 3);
-assert.equal(result.changedCount, 3, 'old + new + no-ts missing source should require catch-up');
+assert.equal(result.inventoryCount, 6);
+assert.equal(result.known, 4);
+assert.equal(result.changedCount, 4, 'old + observed-only + new + no-ts missing source should require catch-up');
 assert.equal(result.newCount, 2, 'new and no-ts are both unseen conversations');
+assert.equal(result.baselineMissing, 1, 'lastObservedAt alone must never be treated as a trustworthy content baseline');
 assert.equal(result.plan[0].key, 'new', 'newest changed conversation should be first');
 assert.equal(result.plan.find(item=>item.key==='new').title, 'Brand new latest duplicate');
 assert.equal(result.plan.find(item=>item.key==='old').reason, 'remote-newer');
+assert.equal(result.plan.find(item=>item.key==='observed-only').reason, 'baseline-missing');
 assert.equal(result.plan.some(item=>item.key==='a'), false, 'matching timestamp should not refresh');
-assert.equal(result.plan.some(item=>item.key==='b'), false, 'evidence timestamp should prevent stale source metadata from triggering a refresh');
+assert.equal(result.plan.some(item=>item.key==='b'), false, 'source-native evidence timestamp should prevent an unnecessary refresh');
 assert.equal(JSON.stringify(state), before, 'planning must be pure and must not mutate CONTROL state');
 
 const capped = planChatgptCatchup({sources:[],evidence:[]}, {
