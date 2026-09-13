@@ -1,10 +1,50 @@
 const GENERIC_ACTION = /Continue in the synced ChatGPT thread|Review the newest evidence and choose the next safe action|Ouvrir la source la plus récente/i;
 const NOISY_ACTION = /\b(USER|ASSISTANT):|powershell|ExecutionPolicy|PS [A-Z]:\\|```|\bSet-[A-Z]|\bGet-[A-Z]/i;
 const EXTERNAL_WAIT = /\b(wait|waiting|await|awaiting|pending response|pending reply|attendre|attente|en attente|réponse attendue|reponse attendue|until)\b/i;
+const GENERIC_SUMMARY_HEADING = /^(what changed|current state|status|summary|changes?|etat courant|état courant|resume|résumé)\s*[:—-]?$/i;
 
 function actionableText(value = '') {
   const text = String(value || '').trim();
   return text && text.length <= 700 && !GENERIC_ACTION.test(text) && !NOISY_ACTION.test(text) ? text : '';
+}
+
+function cleanMarkdownLine(value = '') {
+  return String(value)
+    .replace(/^\s{0,3}#{1,6}\s+/, '')
+    .replace(/^\s*>\s?/, '')
+    .replace(/^\s*(?:[-*+]\s+|\d+[.)]\s+)/, '')
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/~~([^~]+)~~/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function cleanFocusSummary(value = '', maxChars = 340) {
+  const raw = String(value || '').replace(/```[\s\S]*?```/g, ' ');
+  const units = raw
+    .split(/\r?\n+/)
+    .map(cleanMarkdownLine)
+    .filter(Boolean)
+    .filter(line => !GENERIC_SUMMARY_HEADING.test(line));
+
+  let text = units
+    .slice(0, 4)
+    .map(line => /[.!?…]$/.test(line) ? line : `${line}.`)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!text) text = cleanMarkdownLine(raw);
+  if (!text) return 'État courant disponible dans CONTROL.';
+  if (text.length <= maxChars) return text;
+
+  const cut = text.slice(0, maxChars + 1);
+  const lastSpace = cut.lastIndexOf(' ');
+  return `${cut.slice(0, lastSpace > maxChars * 0.72 ? lastSpace : maxChars).replace(/[\s,;:.!?-]+$/,'')}…`;
 }
 
 function freshnessBonus(freshness = '') {
