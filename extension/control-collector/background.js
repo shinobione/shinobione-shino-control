@@ -87,8 +87,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       if (message.type === 'CONTROL_CATCHUP_PLAN') {
-        const result = await controlPost('/api/plan/chatgpt-catchup', {
-          inventory:message.inventory || {},
+        const inventory = message.inventory || {};
+        const result = await controlPost('/api/chatgpt/catchup-plan', {
+          ...inventory,
           maxPlan:32
         });
         await chrome.storage.local.set({
@@ -121,15 +122,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       if (message.type === 'CONTROL_CATCHUP_COMPLETE') {
         const at = new Date().toISOString();
+        const plan = message.plan || {};
+        const ingested = message.ingested || {};
         await chrome.storage.local.set({
           catchupLastCompletedAt:at,
           catchupLastStatus:'complete',
           catchupLastError:'',
-          catchupLastPlanCount:message.plan?.plan?.length || 0,
-          catchupLastChangedCount:message.plan?.changedCount || 0,
-          catchupLastIngestedChanged:message.ingested?.changed || 0,
-          catchupLastFailed:message.ingested?.failed || 0
+          catchupLastPlanCount:plan.plan?.length || 0,
+          catchupLastChangedCount:plan.changedCount || 0,
+          catchupLastIngestedChanged:ingested.changed || 0,
+          catchupLastFailed:ingested.failed || 0
         });
+        await controlPost('/api/chatgpt/catchup-report', {
+          inventoryCount:plan.inventoryCount || 0,
+          plannedCount:plan.plan?.length || 0,
+          refreshedCount:ingested.changed || 0,
+          failedCount:ingested.failed || 0,
+          deferredCount:plan.deferredCount || 0
+        }).catch(()=>{});
         return sendResponse({ok:true,completedAt:at});
       }
 
