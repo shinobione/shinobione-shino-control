@@ -1,4 +1,4 @@
-import { selectFocusProject } from './focus-engine.js';
+import { cleanFocusSummary, selectFocusProject } from './focus-engine.js';
 
 const esc = (s='') => String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 let timer = null;
@@ -35,7 +35,7 @@ function renderHtml(state, focus) {
 
   const {project, derived, evidence, action, reason, score} = focus;
   const links = sourceLinks(state, project, focus);
-  const summary = String(derived.summary || evidence?.summary || 'État courant disponible dans CONTROL.').slice(0, 500);
+  const summary = cleanFocusSummary(derived.summary || evidence?.summary || 'État courant disponible dans CONTROL.');
   const next = action || 'Ouvrir la source la plus récente et reprendre depuis le dernier état connu.';
   const signature = `${project.id}|${derived.status}|${derived.lastMovementAt || ''}|${next}|${Math.round(score)}`;
 
