@@ -2,7 +2,6 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applyChatgptInventoryMetadata } from './lib/chatgpt-inventory.mjs';
 import { ingestChatgptDelta } from './lib/chatgpt-delta-ingest.mjs';
 import { deriveAll } from './lib/derive.mjs';
 import { syncGithubIncremental } from './lib/github-incremental-sync.mjs';
@@ -10,6 +9,13 @@ import { syncGithubIncremental } from './lib/github-incremental-sync.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.join(__dirname, 'data', 'state.json');
 const originalCreateServer = http.createServer.bind(http);
+const COLLECTOR_COMPONENT = {
+  id:'control-collector',
+  name:'CONTROL Collector',
+  kind:'EXTENSION',
+  path:'extension/control-collector',
+  manifest:'extension/control-collector/manifest.json'
+};
 
 function norm(value = '') {
   return String(value)
@@ -20,8 +26,63 @@ function norm(value = '') {
     .trim();
 }
 
-function restorePersonnelProject() {
-  const state = JSON.parse(fs.readFileSync(DATA, 'utf8'));
+function retireLegacyShinoSync(state) {
+  state.settings ||= {};
+  state.settings.manualMappings ||= {};
+  state.settings.chatgptProjectMappings ||= {};
+  state.projects ||= [];
+  state.sources ||= [];
+  state.evidence ||= [];
+  state.discovered ||= [];
+
+  for (const mappings of [state.settings.manualMappings, state.settings.chatgptProjectMappings]) {
+    for (const [key, value] of Object.entries(mappings)) {
+      if (value === 'shino-sync') mappings[key] = 'control';
+    }
+  }
+
+  const legacySourceIds = new Set(
+    state.sources
+      .filter(source =>
+        source.projectId === 'shino-sync' ||
+        source.componentId === 'shino-sync' ||
+        /extension\/shino-sync/i.test(String(source.url || ''))
+      )
+      .map(source => source.id)
+      .filter(Boolean)
+  );
+
+  state.sources = state.sources.filter(source => !legacySourceIds.has(source.id));
+  state.evidence = state.evidence.filter(evidence =>
+    evidence.projectId !== 'shino-sync' &&
+    evidence.componentId !== 'shino-sync' &&
+    !legacySourceIds.has(evidence.sourceId)
+  );
+  state.projects = state.projects.filter(project => project.id !== 'shino-sync');
+
+  const control = state.projects.find(project => project.id === 'control');
+  if (control) {
+    control.components = [COLLECTOR_COMPONENT];
+    let source = state.sources.find(item => item.projectId === 'control' && item.type === 'github_component' && item.componentId === 'control-collector');
+    if (!source) {
+      source = {
+        id:'src-control-component-control-collector',
+        projectId:'control',
+        type:'github_component',
+        componentId:'control-collector',
+        title:'CONTROL Collector',
+        url:'https://github.com/shinobione/shinobione-shino-control/tree/main/extension/control-collector',
+        lastObservedAt:state.settings.lastChatgptCollector?.at || null,
+        state:'COMPONENT'
+      };
+      state.sources.push(source);
+    }
+  }
+
+  return state;
+}
+
+function restorePersonnelProject(state) {
   state.settings ||= {};
   state.settings.manualMappings ||= {};
   state.settings.chatgptProjectMappings ||= {};
@@ -60,24 +121,47 @@ function restorePersonnelProject() {
   for (const evidence of state.evidence) {
     if (evidence.projectId === 'astrid-admin' || sourceIds.has(evidence.sourceId)) evidence.projectId = 'personnel';
   }
-  for (const [key, value] of Object.entries(state.settings.manualMappings)) {
-    if (value === 'astrid-admin') state.settings.manualMappings[key] = 'personnel';
-  }
-  for (const [key, value] of Object.entries(state.settings.chatgptProjectMappings)) {
-    if (value === 'astrid-admin') state.settings.chatgptProjectMappings[key] = 'personnel';
+  for (const mappings of [state.settings.manualMappings, state.settings.chatgptProjectMappings]) {
+    for (const [key, value] of Object.entries(mappings)) {
+      if (value === 'astrid-admin') mappings[key] = 'personnel';
+    }
   }
 
-  // "Aide avec mon ex conjointe" was mistakenly modeled as a project. It is a conversation
-  // inside PERSONNEL, not a standalone CONTROL project.
   state.projects = state.projects.filter(project => project.id !== 'astrid-admin');
+  return state;
+}
 
-  // Seed/persist the per-project derivation fingerprints at startup. Normal dashboard reads can
-  // then reuse unchanged cards instead of rebuilding every project from scratch.
-  deriveAll(state);
+function normalizeState(state, { derive = false } = {}) {
+  restorePersonnelProject(state);
+  retireLegacyShinoSync(state);
+  if (derive) deriveAll(state);
+  return state;
+}
+
+function readState({ derive = false } = {}) {
+  return normalizeState(JSON.parse(fs.readFileSync(DATA, 'utf8')), { derive });
+}
+
+function writeState(state) {
+  retireLegacyShinoSync(state);
   fs.writeFileSync(DATA, JSON.stringify(state, null, 2));
 }
 
-restorePersonnelProject();
+function scrubStateFile() {
+  try {
+    const before = fs.readFileSync(DATA, 'utf8');
+    const state = normalizeState(JSON.parse(before));
+    const after = JSON.stringify(state, null, 2);
+    if (after !== before.trim()) fs.writeFileSync(DATA, after);
+  } catch {}
+}
+
+// One-time startup migration: retire SHINO Sync artifacts while preserving historical ChatGPT
+// inventory coverage metadata (17 projects / 131 conversations) as read-only provenance.
+{
+  const state = readState({ derive:true });
+  writeState(state);
+}
 
 function json(res, code, body) {
   res.writeHead(code, {
@@ -95,7 +179,7 @@ function isLoopback(req) {
 }
 
 function authorized(req) {
-  const required = process.env.SHINO_SYNC_TOKEN;
+  const required = process.env.SHINO_CONTROL_TOKEN;
   if (!required) return isLoopback(req);
   return req.headers.authorization === `Bearer ${required}`;
 }
@@ -119,46 +203,41 @@ http.createServer = function wrappedCreateServer(listener) {
     try {
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
 
-      // CONTROL Collector: tiny authenticated-browser sensor -> local CONTROL delta ingest.
-      // The collector sends only the current conversation tail plus identifiers/timestamps. All
-      // mapping, deduplication, cursors and project derivation stay in CONTROL Core.
+      // Serve the normalized CONTROL state directly so the retired SHINO Sync component can never
+      // be reintroduced into the dashboard by the legacy inner server model.
+      if (req.method === 'GET' && url.pathname === '/api/state') {
+        return json(res, 200, readState({ derive:true }));
+      }
+
+      // CONTROL Collector: authenticated browser sensor -> local CONTROL delta ingest.
       if (req.method === 'POST' && url.pathname === '/api/ingest/chatgpt-delta') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
         const payload = await readBody(req);
-        const state = JSON.parse(fs.readFileSync(DATA, 'utf8'));
+        const state = readState();
         const result = ingestChatgptDelta(state, payload);
-        // A no-change fingerprint is a genuine no-op: do not rewrite state.json just because the
-        // browser observed the same rendered conversation again.
-        if (result.changed) fs.writeFileSync(DATA, JSON.stringify(state, null, 2));
+        // A no-change fingerprint is a genuine no-op: do not rewrite state.json.
+        if (result.changed) writeState(state);
         return json(res, 200, result);
       }
 
-      // Legacy inventory endpoint stays temporarily available during migration. The new Collector
-      // never calls it; this can disappear together with extension/shino-sync after live validation.
-      if (req.method === 'POST' && url.pathname === '/api/ingest/chatgpt-inventory') {
-        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
-        const payload = await readBody(req);
-        const state = JSON.parse(fs.readFileSync(DATA, 'utf8'));
-        const result = applyChatgptInventoryMetadata(state, payload);
-        deriveAll(state);
-        fs.writeFileSync(DATA, JSON.stringify(state, null, 2));
-        return json(res, 200, {ok:true, ...result, derivation:state.settings?.lastDerivation || null});
-      }
-
-      // Intercept the legacy sync route before server.mjs. The UI keeps the same button/endpoint,
-      // but CONTROL now uses ETag cursors and only dirties projects whose GitHub feeds changed.
+      // The UI keeps the same GitHub-sync endpoint, but CONTROL uses ETag cursors and only dirties
+      // projects whose GitHub feeds changed.
       if (req.method === 'POST' && url.pathname === '/api/sync/github') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
         const payload = await readBody(req);
         const token = payload.token || process.env.GITHUB_TOKEN || '';
-        const state = JSON.parse(fs.readFileSync(DATA, 'utf8'));
+        const state = readState();
         const result = await syncGithubIncremental(state, token);
-        fs.writeFileSync(DATA, JSON.stringify(state, null, 2));
+        writeState(state);
         return json(res, 200, {ok:true, ...result, state});
       }
     } catch (error) {
       return json(res, 500, {error:String(error?.message || error)});
     }
+
+    // Any still-supported legacy inner-server endpoint is allowed to finish, then the on-disk state
+    // is scrubbed so it cannot persist a retired SHINO Sync component/source.
+    res.once('finish', scrubStateFile);
     return listener(req, res);
   });
 };
