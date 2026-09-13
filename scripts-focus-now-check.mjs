@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { selectFocusProject } from './public/focus-engine.js';
+import { cleanFocusSummary, selectFocusProject } from './public/focus-engine.js';
 
 const now = Date.parse('2026-09-13T19:00:00Z');
 const base = {
@@ -47,5 +47,20 @@ assert.equal(focus.project.id, 'stable', 'Stable project is a fallback only when
 
 const none = {projects:[{id:'empty',name:'Empty'}],derived:[{projectId:'empty',status:'EMPTY'}],evidence:[]};
 assert.equal(selectFocusProject(none, now), null, 'EMPTY-only radar should have no focus candidate');
+
+const rawSummary = `## What changed
+- v0.2.5 was live-validated on Suno v5.5 Advanced and merged to \`main\`
+- adds safe exact-name Workspace selection from \`WORKSPACE\`
+- adds safe exact-name saved Voice selection from \`VOICE\`
+- adds **Préparer Workspace + Voice** to the Bridge panel
+- confirms the new workflow is ready for PR #2 review`;
+const cleaned = cleanFocusSummary(rawSummary);
+assert.ok(!cleaned.includes('##'), 'Focus summary must remove markdown headings');
+assert.ok(!cleaned.includes('`'), 'Focus summary must remove inline-code markers');
+assert.ok(!cleaned.startsWith('What changed'), 'Generic summary heading must be removed');
+assert.match(cleaned, /v0\.2\.5/);
+assert.match(cleaned, /Workspace/);
+assert.ok(cleaned.length <= 341, `Focus summary must stay compact, got ${cleaned.length} chars`);
+assert.equal(rawSummary.includes('## What changed'), true, 'Presentation cleanup must not mutate the source value');
 
 console.log('Focus Now checks passed');
