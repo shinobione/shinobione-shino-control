@@ -23,12 +23,14 @@ jobs:
           node --check lib/public-snapshot.mjs
           node --check lib/github-incremental-sync.mjs
           node --check lib/chatgpt-delta-ingest.mjs
+          node --check lib/chatgpt-catchup-plan.mjs
           node --check lib/resolver.mjs
           node --check scripts-check.mjs
           node --check scripts-status-check.mjs
           node --check scripts-derivation-cache-check.mjs
           node --check scripts-github-cursor-check.mjs
           node --check scripts-chatgpt-delta-check.mjs
+          node --check scripts-chatgpt-catchup-check.mjs
           node --check scripts-focus-now-check.mjs
           node --check scripts/repair-state.mjs
           node --check scripts/generate-build-info.mjs
@@ -37,6 +39,8 @@ jobs:
           node --check scripts/build-pages.mjs
           node --check extension/control-collector/background.js
           node --check extension/control-collector/collector.js
+          node --check extension/control-collector/catchup-main.js
+          node --check extension/control-collector/catchup-client.js
           node --check public/state-filter.js
           node --check public/site-bootstrap.js
           node --check public/focus-engine.js
@@ -69,10 +73,17 @@ jobs:
         run: |
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.9.14' public/build-info.js
+          grep -q '0.9.15' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
-          grep -q '"version": "0.1.1"' extension/control-collector/manifest.json
+          grep -q '"version": "0.2.0"' extension/control-collector/manifest.json
+          test -s extension/control-collector/catchup-main.js
+          test -s extension/control-collector/catchup-client.js
+          grep -q 'chatgpt-project-api-metadata-v1' extension/control-collector/catchup-main.js
+          grep -q '/backend-api/conversation/' extension/control-collector/catchup-main.js
+          grep -q 'CONTROL_CATCHUP_PLAN' extension/control-collector/background.js
+          grep -q '/api/chatgpt/catchup-plan' server-entry.mjs
+          grep -q '/api/chatgpt/catchup-report' server-entry.mjs
           test -s scripts/windows/control-supervisor.ps1
           test -s scripts/windows/install-startup.ps1
           test -s scripts/windows/startup-status.ps1
@@ -112,7 +123,7 @@ jobs:
           test -s dist/radar-copy-cleaner.js
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.9.14"' dist/state.json
+          grep -q '"version": "0.9.15"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'https://chatgpt.com/c/' dist/state.json; then
             echo 'Private ChatGPT conversation URL leaked into public snapshot'
