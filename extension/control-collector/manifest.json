@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SHINO // CONTROL Collector",
-  "version": "0.1.1",
-  "description": "Minimal ChatGPT delta sensor for SHINO // CONTROL. No inventory, popup, mapping or backfill logic.",
+  "version": "0.2.0",
+  "description": "ChatGPT delta sensor + targeted metadata catch-up for SHINO // CONTROL. No DOM crawler or conversation backfill.",
   "permissions": [
     "storage"
   ],
@@ -23,7 +23,19 @@
         "https://chat.openai.com/*"
       ],
       "js": [
-        "collector.js"
+        "catchup-main.js"
+      ],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "collector.js",
+        "catchup-client.js"
       ],
       "run_at": "document_idle"
     }
