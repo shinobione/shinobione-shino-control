@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SHINO // CONTROL Collector",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Minimal ChatGPT delta sensor for SHINO // CONTROL. No inventory, popup, mapping or backfill logic.",
   "permissions": [
     "storage"

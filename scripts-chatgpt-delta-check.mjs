@@ -101,6 +101,34 @@ if (state.evidence.filter(item => item.id === first.evidenceId).length !== 1) th
 if (!/upload the final master/i.test(state.evidence.find(item => item.id === first.evidenceId)?.resumeAction || '')) throw new Error('stable evidence was not updated in place');
 if (state.settings.lastDerivation?.recalculated !== 1 || state.settings.lastDerivation?.projectIds?.join(',') !== 'music') throw new Error('changed delta did not remain project-local');
 
+// Real-world regression from the first live Collector run: assistant verification prose contained
+// a PowerShell block. Commands and state-dump plumbing must never become the Resume action.
+const noisy = ingestChatgptDelta(state,{
+  ...payload,
+  fingerprint:'fixture-fingerprint-noise',
+  conversationUpdatedAt:'2026-09-13T18:10:00.000Z',
+  messages:[
+    {role:'user',text:'collector test'},
+    {role:'assistant',text:[
+      'Parfait — le message test est parti. Maintenant il faut vérifier ce qui s’est passé.',
+      '```powershell',
+      '$root = "F:\\Google Drive\\Musique STUFF\\shino-control\\shino-control-live"',
+      '$s = Get-Content "$root\\data\\state.json" -Raw | ConvertFrom-Json',
+      'Write-Host "=== COLLECTOR ===" -ForegroundColor Cyan',
+      '$s.settings.lastChatgptCollector | Format-List',
+      '```',
+      'Ensuite on fera le test no-op final.'
+    ].join('\n')}
+  ],
+  messageCount:46
+});
+if (!noisy.changed || noisy.projectId !== 'music') throw new Error('noise fixture did not update mapped project');
+const noisyEvidence = state.evidence.find(item => item.id === first.evidenceId);
+if (!/test no-op final/i.test(noisyEvidence?.resumeAction || '')) throw new Error(`natural next action was not retained: ${noisyEvidence?.resumeAction}`);
+if (/(Write-Host|Get-Content|ConvertFrom-Json|Format-List|PowerShell|\\data\\state\.json)/i.test(`${noisyEvidence?.resumeAction || ''} ${noisyEvidence?.summary || ''}`)) {
+  throw new Error(`PowerShell/code noise leaked into derived evidence: ${noisyEvidence?.resumeAction}`);
+}
+
 const unknown = ingestChatgptDelta(state,{
   conversationKey:'33333333-3333-3333-3333-333333333333',
   url:'https://chatgpt.com/c/33333333-3333-3333-3333-333333333333',

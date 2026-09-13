@@ -8,6 +8,16 @@
     return String(value || '').replace(/\s+/g, ' ').trim();
   }
 
+  function cleanMessage(value = '') {
+    return String(value || '')
+      .replace(/\r/g, '')
+      .split('\n')
+      .map(line => line.replace(/[ \t]+/g, ' ').trimEnd())
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
   function hash(value = '') {
     let h = 2166136261;
     for (const char of String(value || '')) {
@@ -67,7 +77,7 @@
     let chars = 0;
     for (const node of selected) {
       const role = String(node.getAttribute('data-message-author-role') || 'unknown').toLowerCase();
-      const text = clean(node.innerText || node.textContent || '').slice(0, 16000);
+      const text = cleanMessage(node.innerText || node.textContent || '').slice(0, 16000);
       if (!text) continue;
       if (chars + text.length > 90000) break;
       chars += text.length;
@@ -106,7 +116,7 @@
       fingerprint,
       conversationUpdatedAt:now,
       clientTimestamp:now,
-      collectorVersion:'0.1.0'
+      collectorVersion:'0.1.1'
     };
 
     const response = await chrome.runtime.sendMessage({ type:'CONTROL_COLLECT_DELTA', payload });
