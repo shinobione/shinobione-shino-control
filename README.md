@@ -1,37 +1,48 @@
 # SHINO // CONTROL
 
-A **source-derived project radar and resume hub** for SHINO projects. It is intentionally not a Trello clone.
+A **source-derived project radar and resume hub** for the SHINO ecosystem.
 
 For each project, CONTROL answers:
 
-- What is the actual current state according to evidence?
-- What happened last?
-- What is the safest / most likely next step?
-- Where do I click to resume: ChatGPT, a GitHub PR, repo, or live site?
-- Why did CONTROL infer this state?
+- what is the actual current state according to evidence;
+- what happened last;
+- what the safest / most likely next step is;
+- where to resume work;
+- why CONTROL inferred that state.
 
-## GitHub Pages
+## Current architecture
 
-The dashboard is deployable directly from this repository with GitHub Actions.
+CONTROL Core owns project state, mapping, deduplication, Resume Engine, Status Engine, dirty-project derivation and GitHub cursors.
 
-Live site target:
+ChatGPT capture is handled by the tiny browser sensor in:
 
-`https://shinobione.github.io/shinobione-shino-control/`
+```text
+extension/control-collector
+```
 
-Every push to `main` rebuilds the static dashboard from `data/state.json` and deploys it through `.github/workflows/pages.yml`. The Pages build uses the same derivation engine as the local server.
+The Collector has no popup, project inventory, backfill crawler or business logic. It watches the active ChatGPT conversation, waits for the DOM to settle, fingerprints the rendered conversation tail and sends a delta to CONTROL.
 
-On GitHub Pages the dashboard is intentionally **read-only**: repository state is the source of truth and mutation endpoints such as GitHub sync/remap are disabled in the static UI. The local Node server remains available for development/ingestion workflows when needed, but it is no longer required just to view CONTROL.
+Local ingest endpoint:
 
-## v0.9.0
+```text
+POST /api/ingest/chatgpt-delta
+```
 
-GitHub Pages hosting is now first-class:
+An unchanged fingerprint is a true no-op: CONTROL does not rewrite `state.json` and does not rederive a project.
 
-- static site build via `npm run build:pages`;
-- automatic deployment on every `main` push;
-- relative frontend assets so the app works under the repository Pages path;
-- `/api/state` transparently mapped to the deployed repository snapshot;
-- write/sync controls disabled on the static site;
-- the same `deriveAll()` engine generates the published radar state.
+The previous SHINO Sync extension and ChatGPT inventory/backfill pipeline were retired after live validation of mapped delta ingestion and no-op behavior. Historical inventory coverage metadata may remain in state as provenance; it is not an active crawler.
+
+## GitHub sync
+
+GitHub sync is incremental. CONTROL stores cursors/ETags for repository feeds so unchanged commits, PRs and workflow feeds are skipped instead of being rebuilt.
+
+Local endpoint:
+
+```text
+POST /api/sync/github
+```
+
+Public repositories can be read without a token subject to GitHub limits. For private repositories, set `GITHUB_TOKEN` before starting CONTROL.
 
 ## Run locally
 
@@ -41,48 +52,57 @@ Requires Node 20+.
 npm start
 ```
 
-Open: `http://127.0.0.1:4177`
+Open:
 
-No npm install is required; the MVP uses only Node built-ins and browser APIs.
+```text
+http://127.0.0.1:4177
+```
 
-## GitHub sync
+No npm install is required; CONTROL currently uses Node built-ins and browser APIs only.
 
-Public repositories can be queried without a token, subject to GitHub rate limits. For private repositories, use a fine-grained GitHub token with read access.
+For a non-loopback deployment, set an ingestion token:
 
 ```powershell
-$env:GITHUB_TOKEN="github_pat_..."
+$env:SHINO_CONTROL_TOKEN="..."
 npm start
 ```
 
-The adapter reads recent commits, PRs, workflow state and truth files. Component projects may define a repository path; SHINO Sync, for example, only consumes commits touching `extension/shino-sync` and reads its own `manifest.json` rather than treating every CONTROL commit as extension activity.
+When `SHINO_CONTROL_TOKEN` is unset, mutation/ingest requests are accepted only from loopback.
 
-## ChatGPT ingestion
+## Chrome Collector
 
-Local endpoint:
+Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select:
 
 ```text
-POST /api/ingest/chatgpt
+extension/control-collector
 ```
 
-Load the Chrome extension from `extension/shino-sync`.
+The extension intentionally exposes no popup. Status is kept internally in `chrome.storage.local` and normal operation is automatic.
 
-SHINO Sync can capture current ChatGPT conversations and maintain the project inventory used by CONTROL. GitHub Pages itself does not expose a public ingestion endpoint; publication happens from repository state.
+## GitHub Pages
 
-Unauthenticated local ingestion is accepted only from loopback when `SHINO_SYNC_TOKEN` is unset. For any remote ingestion backend, require authentication.
+GitHub Pages is the read-only public dashboard. Every push to `main` rebuilds and deploys a sanitized state snapshot through `.github/workflows/pages.yml`.
 
-## Derivation rules
+The public snapshot strips private ChatGPT URLs, project keys and raw evidence while retaining the useful derived card state. A coverage guard prevents a less-complete repository state from replacing a fuller committed public snapshot.
 
-The engine combines evidence instead of blindly mirroring the newest PR:
+## Derivation
 
-1. newer explicit acceptance / merge / closeout beats older draft intent;
-2. `SUPERSEDED`, `supersedes`, `DO NOT MERGE`, `no longer authorized` reduce resume priority;
-3. `REAL USER PASS` / `PHYSICAL PASS` can close a gate;
-4. `PENDING`, `NEXT`, `REQUIRES LIVE TEST`, `PHYSICAL GATE` point to likely resume actions;
-5. multiple evidence events contribute to project-level state;
-6. **Why this state?** exposes the evidence used.
+CONTROL combines evidence rather than blindly mirroring the newest event.
+
+Resume Engine prioritizes explicit actionable conversation state and filters code / PowerShell noise. Status Engine derives `ACTIVE`, `STABLE`, `NEEDS TEST` and `BLOCKED`. Dirty-project derivation fingerprints project inputs so unchanged cards are reused instead of recalculated.
 
 ## Data
 
-Current state is stored in `data/state.json`. `npm run build:pages` derives it and writes the static deployment into `dist/`; `dist/` is generated and not committed.
+Local mutable state is stored in:
 
-The storage model stays deliberately simple and auditable so it can later be swapped for Postgres/Supabase without changing the project/source/evidence model.
+```text
+data/state.json
+```
+
+The committed sanitized Pages baseline is:
+
+```text
+data/state.pages.json
+```
+
+`npm run build:pages` generates `dist/` and applies the public-snapshot coverage/privacy gates.
