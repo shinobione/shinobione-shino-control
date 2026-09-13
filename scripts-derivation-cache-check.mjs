@@ -67,4 +67,31 @@ if (state.settings.lastDerivation?.recalculated !== 1) throw new Error(`explicit
 if (state.settings.lastDerivation?.projectIds?.join(',') !== 'b') throw new Error(`explicit dirty expected B, got ${state.settings.lastDerivation?.projectIds}`);
 if (state.settings.lastDerivation?.mode !== 'dirty') throw new Error(`explicit dirty expected dirty mode, got ${state.settings.lastDerivation?.mode}`);
 
+// Legacy 17/131-style inventories only carry global totals. Once conservation proves the sole empty
+// project, that proof must become a stable fingerprint input; otherwise the empty card would churn
+// UNSYNCED -> EMPTY on every dashboard read and defeat incremental derivation.
+const legacy = {
+  version:1,
+  settings:{
+    chatgptProjectMappings:{'legacy-current':'active'},
+    lastChatgptInventory:{source:'legacy',projectCount:2,conversationCount:1}
+  },
+  projects:[
+    {id:'active',name:'Active',kind:'CHATGPT_PROJECT'},
+    {id:'empty',name:'Empty',kind:'CHATGPT_PROJECT'}
+  ],
+  sources:[
+    {id:'legacy-src',projectId:'active',type:'chatgpt_thread',inventoryCurrent:true,externalId:'cccccccc-cccc-cccc-cccc-cccccccccccc',chatgptProjectKey:'legacy-current'}
+  ],
+  evidence:[
+    {id:'legacy-ev',sourceId:'legacy-src',projectId:'active',sourceType:'chatgpt_thread',type:'chat_sync',timestamp:now,title:'Active work',summary:'NEXT: continue.',resumeAction:'NEXT: continue.',confidence:0.87}
+  ],
+  derived:[]
+};
+deriveAll(legacy,{force:true});
+if (legacy.derived.find(item=>item.projectId==='empty')?.status !== 'EMPTY') throw new Error('legacy conservation did not prove sole empty project');
+deriveAll(legacy);
+if (legacy.settings.lastDerivation?.recalculated !== 0) throw new Error(`legacy empty cache should be stable on second pass, got ${legacy.settings.lastDerivation?.recalculated} recalculations`);
+if (legacy.settings.lastDerivation?.reused !== 2) throw new Error(`legacy empty cache should reuse 2 projects, got ${legacy.settings.lastDerivation?.reused}`);
+
 console.log('Dirty-project derivation checks PASS');
