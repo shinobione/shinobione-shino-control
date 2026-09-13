@@ -1,6 +1,6 @@
 {
   "name": "shino-control",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,7 @@
     "start": "node server-entry.mjs",
     "predev": "npm run assets",
     "dev": "node --watch server-entry.mjs",
-    "check": "node scripts-check.mjs && node scripts-status-check.mjs && node scripts-derivation-cache-check.mjs",
+    "check": "node scripts-check.mjs && node scripts-status-check.mjs && node scripts-derivation-cache-check.mjs && node scripts-github-cursor-check.mjs",
     "pages:snapshot": "node scripts/generate-pages-snapshot.mjs",
     "build:pages": "node scripts/build-pages.mjs",
     "repair": "node scripts/repair-state.mjs",
