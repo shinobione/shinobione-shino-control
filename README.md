@@ -69,6 +69,44 @@ npm start
 
 When `SHINO_CONTROL_TOKEN` is unset, mutation/ingest requests are accepted only from loopback.
 
+## Windows autonomous startup
+
+On Windows, CONTROL can install a per-user hidden supervisor. It requires no administrator rights.
+
+```powershell
+npm run startup:install
+```
+
+The installer:
+
+- stores the current repo path and exact `node.exe` path under `%LOCALAPPDATA%\SHINO-Control`;
+- adds a per-user `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` entry;
+- launches the supervisor hidden;
+- waits for the repo/drive if it is not available yet at sign-in;
+- starts CONTROL Core when `http://127.0.0.1:4177/api/state` is down;
+- keeps monitoring the Core and restarts Node after an unexpected exit;
+- avoids duplicate supervisors and keeps startup/Core logs in `%LOCALAPPDATA%\SHINO-Control`.
+
+Check it at any time:
+
+```powershell
+npm run startup:status
+```
+
+Remove autostart:
+
+```powershell
+npm run startup:uninstall
+```
+
+To uninstall and also stop the currently running Core:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows/uninstall-startup.ps1 -StopCore
+```
+
+If the repository is moved to another path, rerun `npm run startup:install` from the new checkout so the stored path is refreshed.
+
 ## Chrome Collector
 
 Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select:

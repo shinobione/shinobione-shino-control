@@ -39,16 +39,42 @@ jobs:
           node --check public/state-filter.js
           node --check public/site-bootstrap.js
           node --check public/app.js
+      - name: PowerShell startup syntax
+        shell: pwsh
+        run: |
+          $failed = $false
+          foreach ($file in @(
+            'scripts/windows/control-supervisor.ps1',
+            'scripts/windows/install-startup.ps1',
+            'scripts/windows/startup-status.ps1',
+            'scripts/windows/uninstall-startup.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $failed = $true
+              Write-Host "PowerShell parse errors in $file"
+              $errors | ForEach-Object { Write-Host $_ }
+            }
+          }
+          if ($failed) { exit 1 }
       - name: Generate build metadata
         run: npm run assets
       - name: Verify CONTROL-only architecture
         run: |
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.9.10' public/build-info.js
+          grep -q '0.9.11' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
           grep -q '"version": "0.1.1"' extension/control-collector/manifest.json
+          test -s scripts/windows/control-supervisor.ps1
+          test -s scripts/windows/install-startup.ps1
+          test -s scripts/windows/startup-status.ps1
+          test -s scripts/windows/uninstall-startup.ps1
+          grep -q 'SHINO_CONTROL_Core' scripts/windows/install-startup.ps1
+          grep -q '127.0.0.1' scripts/windows/control-supervisor.ps1
           test ! -e extension/shino-sync
           test ! -e lib/chatgpt-inventory.mjs
           test ! -e scripts/generate-brand-assets.mjs
@@ -70,7 +96,7 @@ jobs:
           test -s dist/app.js
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.9.10"' dist/state.json
+          grep -q '"version": "0.9.11"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'https://chatgpt.com/c/' dist/state.json; then
             echo 'Private ChatGPT conversation URL leaked into public snapshot'

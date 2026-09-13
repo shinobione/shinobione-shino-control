@@ -1,6 +1,6 @@
 {
   "name": "shino-control",
-  "version": "0.9.10",
+  "version": "0.9.11",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,7 +14,10 @@
     "build:pages": "node scripts/build-pages.mjs",
     "repair": "node scripts/repair-state.mjs",
     "chat:audit": "node scripts/chatgpt-state-hygiene.mjs",
-    "chat:repair": "node scripts/chatgpt-state-hygiene.mjs --apply"
+    "chat:repair": "node scripts/chatgpt-state-hygiene.mjs --apply",
+    "startup:install": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows/install-startup.ps1",
+    "startup:status": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows/startup-status.ps1",
+    "startup:uninstall": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows/uninstall-startup.ps1"
   },
   "engines": { "node": ">=20" }
 }
