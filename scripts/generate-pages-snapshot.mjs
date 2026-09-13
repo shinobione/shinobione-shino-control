@@ -38,6 +38,22 @@ function readCommittedSnapshot() {
   }
 }
 
+function retireLegacyPublicArtifacts(snapshot) {
+  snapshot.projects = (snapshot.projects || []).filter(project => project.id !== 'shino-sync');
+  snapshot.sources = (snapshot.sources || []).filter(source =>
+    source.projectId !== 'shino-sync' &&
+    source.componentId !== 'shino-sync' &&
+    !/extension\/shino-sync/i.test(String(source.url || ''))
+  );
+  snapshot.evidence = (snapshot.evidence || []).filter(evidence =>
+    evidence.projectId !== 'shino-sync' &&
+    evidence.componentId !== 'shino-sync' &&
+    !/extension\/shino-sync/i.test(String(evidence.url || ''))
+  );
+  snapshot.derived = (snapshot.derived || []).filter(item => item.projectId !== 'shino-sync');
+  return snapshot;
+}
+
 function stampPublishBuild(snapshot, { guarded = false, candidateCoverage = null } = {}) {
   snapshot.settings ||= {};
   snapshot.settings.controlBuild = {
@@ -72,6 +88,8 @@ export function generatePagesSnapshot({ write = true, allowRegression = false } 
     snapshot = structuredClone(baseline);
     guarded = true;
   }
+
+  retireLegacyPublicArtifacts(snapshot);
   stampPublishBuild(snapshot, {
     guarded,
     candidateCoverage: guarded ? snapshotCoverage(candidate) : null
