@@ -17,6 +17,8 @@ jobs:
         run: |
           node --check server.mjs
           node --check server-entry.mjs
+          node --check lib/derive.mjs
+          node --check lib/resume-engine.mjs
           node --check lib/resolver.mjs
           node --check lib/chatgpt-inventory.mjs
           node --check scripts/repair-state.mjs
