@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ingestChatgptDelta } from './lib/chatgpt-delta-ingest.mjs';
+import { planChatgptCatchup } from './lib/chatgpt-catchup-plan.mjs';
 import { deriveAll } from './lib/derive.mjs';
 import { syncGithubIncremental } from './lib/github-incremental-sync.mjs';
 
@@ -207,6 +208,37 @@ http.createServer = function wrappedCreateServer(listener) {
       // be reintroduced into the dashboard by the legacy inner server model.
       if (req.method === 'GET' && url.pathname === '/api/state') {
         return json(res, 200, readState({ derive:true }));
+      }
+
+      // Metadata-only catch-up planner. The authenticated browser supplies the current ChatGPT
+      // project/conversation metadata; CONTROL returns only conversations that are new or newer than
+      // its local source/evidence timestamps. No messages are accepted or persisted on this route.
+      if (req.method === 'POST' && url.pathname === '/api/chatgpt/catchup-plan') {
+        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+        const payload = await readBody(req);
+        const state = readState();
+        const result = planChatgptCatchup(state, payload, {maxPlan:payload.maxPlan || 32});
+        return json(res, 200, result);
+      }
+
+      // Small completion diagnostic used by the UI/status view. The actual project updates still go
+      // through the normal delta ingest endpoint, preserving one source of truth for derivation.
+      if (req.method === 'POST' && url.pathname === '/api/chatgpt/catchup-report') {
+        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+        const payload = await readBody(req);
+        const state = readState();
+        state.settings ||= {};
+        state.settings.lastChatgptCatchup = {
+          at:new Date().toISOString(),
+          source:'control-collector-api-metadata',
+          inventoryCount:Number(payload.inventoryCount || 0),
+          plannedCount:Number(payload.plannedCount || 0),
+          refreshedCount:Number(payload.refreshedCount || 0),
+          failedCount:Number(payload.failedCount || 0),
+          deferredCount:Number(payload.deferredCount || 0)
+        };
+        writeState(state);
+        return json(res, 200, {ok:true, ...state.settings.lastChatgptCatchup});
       }
 
       // CONTROL Collector: authenticated browser sensor -> local CONTROL delta ingest.
