@@ -41,11 +41,11 @@ jobs:
           node --check public/app.js
       - name: Generate build metadata
         run: npm run assets
-      - name: Verify CONTROL-only collector layout
+      - name: Verify CONTROL-only architecture
         run: |
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.9.9' public/build-info.js
+          grep -q '0.9.10' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
           grep -q '"version": "0.1.1"' extension/control-collector/manifest.json
@@ -54,6 +54,10 @@ jobs:
           test ! -e scripts/generate-brand-assets.mjs
           if grep -q '/api/ingest/chatgpt-inventory' server-entry.mjs; then
             echo 'Retired ChatGPT inventory endpoint still present'
+            exit 1
+          fi
+          if grep -Eqi 'shino-sync|SHINO_SYNC_TOKEN|/api/ingest/chatgpt([^a-zA-Z-]|$)|async function syncGithub|resolveProjectDetailed' server.mjs; then
+            echo 'Legacy SHINO Sync / duplicate ingest architecture still present in server.mjs'
             exit 1
           fi
       - name: Derived-state regression checks
@@ -66,7 +70,7 @@ jobs:
           test -s dist/app.js
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.9.9"' dist/state.json
+          grep -q '"version": "0.9.10"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'https://chatgpt.com/c/' dist/state.json; then
             echo 'Private ChatGPT conversation URL leaked into public snapshot'
