@@ -102,6 +102,57 @@ const resume = deriveProjectState(
   }],
   {inventoryPresent:true,currentChatCount:1}
 );
-if (!/roadmap PERSONNEL/i.test(resume.nextAction)) throw new Error(`resume engine: unexpected action: ${resume.nextAction}`);
+if (!/roadmap PERSONNEL/i.test(resume.nextAction)) throw new Error(`resume engine fallback: unexpected action: ${resume.nextAction}`);
+if (resume.resumeSource !== 'title_heuristic') throw new Error(`resume engine fallback: expected title_heuristic, got ${resume.resumeSource}`);
+
+const contentAwareResume = deriveProjectState(
+  {id:'control',name:'SHINO // CONTROL'},
+  [{
+    id:'chat-control', projectId:'control', sourceType:'chatgpt_thread', type:'chat_sync',
+    timestamp:now, title:'Site de suivi projets',
+    summary:'Inventory and mapping are complete. NEXT: implement the Resume Engine and verify the dashboard cards.',
+    currentStateSummary:'Inventory and mapping are complete. The next step is to implement the Resume Engine.',
+    resumeAction:'NEXT: implement the Resume Engine and verify the dashboard cards.',
+    confidence:0.87
+  }],
+  {inventoryPresent:true,currentChatCount:1}
+);
+if (!/implement the Resume Engine/i.test(contentAwareResume.nextAction)) throw new Error(`resume engine content: actual action was lost: ${contentAwareResume.nextAction}`);
+if (/dernier échange confirmé/i.test(contentAwareResume.nextAction)) throw new Error('resume engine content: fell back to title heuristic despite usable transcript evidence');
+if (contentAwareResume.resumeSource !== 'chat_resume_action') throw new Error(`resume engine content: expected chat_resume_action, got ${contentAwareResume.resumeSource}`);
+if (!/next step is to implement the Resume Engine/i.test(contentAwareResume.summary)) throw new Error(`resume engine summary: expected content-aware state summary, got ${contentAwareResume.summary}`);
+
+const noisyResume = deriveProjectState(
+  {id:'personnel',name:'PERSONNEL'},
+  [{
+    id:'chat-noise', projectId:'personnel', sourceType:'chatgpt_thread', type:'chat_sync',
+    timestamp:now, title:'Extraction de todo list',
+    summary:'ChatGPT thread synced.',
+    resumeAction:'PS C:\\Users\\jerry> Get-Process | Select-Object Name',
+    confidence:0.87
+  }],
+  {inventoryPresent:true,currentChatCount:1}
+);
+if (!/roadmap PERSONNEL/i.test(noisyResume.nextAction)) throw new Error(`resume engine noise filter: expected title fallback, got ${noisyResume.nextAction}`);
+if (noisyResume.resumeSource !== 'title_heuristic') throw new Error(`resume engine noise filter: expected title_heuristic, got ${noisyResume.resumeSource}`);
+
+const newerChatBeatsOldRepoResume = deriveProjectState(
+  {id:'fixture-recency',name:'Fixture recency'},
+  [
+    {
+      id:'chat-new', projectId:'fixture-recency', sourceType:'chatgpt_thread', type:'chat_sync',
+      timestamp:now, title:'Current implementation', summary:'NEXT: validate the new card output.',
+      resumeAction:'NEXT: validate the new card output.', confidence:0.87
+    },
+    {
+      id:'gh-old', projectId:'fixture-recency', sourceType:'github_pr', type:'pr',
+      timestamp:new Date(Date.now()-7*86400000).toISOString(), title:'Old PR', summary:'Older repository state.',
+      resumeAction:'Open the old PR and continue there.', confidence:0.99
+    }
+  ],
+  {inventoryPresent:true,currentChatCount:1}
+);
+if (!/validate the new card output/i.test(newerChatBeatsOldRepoResume.nextAction)) throw new Error(`resume engine recency: stale repo resume won: ${newerChatBeatsOldRepoResume.nextAction}`);
+if (newerChatBeatsOldRepoResume.resumeEvidenceId !== 'chat-new') throw new Error(`resume engine recency: expected chat-new evidence, got ${newerChatBeatsOldRepoResume.resumeEvidenceId}`);
 
 console.log('Derived-state checks PASS');
