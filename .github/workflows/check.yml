@@ -22,6 +22,7 @@ jobs:
           node --check scripts/repair-state.mjs
           node --check scripts/generate-brand-assets.mjs
           node --check scripts/chatgpt-state-hygiene.mjs
+          node --check scripts/build-pages.mjs
           node --check extension/shino-sync/background.js
           node --check extension/shino-sync/content.js
           node --check extension/shino-sync/inventory.js
@@ -34,6 +35,7 @@ jobs:
           node --check extension/shino-sync/popup-api-mainworld-v071.js
           node --check extension/shino-sync/popup-project-metadata-v073.js
           node --check public/state-filter.js
+          node --check public/site-bootstrap.js
           node --check public/app.js
       - name: Generate brand assets
         run: npm run assets
@@ -46,3 +48,9 @@ jobs:
           test -s extension/shino-sync/icons/shino-sync-128.png
       - name: Derived-state regression checks
         run: npm run check
+      - name: GitHub Pages build
+        run: |
+          npm run build:pages
+          test -s dist/index.html
+          test -s dist/state.json
+          test -s dist/app.js
