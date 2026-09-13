@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyChatgptInventoryMetadata } from './lib/chatgpt-inventory.mjs';
 import { deriveAll } from './lib/derive.mjs';
+import { syncGithubIncremental } from './lib/github-incremental-sync.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.join(__dirname, 'data', 'state.json');
@@ -124,6 +125,18 @@ http.createServer = function wrappedCreateServer(listener) {
         deriveAll(state);
         fs.writeFileSync(DATA, JSON.stringify(state, null, 2));
         return json(res, 200, {ok:true, ...result, derivation:state.settings?.lastDerivation || null});
+      }
+
+      // Intercept the legacy sync route before server.mjs. The UI keeps the same button/endpoint,
+      // but CONTROL now uses ETag cursors and only dirties projects whose GitHub feeds changed.
+      if (req.method === 'POST' && url.pathname === '/api/sync/github') {
+        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+        const payload = await readBody(req);
+        const token = payload.token || process.env.GITHUB_TOKEN || '';
+        const state = JSON.parse(fs.readFileSync(DATA, 'utf8'));
+        const result = await syncGithubIncremental(state, token);
+        fs.writeFileSync(DATA, JSON.stringify(state, null, 2));
+        return json(res, 200, {ok:true, ...result, state});
       }
     } catch (error) {
       return json(res, 500, {error:String(error?.message || error)});
