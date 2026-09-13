@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { deriveAll, deriveProjectState } from './lib/derive.mjs';
 import { applyChatgptInventoryMetadata } from './lib/chatgpt-inventory.mjs';
+import { buildPublicSnapshot } from './lib/public-snapshot.mjs';
 
 const live = deriveAll(JSON.parse(fs.readFileSync('./data/state.json','utf8')));
 for (const d of live.derived) console.log(`${d.projectId.padEnd(18)} ${d.status.padEnd(11)} ${d.confidence.padEnd(6)} ${d.nextAction}`);
@@ -154,5 +155,38 @@ const newerChatBeatsOldRepoResume = deriveProjectState(
 );
 if (!/validate the new card output/i.test(newerChatBeatsOldRepoResume.nextAction)) throw new Error(`resume engine recency: stale repo resume won: ${newerChatBeatsOldRepoResume.nextAction}`);
 if (newerChatBeatsOldRepoResume.resumeEvidenceId !== 'chat-new') throw new Error(`resume engine recency: expected chat-new evidence, got ${newerChatBeatsOldRepoResume.resumeEvidenceId}`);
+
+const privateStateFixture = {
+  version:1,
+  derivedAt:now,
+  settings:{
+    githubRepos:['shinobione/example'],
+    chatgptProjectMappings:{'private-project-key':'fixture-public'},
+    lastChatgptInventory:{source:'fixture',observedAt:now,projectCount:1,conversationCount:1,projects:[{key:'private-project-key',title:'Fixture public',conversationCount:1}]}
+  },
+  projects:[{id:'fixture-public',name:'Fixture public',universe:'TEST',kind:'CHATGPT_PROJECT'}],
+  sources:[{
+    id:'private-chat-source',projectId:'fixture-public',type:'chatgpt_thread',inventoryCurrent:true,
+    externalId:'private-conversation-id',chatgptProjectKey:'private-project-key',
+    url:'https://chatgpt.com/c/private-conversation-id',conversationUpdatedAt:now,title:'Private conversation title'
+  }],
+  evidence:[{
+    id:'private-evidence',projectId:'fixture-public',sourceId:'private-chat-source',sourceType:'chatgpt_thread',
+    type:'chat_sync',timestamp:now,title:'Private conversation title',summary:'NEXT: validate the public card.',
+    currentStateSummary:'Current user-facing state.',resumeAction:'NEXT: validate the public card.',confidence:0.87
+  }]
+};
+deriveAll(privateStateFixture);
+const publicSnapshot = buildPublicSnapshot(privateStateFixture,{version:'9.9.9',sha:'abcdef123456',generatedAt:now});
+const publicJson = JSON.stringify(publicSnapshot);
+if (!publicSnapshot.settings.publicSnapshot) throw new Error('public snapshot: publicSnapshot flag missing');
+if (publicSnapshot.settings.controlBuild?.version !== '9.9.9') throw new Error('public snapshot: build version missing');
+if (publicSnapshot.settings.controlBuild?.sha !== 'abcdef12') throw new Error('public snapshot: build sha not shortened');
+if (publicJson.includes('https://chatgpt.com/c/')) throw new Error('public snapshot privacy: ChatGPT conversation URL leaked');
+if (publicJson.includes('private-project-key')) throw new Error('public snapshot privacy: ChatGPT project key leaked');
+if (publicJson.includes('private-conversation-id')) throw new Error('public snapshot privacy: conversation id leaked');
+if (publicSnapshot.sources.some(source => source.type === 'chatgpt_thread' && source.url)) throw new Error('public snapshot privacy: public chat source retained a URL');
+if (!publicSnapshot.derived.some(item => /validate the public card/i.test(item.nextAction))) throw new Error('public snapshot: derived Resume Engine output was lost');
+if (publicSnapshot.derived.some(item => item.resumeEvidenceId)) throw new Error('public snapshot privacy: private resume evidence id leaked');
 
 console.log('Derived-state checks PASS');
