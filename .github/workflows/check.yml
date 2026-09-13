@@ -19,10 +19,13 @@ jobs:
           node --check server-entry.mjs
           node --check lib/derive.mjs
           node --check lib/resume-engine.mjs
+          node --check lib/public-snapshot.mjs
           node --check lib/resolver.mjs
           node --check lib/chatgpt-inventory.mjs
           node --check scripts/repair-state.mjs
           node --check scripts/generate-brand-assets.mjs
+          node --check scripts/generate-build-info.mjs
+          node --check scripts/generate-pages-snapshot.mjs
           node --check scripts/chatgpt-state-hygiene.mjs
           node --check scripts/build-pages.mjs
           node --check extension/shino-sync/background.js
@@ -41,9 +44,12 @@ jobs:
           node --check public/app.js
       - name: Generate brand assets
         run: npm run assets
-      - name: Verify generated icons
+      - name: Verify generated assets
         run: |
           test -s public/favicon-32.png
+          test -s public/build-info.js
+          grep -q 'BUILD v' public/build-info.js
+          grep -q '0.9.2' public/build-info.js
           test -s extension/shino-sync/icons/shino-sync-16.png
           test -s extension/shino-sync/icons/shino-sync-32.png
           test -s extension/shino-sync/icons/shino-sync-48.png
@@ -56,3 +62,10 @@ jobs:
           test -s dist/index.html
           test -s dist/state.json
           test -s dist/app.js
+          test -s dist/build-info.js
+          grep -q '"publicSnapshot": true' dist/state.json
+          grep -q '"version": "0.9.2"' dist/state.json
+          if grep -q 'https://chatgpt.com/c/' dist/state.json; then
+            echo 'Private ChatGPT conversation URL leaked into public snapshot'
+            exit 1
+          fi

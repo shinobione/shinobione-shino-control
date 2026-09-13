@@ -1,15 +1,16 @@
 {
   "name": "shino-control",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "private": true,
   "type": "module",
   "scripts": {
-    "assets": "node scripts/generate-brand-assets.mjs",
+    "assets": "node scripts/generate-brand-assets.mjs && node scripts/generate-build-info.mjs",
     "prestart": "npm run assets",
     "start": "node server-entry.mjs",
     "predev": "npm run assets",
     "dev": "node --watch server-entry.mjs",
     "check": "node scripts-check.mjs",
+    "pages:snapshot": "node scripts/generate-pages-snapshot.mjs",
     "build:pages": "node scripts/build-pages.mjs",
     "repair": "node scripts/repair-state.mjs",
     "chat:audit": "node scripts/chatgpt-state-hygiene.mjs",
