@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyChatgptInventoryMetadata } from './lib/chatgpt-inventory.mjs';
+import { ingestChatgptDelta } from './lib/chatgpt-delta-ingest.mjs';
 import { deriveAll } from './lib/derive.mjs';
 import { syncGithubIncremental } from './lib/github-incremental-sync.mjs';
 
@@ -117,6 +118,23 @@ http.createServer = function wrappedCreateServer(listener) {
   return originalCreateServer(async (req, res) => {
     try {
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+
+      // CONTROL Collector: tiny authenticated-browser sensor -> local CONTROL delta ingest.
+      // The collector sends only the current conversation tail plus identifiers/timestamps. All
+      // mapping, deduplication, cursors and project derivation stay in CONTROL Core.
+      if (req.method === 'POST' && url.pathname === '/api/ingest/chatgpt-delta') {
+        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+        const payload = await readBody(req);
+        const state = JSON.parse(fs.readFileSync(DATA, 'utf8'));
+        const result = ingestChatgptDelta(state, payload);
+        // A no-change fingerprint is a genuine no-op: do not rewrite state.json just because the
+        // browser observed the same rendered conversation again.
+        if (result.changed) fs.writeFileSync(DATA, JSON.stringify(state, null, 2));
+        return json(res, 200, result);
+      }
+
+      // Legacy inventory endpoint stays temporarily available during migration. The new Collector
+      // never calls it; this can disappear together with extension/shino-sync after live validation.
       if (req.method === 'POST' && url.pathname === '/api/ingest/chatgpt-inventory') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
         const payload = await readBody(req);
