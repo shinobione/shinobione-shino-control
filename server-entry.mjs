@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyChatgptInventoryMetadata } from './lib/chatgpt-inventory.mjs';
+import { deriveAll } from './lib/derive.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.join(__dirname, 'data', 'state.json');
@@ -68,6 +69,9 @@ function restorePersonnelProject() {
   // inside PERSONNEL, not a standalone CONTROL project.
   state.projects = state.projects.filter(project => project.id !== 'astrid-admin');
 
+  // Seed/persist the per-project derivation fingerprints at startup. Normal dashboard reads can
+  // then reuse unchanged cards instead of rebuilding every project from scratch.
+  deriveAll(state);
   fs.writeFileSync(DATA, JSON.stringify(state, null, 2));
 }
 
@@ -117,8 +121,9 @@ http.createServer = function wrappedCreateServer(listener) {
         const payload = await readBody(req);
         const state = JSON.parse(fs.readFileSync(DATA, 'utf8'));
         const result = applyChatgptInventoryMetadata(state, payload);
+        deriveAll(state);
         fs.writeFileSync(DATA, JSON.stringify(state, null, 2));
-        return json(res, 200, {ok:true, ...result});
+        return json(res, 200, {ok:true, ...result, derivation:state.settings?.lastDerivation || null});
       }
     } catch (error) {
       return json(res, 500, {error:String(error?.message || error)});
