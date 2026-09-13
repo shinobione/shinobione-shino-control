@@ -41,6 +41,7 @@ jobs:
           node --check public/site-bootstrap.js
           node --check public/focus-engine.js
           node --check public/focus-now.js
+          node --check public/radar-copy-cleaner.js
           node --check public/app.js
       - name: PowerShell startup syntax
         shell: pwsh
@@ -68,7 +69,7 @@ jobs:
         run: |
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.9.13' public/build-info.js
+          grep -q '0.9.14' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
           grep -q '"version": "0.1.1"' extension/control-collector/manifest.json
@@ -81,7 +82,11 @@ jobs:
           test -s public/focus-engine.js
           test -s public/focus-now.js
           test -s public/focus-now.css
+          test -s public/radar-copy-cleaner.js
           grep -q 'FOCUS NOW' public/focus-now.js
+          grep -q '.card .summary' public/radar-copy-cleaner.js
+          grep -q '.modal .big-state' public/radar-copy-cleaner.js
+          grep -q '.modal .event p' public/radar-copy-cleaner.js
           test ! -e extension/shino-sync
           test ! -e lib/chatgpt-inventory.mjs
           test ! -e scripts/generate-brand-assets.mjs
@@ -104,9 +109,10 @@ jobs:
           test -s dist/focus-engine.js
           test -s dist/focus-now.js
           test -s dist/focus-now.css
+          test -s dist/radar-copy-cleaner.js
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.9.13"' dist/state.json
+          grep -q '"version": "0.9.14"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'https://chatgpt.com/c/' dist/state.json; then
             echo 'Private ChatGPT conversation URL leaked into public snapshot'
