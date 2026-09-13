@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import { deriveAll, deriveProjectState } from './lib/derive.mjs';
-import { applyChatgptInventoryMetadata } from './lib/chatgpt-inventory.mjs';
 import { buildPublicSnapshot } from './lib/public-snapshot.mjs';
 
 const live = deriveAll(JSON.parse(fs.readFileSync('./data/state.json','utf8')));
@@ -41,22 +40,25 @@ const gateState = deriveProjectState({id:'fixture-gate',name:'fixture-gate'},[
 ],{inventoryPresent:true,currentChatCount:1});
 if (gateState.status !== 'NEEDS TEST') throw new Error(`authoritative hint precedence: expected NEEDS TEST, got ${gateState.status}`);
 
+// EMPTY conservation no longer depends on an active inventory/backfill engine. CONTROL only needs
+// the already-persisted historical coverage proof that this mapped project had zero conversations.
 const emptyState = {
-  settings:{chatgptProjectMappings:{}},
+  settings:{
+    chatgptProjectMappings:{'g-p-lrc-maker-test':'lrc-maker'},
+    lastChatgptInventory:{
+      source:'historical-coverage-fixture',
+      projectCount:1,
+      conversationCount:0,
+      projects:[{key:'g-p-lrc-maker-test',title:'LRC Maker',conversationCount:0}]
+    }
+  },
   projects:[{id:'lrc-maker',name:'LRC Maker'}],
   sources:[],
   evidence:[]
 };
-const metadata = applyChatgptInventoryMetadata(emptyState, {
-  source:'test-project-api',
-  projectCount:1,
-  projects:[{key:'g-p-lrc-maker-test',title:'LRC Maker',conversationCount:0}],
-  threads:[]
-});
 deriveAll(emptyState);
 const empty = emptyState.derived.find(d=>d.projectId==='lrc-maker');
-if (metadata.projects !== 1) throw new Error(`empty-project metadata: expected 1 project, got ${metadata.projects}`);
-if (emptyState.settings.chatgptProjectMappings['g-p-lrc-maker-test'] !== 'lrc-maker') throw new Error('empty-project: exact API title did not create project-key mapping');
+if (emptyState.settings.chatgptProjectMappings['g-p-lrc-maker-test'] !== 'lrc-maker') throw new Error('empty-project: persisted project-key mapping was lost');
 if (empty?.status !== 'EMPTY') throw new Error(`empty-project: expected EMPTY, got ${empty?.status}`);
 if (!/aucune conversation/i.test(empty.summary)) throw new Error('empty-project: missing explicit empty summary');
 

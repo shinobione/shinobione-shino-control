@@ -1,10 +1,10 @@
 {
   "name": "shino-control",
-  "version": "0.9.8",
+  "version": "0.9.9",
   "private": true,
   "type": "module",
   "scripts": {
-    "assets": "node scripts/generate-brand-assets.mjs && node scripts/generate-build-info.mjs",
+    "assets": "node scripts/generate-build-info.mjs",
     "prestart": "npm run assets",
     "start": "node server-entry.mjs",
     "predev": "npm run assets",

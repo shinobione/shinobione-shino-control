@@ -24,49 +24,38 @@ jobs:
           node --check lib/github-incremental-sync.mjs
           node --check lib/chatgpt-delta-ingest.mjs
           node --check lib/resolver.mjs
-          node --check lib/chatgpt-inventory.mjs
           node --check scripts-check.mjs
           node --check scripts-status-check.mjs
           node --check scripts-derivation-cache-check.mjs
           node --check scripts-github-cursor-check.mjs
           node --check scripts-chatgpt-delta-check.mjs
           node --check scripts/repair-state.mjs
-          node --check scripts/generate-brand-assets.mjs
           node --check scripts/generate-build-info.mjs
           node --check scripts/generate-pages-snapshot.mjs
           node --check scripts/chatgpt-state-hygiene.mjs
           node --check scripts/build-pages.mjs
           node --check extension/control-collector/background.js
           node --check extension/control-collector/collector.js
-          node --check extension/shino-sync/background.js
-          node --check extension/shino-sync/content.js
-          node --check extension/shino-sync/inventory.js
-          node --check extension/shino-sync/thread-inventory.js
-          node --check extension/shino-sync/rate-limit.js
-          node --check extension/shino-sync/popup.js
-          node --check extension/shino-sync/popup-bootstrap.js
-          node --check extension/shino-sync/popup-retry-schema-fix.js
-          node --check extension/shino-sync/popup-active-tab-backfill.js
-          node --check extension/shino-sync/popup-api-mainworld-v071.js
-          node --check extension/shino-sync/popup-project-metadata-v073.js
           node --check public/state-filter.js
           node --check public/site-bootstrap.js
           node --check public/app.js
-      - name: Generate brand assets
+      - name: Generate build metadata
         run: npm run assets
-      - name: Verify generated assets
+      - name: Verify CONTROL-only collector layout
         run: |
-          test -s public/favicon-32.png
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.9.8' public/build-info.js
+          grep -q '0.9.9' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
           grep -q '"version": "0.1.1"' extension/control-collector/manifest.json
-          test -s extension/shino-sync/icons/shino-sync-16.png
-          test -s extension/shino-sync/icons/shino-sync-32.png
-          test -s extension/shino-sync/icons/shino-sync-48.png
-          test -s extension/shino-sync/icons/shino-sync-128.png
+          test ! -e extension/shino-sync
+          test ! -e lib/chatgpt-inventory.mjs
+          test ! -e scripts/generate-brand-assets.mjs
+          if grep -q '/api/ingest/chatgpt-inventory' server-entry.mjs; then
+            echo 'Retired ChatGPT inventory endpoint still present'
+            exit 1
+          fi
       - name: Derived-state regression checks
         run: npm run check
       - name: GitHub Pages build
@@ -77,9 +66,13 @@ jobs:
           test -s dist/app.js
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.9.8"' dist/state.json
+          grep -q '"version": "0.9.9"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'https://chatgpt.com/c/' dist/state.json; then
             echo 'Private ChatGPT conversation URL leaked into public snapshot'
+            exit 1
+          fi
+          if grep -q 'extension/shino-sync' dist/state.json || grep -q '"componentId": "shino-sync"' dist/state.json; then
+            echo 'Retired SHINO Sync component leaked into public snapshot'
             exit 1
           fi
