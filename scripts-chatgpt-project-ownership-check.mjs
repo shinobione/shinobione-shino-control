@@ -18,34 +18,18 @@ const poisoned = {
   ],
   sources:[
     {
-      id:'src-watch',
-      type:'chatgpt_thread',
-      externalId:conversationKey,
-      projectId:'touch',
-      title:'Avis Xiaomi Mi Watch Lite',
-      url:`https://chatgpt.com/g/${projectKey}/c/${conversationKey}`,
-      chatgptProjectKey:projectKey,
-      chatgptProjectTitle:'Matos informatique',
-      conversationUpdatedAt:'2026-09-14T15:00:00.000Z',
-      collectorFingerprint:'watch-fingerprint',
-      inventoryCurrent:true
+      id:'src-watch',type:'chatgpt_thread',externalId:conversationKey,projectId:'touch',
+      title:'Avis Xiaomi Mi Watch Lite',url:`https://chatgpt.com/g/${projectKey}/c/${conversationKey}`,
+      chatgptProjectKey:projectKey,chatgptProjectTitle:'Matos informatique',
+      conversationUpdatedAt:'2026-09-14T15:00:00.000Z',collectorFingerprint:'watch-fingerprint',inventoryCurrent:true
     }
   ],
   evidence:[
     {
-      id:'legacy-watch-evidence',
-      projectId:'touch',
-      sourceId:'src-watch',
-      sourceType:'chatgpt_thread',
-      type:'chat_delta',
-      timestamp:'2026-09-14T15:00:00.000Z',
-      conversationUpdatedAt:'2026-09-14T15:00:00.000Z',
-      title:'Avis Xiaomi Mi Watch Lite',
-      summary:'Watch advice.',
-      currentStateSummary:'Watch advice.',
-      resumeAction:'Compare Galaxy Fit 3.',
-      confidence:0.9,
-      inventoryCurrent:true
+      id:'legacy-watch-evidence',projectId:'touch',sourceId:'src-watch',sourceType:'chatgpt_thread',type:'chat_delta',
+      timestamp:'2026-09-14T15:00:00.000Z',conversationUpdatedAt:'2026-09-14T15:00:00.000Z',
+      title:'Avis Xiaomi Mi Watch Lite',summary:'Watch advice.',currentStateSummary:'Watch advice.',
+      resumeAction:'Compare Galaxy Fit 3.',confidence:0.9,inventoryCurrent:true
     }
   ],
   discovered:[],
@@ -54,10 +38,7 @@ const poisoned = {
 
 const planned = planChatgptCatchup(structuredClone(poisoned), {
   threads:[{
-    key:conversationKey,
-    title:'Avis Xiaomi Mi Watch Lite',
-    projectKey,
-    projectTitle:'Matos informatique',
+    key:conversationKey,title:'Avis Xiaomi Mi Watch Lite',projectKey,projectTitle:'Matos informatique',
     updatedAt:'2026-09-14T15:00:00.000Z'
   }]
 }, {maxPlan:10});
@@ -78,22 +59,19 @@ const ingestState = structuredClone(poisoned);
 const result = ingestChatgptDelta(ingestState, {
   conversationKey,
   url:`https://chatgpt.com/g/${projectKey}/c/${conversationKey}`,
-  title:'Avis Xiaomi Mi Watch Lite',
-  projectKey,
-  projectTitle:'Matos informatique',
+  title:'Avis Xiaomi Mi Watch Lite',projectKey,projectTitle:'Matos informatique',
   messages:[
     {role:'user',text:'Galaxy fit 3'},
     {role:'assistant',text:'NEXT: compare the Galaxy Fit 3 with the Mi Watch Lite.'}
   ],
-  messageCount:8,
-  fingerprint:'watch-fingerprint',
-  conversationUpdatedAt:'2026-09-14T15:00:00.000Z'
+  messageCount:8,fingerprint:'watch-fingerprint',conversationUpdatedAt:'2026-09-14T15:00:00.000Z'
 });
 assert.equal(result.changed, true, 'same fingerprint must not suppress ownership repair');
 assert.equal(result.ownershipChanged, true);
+assert.equal(result.stateSchemaUpgraded, true, 'legacy evidence should migrate to latest-tail schema in the same ingest');
 assert.equal(result.previousProjectId, 'touch');
 assert.equal(result.projectId, 'matos');
-assert.equal(result.reason, 'live ChatGPT project title');
+assert.ok(['live ChatGPT project title','latest-state-schema-upgrade'].includes(result.reason));
 assert.equal(ingestState.sources.find(source => source.id === 'src-watch')?.projectId, 'matos');
 assert.equal(ingestState.settings.chatgptProjectMappings[projectKey], 'matos');
 assert.deepEqual(new Set(ingestState.settings.lastDerivation?.projectIds || []), new Set(['touch','matos']), 'both old and new project must be re-derived');
