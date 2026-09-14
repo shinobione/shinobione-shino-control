@@ -1,6 +1,5 @@
 (() => {
   const CHANNEL = 'SHINO_CONTROL_CATCHUP_V1';
-  const GATE_POLL_INTERVAL_MS = 60 * 1000;
   const ACTIVE_REQUEST_STALE_MS = 5 * 60 * 1000;
   let activeRequest = null;
 
@@ -82,10 +81,15 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once:true});
   else boot();
 
-  // This is intentionally only a cheap gate poll. The background worker owns the real cooldown:
-  // ~5 min after PARTIAL/error, ~30 min after a clean pass. Polling once a minute lets a partial
-  // migration resume promptly instead of accidentally waiting for the old 15-minute client timer.
-  setInterval(attempt, GATE_POLL_INTERVAL_MS);
+  // The reliable periodic scheduler lives in the MV3 service worker via chrome.alarms.
+  // Content scripts only execute the tick they receive and keep focus/visibility as fast-path hints.
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message?.type !== 'CONTROL_CATCHUP_TICK') return;
+    attempt();
+    sendResponse({ok:true});
+    return false;
+  });
+
   window.addEventListener('focus', attempt);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') attempt();
