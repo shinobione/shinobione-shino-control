@@ -1,0 +1,13 @@
+SHINO // CONTROL Runtime
+------------------------
+Autostart  : INSTALLED
+Supervisor : RUNNING (PID 1234)
+Core       : HEALTHY (PID 5678)
+URL        : http://127.0.0.1:4177/api/state
+Repo       : <repo path>
+Node       : <node path>
+Console    : VISIBLE
+Uptime     : 4 min
+Core start : 2026-09-14 18:20:00
+Last event : Core health check passed.
+Status     : CONTROL Core is responding normally.
