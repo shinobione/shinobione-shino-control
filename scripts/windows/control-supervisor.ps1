@@ -94,20 +94,13 @@ try {
       continue
     }
 
-    # Refresh the build label before each actual Core start. Failure here must not prevent startup.
     $buildInfoScript = Join-Path $repoRoot 'scripts\generate-build-info.mjs'
     if (Test-Path -LiteralPath $buildInfoScript) {
-      try {
-        & $nodePath $buildInfoScript *> $null
-      }
-      catch {
-        Write-ControlLog "Build metadata refresh failed: $($_.Exception.Message)"
-      }
+      try { & $nodePath $buildInfoScript *> $null }
+      catch { Write-ControlLog "Build metadata refresh failed: $($_.Exception.Message)" }
     }
 
-    if (Test-ControlHealth) {
-      continue
-    }
+    if (Test-ControlHealth) { continue }
 
     Get-ChildItem -LiteralPath $runtimeRoot -Filter 'core-*.log' -File -ErrorAction SilentlyContinue |
       Sort-Object LastWriteTime -Descending |

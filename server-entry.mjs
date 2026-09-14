@@ -157,8 +157,6 @@ function scrubStateFile() {
   } catch {}
 }
 
-// One-time startup migration: retire SHINO Sync artifacts while preserving historical ChatGPT
-// inventory coverage metadata (17 projects / 131 conversations) as read-only provenance.
 {
   const state = readState({ derive:true });
   writeState(state);
@@ -204,15 +202,19 @@ http.createServer = function wrappedCreateServer(listener) {
     try {
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
 
-      // Serve the normalized CONTROL state directly so the retired SHINO Sync component can never
-      // be reintroduced into the dashboard by the legacy inner server model.
       if (req.method === 'GET' && url.pathname === '/api/state') {
         return json(res, 200, readState({ derive:true }));
       }
 
-      // Metadata-only catch-up planner. The authenticated browser supplies the current ChatGPT
-      // project/conversation metadata; CONTROL returns only conversations that are new or newer than
-      // its local source/evidence timestamps. No messages are accepted or persisted on this route.
+      // Local tray/status action. The supervisor is intentionally responsible for bringing the Core
+      // back after this process exits; this route never launches a second Node process itself.
+      if (req.method === 'POST' && url.pathname === '/api/control/restart') {
+        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+        json(res, 200, {ok:true, restarting:true});
+        setTimeout(() => process.exit(0), 250);
+        return;
+      }
+
       if (req.method === 'POST' && url.pathname === '/api/chatgpt/catchup-plan') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
         const payload = await readBody(req);
@@ -221,8 +223,6 @@ http.createServer = function wrappedCreateServer(listener) {
         return json(res, 200, result);
       }
 
-      // Small completion diagnostic used by the UI/status view. The actual project updates still go
-      // through the normal delta ingest endpoint, preserving one source of truth for derivation.
       if (req.method === 'POST' && url.pathname === '/api/chatgpt/catchup-report') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
         const payload = await readBody(req);
@@ -241,19 +241,15 @@ http.createServer = function wrappedCreateServer(listener) {
         return json(res, 200, {ok:true, ...state.settings.lastChatgptCatchup});
       }
 
-      // CONTROL Collector: authenticated browser sensor -> local CONTROL delta ingest.
       if (req.method === 'POST' && url.pathname === '/api/ingest/chatgpt-delta') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
         const payload = await readBody(req);
         const state = readState();
         const result = ingestChatgptDelta(state, payload);
-        // A no-change fingerprint is a genuine no-op: do not rewrite state.json.
         if (result.changed) writeState(state);
         return json(res, 200, result);
       }
 
-      // The UI keeps the same GitHub-sync endpoint, but CONTROL uses ETag cursors and only dirties
-      // projects whose GitHub feeds changed.
       if (req.method === 'POST' && url.pathname === '/api/sync/github') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
         const payload = await readBody(req);
@@ -267,8 +263,6 @@ http.createServer = function wrappedCreateServer(listener) {
       return json(res, 500, {error:String(error?.message || error)});
     }
 
-    // Any still-supported legacy inner-server endpoint is allowed to finish, then the on-disk state
-    // is scrubbed so it cannot persist a retired SHINO Sync component/source.
     res.once('finish', scrubStateFile);
     return listener(req, res);
   });

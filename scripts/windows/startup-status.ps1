@@ -6,11 +6,15 @@ $ErrorActionPreference = 'SilentlyContinue'
 $runtimeRoot = Join-Path $env:LOCALAPPDATA 'SHINO-Control'
 $configPath = Join-Path $runtimeRoot 'startup.json'
 $pidFile = Join-Path $runtimeRoot 'supervisor.pid'
+$trayPath = Join-Path $runtimeRoot 'SHINO-Control-Tray.exe'
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
-$runName = 'SHINO_CONTROL_Core'
+$coreRunName = 'SHINO_CONTROL_Core'
+$trayRunName = 'SHINO_CONTROL_Tray'
 
-$runValue = (Get-ItemProperty -Path $runKey -Name $runName).$runName
-$installed = -not [string]::IsNullOrWhiteSpace([string]$runValue)
+$coreRunValue = (Get-ItemProperty -Path $runKey -Name $coreRunName).$coreRunName
+$coreInstalled = -not [string]::IsNullOrWhiteSpace([string]$coreRunValue)
+$trayRunValue = (Get-ItemProperty -Path $runKey -Name $trayRunName).$trayRunName
+$trayInstalled = -not [string]::IsNullOrWhiteSpace([string]$trayRunValue)
 
 $config = $null
 if (Test-Path -LiteralPath $configPath) {
@@ -25,6 +29,10 @@ if (Test-Path -LiteralPath $pidFile) {
   if ($proc) { $supervisorRunning = $true }
 }
 
+$trayProcess = Get-Process -Name 'SHINO-Control-Tray' -ErrorAction SilentlyContinue | Select-Object -First 1
+$trayRunning = $null -ne $trayProcess
+$trayPid = if ($trayRunning) { $trayProcess.Id } else { $null }
+
 $port = if ($config -and $config.port) { [int]$config.port } else { 4177 }
 $healthUrl = "http://127.0.0.1:$port/api/state"
 $coreHealthy = $false
@@ -34,11 +42,20 @@ try {
 }
 catch {}
 
+$corePid = $null
+try {
+  $corePid = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction Stop |
+    Select-Object -First 1 -ExpandProperty OwningProcess
+}
+catch {}
+
 Write-Host ''
 Write-Host 'SHINO // CONTROL startup status' -ForegroundColor Cyan
-Write-Host ('Autostart  : ' + $(if ($installed) { 'INSTALLED' } else { 'NOT INSTALLED' })) -ForegroundColor $(if ($installed) { 'Green' } else { 'Yellow' })
+Write-Host ('Autostart  : ' + $(if ($coreInstalled) { 'INSTALLED' } else { 'NOT INSTALLED' })) -ForegroundColor $(if ($coreInstalled) { 'Green' } else { 'Yellow' })
 Write-Host ('Supervisor : ' + $(if ($supervisorRunning) { "RUNNING (PID $supervisorPid)" } else { 'NOT RUNNING' })) -ForegroundColor $(if ($supervisorRunning) { 'Green' } else { 'Yellow' })
-Write-Host ('Core       : ' + $(if ($coreHealthy) { "HEALTHY ($healthUrl)" } else { "DOWN / WAITING ($healthUrl)" })) -ForegroundColor $(if ($coreHealthy) { 'Green' } else { 'Yellow' })
+Write-Host ('Core       : ' + $(if ($coreHealthy) { "HEALTHY (PID $corePid)" } else { 'DOWN / WAITING' })) -ForegroundColor $(if ($coreHealthy) { 'Green' } else { 'Yellow' })
+Write-Host ('Tray       : ' + $(if ($trayRunning) { "RUNNING (PID $trayPid)" } elseif ($trayInstalled) { 'INSTALLED / NOT RUNNING' } else { 'DISABLED' })) -ForegroundColor $(if ($trayRunning) { 'Green' } elseif ($trayInstalled) { 'Yellow' } else { 'DarkGray' })
+Write-Host "URL        : $healthUrl"
 
 if ($config) {
   Write-Host "Repo       : $($config.repoRoot)"
@@ -46,6 +63,9 @@ if ($config) {
   Write-Host "Installed  : $($config.installedAt)"
 }
 
+if (Test-Path -LiteralPath $trayPath) {
+  Write-Host "Tray EXE   : $trayPath"
+}
 if (Test-Path -LiteralPath (Join-Path $runtimeRoot 'startup.log')) {
   Write-Host "Log        : $(Join-Path $runtimeRoot 'startup.log')"
 }
