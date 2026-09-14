@@ -171,14 +171,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.type === 'CONTROL_CATCHUP_INGEST') {
         const payloads = Array.isArray(message.payloads) ? message.payloads.slice(0,32) : [];
         const fetchFailures = Array.isArray(message.failures) ? message.failures : [];
-        const inaccessible = fetchFailures.filter(item => item?.kind === 'inaccessible');
+        const inaccessibleItems = fetchFailures.filter(item => item?.kind === 'inaccessible');
         const transientFailures = fetchFailures.filter(item => item?.kind !== 'inaccessible');
         const counts = {
           attempted:payloads.length,
           changed:0,
           skipped:0,
-          failed:transientFailures.length,
-          inaccessible:inaccessible.length
+          failed:transientFailures.length
         };
         const failures = [...transientFailures];
         for (const payload of payloads) {
@@ -191,7 +190,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             failures.push({key:payload?.conversationKey || '',title:payload?.title || '',error:String(error?.message || error),kind:'transient'});
           }
         }
-        return sendResponse({ok:true,...counts,failures,inaccessible});
+        return sendResponse({ok:true,...counts,failures,inaccessibleItems});
       }
 
       if (message.type === 'CONTROL_CATCHUP_COMPLETE') {
@@ -199,7 +198,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const plan = message.plan || {};
         const ingested = message.ingested || {};
         const failed = Number(ingested.failed || 0);
-        const inaccessible = Number(ingested.inaccessible || 0);
+        const inaccessibleItems = Array.isArray(ingested.inaccessibleItems) ? ingested.inaccessibleItems : [];
+        const inaccessible = inaccessibleItems.length;
         const deferred = Number(plan.deferredCount || 0);
         const partial = failed > 0 || deferred > 0;
         const errorText = failed > 0
@@ -218,7 +218,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           catchupLastDeferredCount:deferred,
           catchupLastStateSchemaUpgrades:plan.stateSchemaUpgrades || 0,
           catchupLastFailures:Array.isArray(ingested.failures) ? ingested.failures.slice(0,10) : [],
-          catchupLastInaccessibleItems:Array.isArray(ingested.inaccessible) ? ingested.inaccessible.slice(0,10) : []
+          catchupLastInaccessibleItems:inaccessibleItems.slice(0,10)
         });
         await controlPost('/api/chatgpt/catchup-report', {
           inventoryCount:plan.inventoryCount || 0,
@@ -228,7 +228,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           newCount:plan.newCount || 0,
           baselineMissingCount:plan.baselineMissing || 0,
           inaccessibleCount:Number(plan.inaccessibleCount || 0) + inaccessible,
-          inaccessible:Array.isArray(ingested.inaccessible) ? ingested.inaccessible.slice(0,20) : [],
+          inaccessible:inaccessibleItems.slice(0,20),
           stateSchemaUpgrades:Number(plan.stateSchemaUpgrades || 0),
           plannedCount:plan.plan?.length || 0,
           refreshedCount:ingested.changed || 0,
