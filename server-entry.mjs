@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ingestChatgptDelta } from './lib/chatgpt-delta-ingest.mjs';
 import { planChatgptCatchup } from './lib/chatgpt-catchup-plan.mjs';
+import { repairChatgptProjectOwnership } from './lib/chatgpt-project-ownership.mjs';
 import { deriveAll } from './lib/derive.mjs';
 import { syncGithubIncremental } from './lib/github-incremental-sync.mjs';
 
@@ -135,7 +136,11 @@ function restorePersonnelProject(state) {
 function normalizeState(state, { derive = false } = {}) {
   restorePersonnelProject(state);
   retireLegacyShinoSync(state);
-  if (derive) deriveAll(state);
+  const ownershipRepair = repairChatgptProjectOwnership(state);
+  if (derive) {
+    if (ownershipRepair.projectIds.length) deriveAll(state, {dirtyProjectIds:ownershipRepair.projectIds});
+    else deriveAll(state);
+  }
   return state;
 }
 
