@@ -1,0 +1,13 @@
+SHINO // CONTROL tray menu
+
+Core: HEALTHY
+Supervisor: RUNNING (PID ...)
+-----------------------------
+Open SHINO // CONTROL
+Refresh status
+Restart CONTROL Core
+-----------------------------
+Open runtime folder
+Open startup.log
+-----------------------------
+Quit tray icon
