@@ -1,9 +1,11 @@
 (() => {
   const ORIGIN = location.origin;
   const CHANNEL = 'SHINO_CONTROL_CATCHUP_V1';
-  const DEFAULT_FETCH_TIMEOUT_MS = 15000;
+  const DEFAULT_FETCH_TIMEOUT_MS = 30000;
   const SESSION_FETCH_TIMEOUT_MS = 10000;
-  const FETCH_CONCURRENCY = 4;
+  const FETCH_CONCURRENCY = 2;
+  const FETCH_MAX_ATTEMPTS = 2;
+  const FETCH_RETRY_DELAY_MS = 750;
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
 
@@ -174,31 +176,55 @@
     return (h >>> 0).toString(36);
   }
 
+  function failureKind(errorText = '') {
+    if (/CHATGPT_HTTP_404\b/i.test(errorText)) return 'inaccessible';
+    return 'transient';
+  }
+
+  function retryable(errorText = '') {
+    return /CHATGPT_FETCH_TIMEOUT_|CHATGPT_HTTP_5\d\d\b|Failed to fetch|NetworkError/i.test(errorText);
+  }
+
   async function fetchChangedItem(item, headers) {
-    try {
-      const conversation = await apiJson(`/backend-api/conversation/${encodeURIComponent(item.key)}`, headers);
-      const messages = currentBranchMessages(conversation);
-      if (!messages.length) throw new Error('NO_READABLE_MESSAGES');
-      const tail = messages.slice(-4).map(message => `${message.role}:${message.text}`).join('\n');
-      return {payload:{
-        conversationKey:item.key,
-        url:item.url || `${ORIGIN}/c/${item.key}`,
-        title:item.title || conversation?.title || 'ChatGPT conversation',
-        projectKey:item.projectKey || stableProjectId(item.url || '') || null,
-        projectTitle:item.projectTitle || null,
-        projectUrl:item.projectUrl || null,
-        messages,
-        messageCount:Object.values(conversation?.mapping || {}).filter(node => node?.message).length,
-        fingerprint:`${item.key}:${messages.length}:${hash(tail)}`,
-        conversationUpdatedAt:item.updatedAt || conversation?.update_time || conversation?.updated_at || new Date().toISOString(),
-        conversationCreatedAt:item.createdAt || conversation?.create_time || conversation?.created_at || null,
-        clientTimestamp:new Date().toISOString(),
-        collectorVersion:'0.2.3',
-        catchupReason:item.reason || 'targeted-catchup'
-      }};
-    } catch (error) {
-      return {failure:{key:item.key,title:item.title || '',error:String(error?.message || error)}};
+    let lastError = null;
+    for (let attempt=1; attempt<=FETCH_MAX_ATTEMPTS; attempt++) {
+      try {
+        const conversation = await apiJson(`/backend-api/conversation/${encodeURIComponent(item.key)}`, headers);
+        const messages = currentBranchMessages(conversation);
+        if (!messages.length) throw new Error('NO_READABLE_MESSAGES');
+        const tail = messages.slice(-4).map(message => `${message.role}:${message.text}`).join('\n');
+        return {payload:{
+          conversationKey:item.key,
+          url:item.url || `${ORIGIN}/c/${item.key}`,
+          title:item.title || conversation?.title || 'ChatGPT conversation',
+          projectKey:item.projectKey || stableProjectId(item.url || '') || null,
+          projectTitle:item.projectTitle || null,
+          projectUrl:item.projectUrl || null,
+          messages,
+          messageCount:Object.values(conversation?.mapping || {}).filter(node => node?.message).length,
+          fingerprint:`${item.key}:${messages.length}:${hash(tail)}`,
+          conversationUpdatedAt:item.updatedAt || conversation?.update_time || conversation?.updated_at || new Date().toISOString(),
+          conversationCreatedAt:item.createdAt || conversation?.create_time || conversation?.created_at || null,
+          clientTimestamp:new Date().toISOString(),
+          collectorVersion:'0.2.5',
+          catchupReason:item.reason || 'targeted-catchup'
+        }};
+      } catch (error) {
+        lastError = String(error?.message || error);
+        if (attempt < FETCH_MAX_ATTEMPTS && retryable(lastError)) {
+          await sleep(FETCH_RETRY_DELAY_MS * attempt);
+          continue;
+        }
+        break;
+      }
     }
+    return {failure:{
+      key:item.key,
+      title:item.title || '',
+      error:lastError || 'Unknown fetch error',
+      kind:failureKind(lastError || ''),
+      updatedAt:item.updatedAt || null
+    }};
   }
 
   async function fetchChanged(plan = []) {
@@ -214,7 +240,7 @@
         if (result?.payload) payloads.push(result.payload);
         if (result?.failure) failures.push(result.failure);
       }
-      if (offset + FETCH_CONCURRENCY < items.length) await sleep(120);
+      if (offset + FETCH_CONCURRENCY < items.length) await sleep(250);
     }
 
     return {payloads,failures};
