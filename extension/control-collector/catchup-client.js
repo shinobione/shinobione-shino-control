@@ -1,5 +1,6 @@
 (() => {
   const CHANNEL = 'SHINO_CONTROL_CATCHUP_V1';
+  const GATE_POLL_INTERVAL_MS = 60 * 1000;
   let activeRequest = null;
 
   function requestId(prefix) {
@@ -62,8 +63,17 @@
     }
   });
 
-  const boot = () => setTimeout(() => startCatchup().catch(()=>{}), 5000);
+  const attempt = () => startCatchup().catch(()=>{});
+  const boot = () => setTimeout(attempt, 5000);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once:true});
   else boot();
-  setInterval(() => startCatchup().catch(()=>{}), 15 * 60 * 1000);
+
+  // This is intentionally only a cheap gate poll. The background worker owns the real cooldown:
+  // ~5 min after PARTIAL/error, ~30 min after a clean pass. Polling once a minute lets a partial
+  // migration resume promptly instead of accidentally waiting for the old 15-minute client timer.
+  setInterval(attempt, GATE_POLL_INTERVAL_MS);
+  window.addEventListener('focus', attempt);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') attempt();
+  });
 })();
