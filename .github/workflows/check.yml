@@ -73,7 +73,7 @@ jobs:
         run: |
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.9.15' public/build-info.js
+          grep -q '0.9.16' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
           grep -q '"version": "0.2.0"' extension/control-collector/manifest.json
@@ -89,6 +89,10 @@ jobs:
           test -s scripts/windows/startup-status.ps1
           test -s scripts/windows/uninstall-startup.ps1
           grep -q 'SHINO_CONTROL_Core' scripts/windows/install-startup.ps1
+          grep -q 'consoleVisible' scripts/windows/install-startup.ps1
+          grep -q 'WindowStyle Normal' scripts/windows/install-startup.ps1 || grep -q "'Normal'" scripts/windows/install-startup.ps1
+          grep -q 'SHINO // CONTROL Runtime' scripts/windows/control-supervisor.ps1
+          grep -q 'CONTROL Core is responding normally' scripts/windows/control-supervisor.ps1
           grep -q '127.0.0.1' scripts/windows/control-supervisor.ps1
           test -s public/focus-engine.js
           test -s public/focus-now.js
@@ -123,7 +127,7 @@ jobs:
           test -s dist/radar-copy-cleaner.js
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.9.15"' dist/state.json
+          grep -q '"version": "0.9.16"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'https://chatgpt.com/c/' dist/state.json; then
             echo 'Private ChatGPT conversation URL leaked into public snapshot'
