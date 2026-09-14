@@ -157,6 +157,14 @@ function scrubStateFile() {
   } catch {}
 }
 
+function catchupFailure(item = {}) {
+  return {
+    key:String(item.key || '').slice(0,120),
+    title:String(item.title || 'Untitled conversation').replace(/\s+/g,' ').trim().slice(0,180),
+    error:String(item.error || 'Unknown error').replace(/\s+/g,' ').trim().slice(0,320)
+  };
+}
+
 {
   const state = readState({ derive:true });
   writeState(state);
@@ -206,8 +214,6 @@ http.createServer = function wrappedCreateServer(listener) {
         return json(res, 200, readState({ derive:true }));
       }
 
-      // Local tray/status action. The supervisor is intentionally responsible for bringing the Core
-      // back after this process exits; this route never launches a second Node process itself.
       if (req.method === 'POST' && url.pathname === '/api/control/restart') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
         json(res, 200, {ok:true, restarting:true});
@@ -228,14 +234,23 @@ http.createServer = function wrappedCreateServer(listener) {
         const payload = await readBody(req);
         const state = readState();
         state.settings ||= {};
+        const failures = Array.isArray(payload.failures) ? payload.failures.slice(0,10).map(catchupFailure) : [];
         state.settings.lastChatgptCatchup = {
           at:new Date().toISOString(),
           source:'control-collector-api-metadata',
           inventoryCount:Number(payload.inventoryCount || 0),
+          knownCount:Number(payload.knownCount || 0),
+          unchangedCount:Number(payload.unchangedCount || 0),
+          changedCount:Number(payload.changedCount || 0),
+          newCount:Number(payload.newCount || 0),
+          baselineMissingCount:Number(payload.baselineMissingCount || 0),
           plannedCount:Number(payload.plannedCount || 0),
           refreshedCount:Number(payload.refreshedCount || 0),
+          skippedCount:Number(payload.skippedCount || 0),
           failedCount:Number(payload.failedCount || 0),
-          deferredCount:Number(payload.deferredCount || 0)
+          deferredCount:Number(payload.deferredCount || 0),
+          status:Number(payload.failedCount || 0) > 0 ? 'PARTIAL' : 'HEALTHY',
+          failures
         };
         writeState(state);
         return json(res, 200, {ok:true, ...state.settings.lastChatgptCatchup});
