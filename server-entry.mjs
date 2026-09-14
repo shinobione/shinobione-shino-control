@@ -170,6 +170,14 @@ function catchupFailure(item = {}) {
   };
 }
 
+function catchupInaccessible(item = {}) {
+  return {
+    ...catchupFailure(item),
+    kind:'inaccessible',
+    remoteUpdatedAt:item.updatedAt || item.remoteUpdatedAt || null
+  };
+}
+
 {
   const state = readState({ derive:true });
   writeState(state);
@@ -239,9 +247,23 @@ http.createServer = function wrappedCreateServer(listener) {
         const payload = await readBody(req);
         const state = readState();
         state.settings ||= {};
+        state.settings.chatgptInaccessible ||= {};
         const failures = Array.isArray(payload.failures) ? payload.failures.slice(0,10).map(catchupFailure) : [];
+        const inaccessible = Array.isArray(payload.inaccessible) ? payload.inaccessible.slice(0,20).map(catchupInaccessible) : [];
+        const observedAt = new Date().toISOString();
+        for (const item of inaccessible) {
+          if (!item.key) continue;
+          state.settings.chatgptInaccessible[item.key] = {
+            title:item.title,
+            error:item.error,
+            remoteUpdatedAt:item.remoteUpdatedAt,
+            observedAt
+          };
+        }
+        const failedCount = Number(payload.failedCount || 0);
+        const deferredCount = Number(payload.deferredCount || 0);
         state.settings.lastChatgptCatchup = {
-          at:new Date().toISOString(),
+          at:observedAt,
           source:'control-collector-api-metadata',
           inventoryCount:Number(payload.inventoryCount || 0),
           knownCount:Number(payload.knownCount || 0),
@@ -249,13 +271,15 @@ http.createServer = function wrappedCreateServer(listener) {
           changedCount:Number(payload.changedCount || 0),
           newCount:Number(payload.newCount || 0),
           baselineMissingCount:Number(payload.baselineMissingCount || 0),
+          inaccessibleCount:Number(payload.inaccessibleCount || 0),
           plannedCount:Number(payload.plannedCount || 0),
           refreshedCount:Number(payload.refreshedCount || 0),
           skippedCount:Number(payload.skippedCount || 0),
-          failedCount:Number(payload.failedCount || 0),
-          deferredCount:Number(payload.deferredCount || 0),
-          status:Number(payload.failedCount || 0) > 0 ? 'PARTIAL' : 'HEALTHY',
-          failures
+          failedCount,
+          deferredCount,
+          status:failedCount > 0 || deferredCount > 0 ? 'PARTIAL' : 'HEALTHY',
+          failures,
+          inaccessible
         };
         writeState(state);
         return json(res, 200, {ok:true, ...state.settings.lastChatgptCatchup});
