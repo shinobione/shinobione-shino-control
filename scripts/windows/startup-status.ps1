@@ -34,11 +34,22 @@ try {
 }
 catch {}
 
+$corePid = $null
+try {
+  $corePid = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction Stop |
+    Select-Object -First 1 -ExpandProperty OwningProcess
+}
+catch {}
+
+$consoleMode = if ($config -and $null -ne $config.consoleVisible -and [bool]$config.consoleVisible) { 'VISIBLE' } else { 'HIDDEN' }
+
 Write-Host ''
 Write-Host 'SHINO // CONTROL startup status' -ForegroundColor Cyan
 Write-Host ('Autostart  : ' + $(if ($installed) { 'INSTALLED' } else { 'NOT INSTALLED' })) -ForegroundColor $(if ($installed) { 'Green' } else { 'Yellow' })
 Write-Host ('Supervisor : ' + $(if ($supervisorRunning) { "RUNNING (PID $supervisorPid)" } else { 'NOT RUNNING' })) -ForegroundColor $(if ($supervisorRunning) { 'Green' } else { 'Yellow' })
-Write-Host ('Core       : ' + $(if ($coreHealthy) { "HEALTHY ($healthUrl)" } else { "DOWN / WAITING ($healthUrl)" })) -ForegroundColor $(if ($coreHealthy) { 'Green' } else { 'Yellow' })
+Write-Host ('Core       : ' + $(if ($coreHealthy) { "HEALTHY (PID $corePid)" } else { 'DOWN / WAITING' })) -ForegroundColor $(if ($coreHealthy) { 'Green' } else { 'Yellow' })
+Write-Host "URL        : $healthUrl"
+Write-Host "Console    : $consoleMode" -ForegroundColor $(if ($consoleMode -eq 'VISIBLE') { 'Green' } else { 'DarkGray' })
 
 if ($config) {
   Write-Host "Repo       : $($config.repoRoot)"
