@@ -6,6 +6,7 @@
   const FETCH_CONCURRENCY = 2;
   const FETCH_MAX_ATTEMPTS = 2;
   const FETCH_RETRY_DELAY_MS = 750;
+  const INACCESSIBLE_FAILURE = {kind:'inaccessible'};
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
 
@@ -177,7 +178,7 @@
   }
 
   function failureKind(errorText = '') {
-    if (/CHATGPT_HTTP_404\b/i.test(errorText)) return 'inaccessible';
+    if (/CHATGPT_HTTP_404\b/i.test(errorText)) return INACCESSIBLE_FAILURE.kind;
     return 'transient';
   }
 
