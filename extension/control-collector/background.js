@@ -5,6 +5,7 @@ const DEFAULTS = {
 };
 const CATCHUP_SUCCESS_INTERVAL_MS = 30 * 60 * 1000;
 const CATCHUP_RETRY_INTERVAL_MS = 5 * 60 * 1000;
+const CATCHUP_RUNNING_STALE_MS = 5 * 60 * 1000;
 
 async function config() {
   return chrome.storage.local.get(DEFAULTS);
@@ -76,15 +77,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const now = Date.now();
         const lastAttempt = Date.parse(stored.catchupLastAttemptAt || '') || 0;
         const lastCompleted = Date.parse(stored.catchupLastCompletedAt || '') || 0;
-        const needsRetry = ['error','partial'].includes(stored.catchupLastStatus);
+        const status = stored.catchupLastStatus || '';
+        const staleRunning = status === 'running' && lastAttempt && now - lastAttempt >= CATCHUP_RUNNING_STALE_MS;
+        const needsRetry = ['error','partial'].includes(status) || staleRunning;
         const retryWindow = needsRetry ? CATCHUP_RETRY_INTERVAL_MS : CATCHUP_SUCCESS_INTERVAL_MS;
         const baseline = needsRetry ? lastAttempt : Math.max(lastAttempt,lastCompleted);
         if (baseline && now - baseline < retryWindow) {
           return sendResponse({ok:true,run:false,reason:'catch-up cooldown'});
         }
         const at = new Date().toISOString();
-        await chrome.storage.local.set({catchupLastAttemptAt:at,catchupLastStatus:'running',catchupLastError:''});
-        return sendResponse({ok:true,run:true,startedAt:at});
+        await chrome.storage.local.set({
+          catchupLastAttemptAt:at,
+          catchupLastStatus:'running',
+          catchupLastError:'',
+          catchupRecoveredStaleRunning:Boolean(staleRunning)
+        });
+        return sendResponse({ok:true,run:true,startedAt:at,recoveredStaleRunning:Boolean(staleRunning)});
       }
 
       if (message.type === 'CONTROL_CATCHUP_PLAN') {
