@@ -1,6 +1,9 @@
 (() => {
   const ORIGIN = location.origin;
   const CHANNEL = 'SHINO_CONTROL_CATCHUP_V1';
+  const DEFAULT_FETCH_TIMEOUT_MS = 15000;
+  const SESSION_FETCH_TIMEOUT_MS = 10000;
+  const FETCH_CONCURRENCY = 4;
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
 
@@ -12,14 +15,27 @@
     } catch { return null; }
   }
 
+  async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, {...options, signal:controller.signal});
+    } catch (error) {
+      if (error?.name === 'AbortError') throw new Error(`CHATGPT_FETCH_TIMEOUT_${timeoutMs}MS`);
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function sessionHeaders() {
-    let response = await fetch(`${ORIGIN}/api/auth/session?unstable_client=true`, {
+    let response = await fetchWithTimeout(`${ORIGIN}/api/auth/session?unstable_client=true`, {
       credentials:'include', cache:'no-store', headers:{accept:'application/json'}
-    });
+    }, SESSION_FETCH_TIMEOUT_MS);
     if (!response.ok) {
-      response = await fetch(`${ORIGIN}/api/auth/session`, {
+      response = await fetchWithTimeout(`${ORIGIN}/api/auth/session`, {
         credentials:'include', cache:'no-store', headers:{accept:'application/json'}
-      });
+      }, SESSION_FETCH_TIMEOUT_MS);
     }
     if (!response.ok) throw new Error(`SESSION_HTTP_${response.status}`);
     const session = await response.json();
@@ -27,10 +43,10 @@
     return {accept:'application/json', Authorization:`Bearer ${session.accessToken}`};
   }
 
-  async function apiJson(path, headers) {
-    const response = await fetch(`${ORIGIN}${path}`, {
+  async function apiJson(path, headers, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) {
+    const response = await fetchWithTimeout(`${ORIGIN}${path}`, {
       method:'GET', credentials:'include', cache:'no-store', headers
-    });
+    }, timeoutMs);
     if (!response.ok) {
       let detail = '';
       try { detail = clean(await response.text()).slice(0,180); } catch {}
@@ -158,37 +174,49 @@
     return (h >>> 0).toString(36);
   }
 
+  async function fetchChangedItem(item, headers) {
+    try {
+      const conversation = await apiJson(`/backend-api/conversation/${encodeURIComponent(item.key)}`, headers);
+      const messages = currentBranchMessages(conversation);
+      if (!messages.length) throw new Error('NO_READABLE_MESSAGES');
+      const tail = messages.slice(-4).map(message => `${message.role}:${message.text}`).join('\n');
+      return {payload:{
+        conversationKey:item.key,
+        url:item.url || `${ORIGIN}/c/${item.key}`,
+        title:item.title || conversation?.title || 'ChatGPT conversation',
+        projectKey:item.projectKey || stableProjectId(item.url || '') || null,
+        projectTitle:item.projectTitle || null,
+        projectUrl:item.projectUrl || null,
+        messages,
+        messageCount:Object.values(conversation?.mapping || {}).filter(node => node?.message).length,
+        fingerprint:`${item.key}:${messages.length}:${hash(tail)}`,
+        conversationUpdatedAt:item.updatedAt || conversation?.update_time || conversation?.updated_at || new Date().toISOString(),
+        conversationCreatedAt:item.createdAt || conversation?.create_time || conversation?.created_at || null,
+        clientTimestamp:new Date().toISOString(),
+        collectorVersion:'0.2.3',
+        catchupReason:item.reason || 'targeted-catchup'
+      }};
+    } catch (error) {
+      return {failure:{key:item.key,title:item.title || '',error:String(error?.message || error)}};
+    }
+  }
+
   async function fetchChanged(plan = []) {
     const headers = await sessionHeaders();
     const payloads = [];
     const failures = [];
-    for (const item of plan.slice(0,32)) {
-      try {
-        const conversation = await apiJson(`/backend-api/conversation/${encodeURIComponent(item.key)}`, headers);
-        const messages = currentBranchMessages(conversation);
-        if (!messages.length) throw new Error('NO_READABLE_MESSAGES');
-        const tail = messages.slice(-4).map(message => `${message.role}:${message.text}`).join('\n');
-        payloads.push({
-          conversationKey:item.key,
-          url:item.url || `${ORIGIN}/c/${item.key}`,
-          title:item.title || conversation?.title || 'ChatGPT conversation',
-          projectKey:item.projectKey || stableProjectId(item.url || '') || null,
-          projectTitle:item.projectTitle || null,
-          projectUrl:item.projectUrl || null,
-          messages,
-          messageCount:Object.values(conversation?.mapping || {}).filter(node => node?.message).length,
-          fingerprint:`${item.key}:${messages.length}:${hash(tail)}`,
-          conversationUpdatedAt:item.updatedAt || conversation?.update_time || conversation?.updated_at || new Date().toISOString(),
-          conversationCreatedAt:item.createdAt || conversation?.create_time || conversation?.created_at || null,
-          clientTimestamp:new Date().toISOString(),
-          collectorVersion:'0.2.0',
-          catchupReason:item.reason || 'targeted-catchup'
-        });
-      } catch (error) {
-        failures.push({key:item.key,title:item.title || '',error:String(error?.message || error)});
+    const items = plan.slice(0,32);
+
+    for (let offset=0; offset<items.length; offset+=FETCH_CONCURRENCY) {
+      const chunk = items.slice(offset, offset + FETCH_CONCURRENCY);
+      const results = await Promise.all(chunk.map(item => fetchChangedItem(item, headers)));
+      for (const result of results) {
+        if (result?.payload) payloads.push(result.payload);
+        if (result?.failure) failures.push(result.failure);
       }
-      await sleep(90);
+      if (offset + FETCH_CONCURRENCY < items.length) await sleep(120);
     }
+
     return {payloads,failures};
   }
 
