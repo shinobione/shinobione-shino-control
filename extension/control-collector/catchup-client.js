@@ -1,6 +1,7 @@
 (() => {
   const CHANNEL = 'SHINO_CONTROL_CATCHUP_V1';
   const GATE_POLL_INTERVAL_MS = 60 * 1000;
+  const ACTIVE_REQUEST_STALE_MS = 5 * 60 * 1000;
   let activeRequest = null;
 
   function requestId(prefix) {
@@ -11,12 +12,25 @@
     return chrome.runtime.sendMessage({type, ...payload});
   }
 
+  async function clearStaleActiveRequest() {
+    if (!activeRequest) return;
+    const startedAt = Number(activeRequest.startedAt || 0);
+    if (!startedAt || Date.now() - startedAt < ACTIVE_REQUEST_STALE_MS) return;
+    const stale = activeRequest;
+    activeRequest = null;
+    await askBackground('CONTROL_CATCHUP_FAILED', {
+      stage:`${stale.stage || 'unknown'}-watchdog`,
+      error:`catch-up stage exceeded ${ACTIVE_REQUEST_STALE_MS}ms`
+    }).catch(()=>{});
+  }
+
   async function startCatchup() {
+    await clearStaleActiveRequest();
     if (activeRequest) return;
     const gate = await askBackground('CONTROL_CATCHUP_SHOULD_RUN').catch(() => null);
     if (!gate?.ok || !gate.run) return;
     const id = requestId('inventory');
-    activeRequest = {stage:'inventory',id};
+    activeRequest = {stage:'inventory',id,startedAt:Date.now()};
     window.postMessage({channel:CHANNEL,type:'CONTROL_CATCHUP_INVENTORY_REQUEST',requestId:id}, '*');
   }
 
@@ -42,7 +56,7 @@
         return;
       }
       const id = requestId('fetch');
-      activeRequest = {stage:'fetch',id,plan:planned};
+      activeRequest = {stage:'fetch',id,plan:planned,startedAt:Date.now()};
       window.postMessage({channel:CHANNEL,type:'CONTROL_CATCHUP_FETCH_REQUEST',requestId:id,plan:planned.plan}, '*');
       return;
     }
