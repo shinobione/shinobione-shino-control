@@ -32,7 +32,7 @@ jobs:
           node --check scripts-chatgpt-delta-check.mjs
           node --check scripts-chatgpt-catchup-check.mjs
           node --check scripts-focus-now-check.mjs
-          node --check scripts-runtime-console-check.mjs
+          node --check scripts-tray-check.mjs
           node --check scripts/repair-state.mjs
           node --check scripts/generate-build-info.mjs
           node --check scripts/generate-pages-snapshot.mjs
@@ -85,15 +85,19 @@ jobs:
           grep -q 'CONTROL_CATCHUP_PLAN' extension/control-collector/background.js
           grep -q '/api/chatgpt/catchup-plan' server-entry.mjs
           grep -q '/api/chatgpt/catchup-report' server-entry.mjs
+          grep -q '/api/control/restart' server-entry.mjs
           test -s scripts/windows/control-supervisor.ps1
           test -s scripts/windows/install-startup.ps1
           test -s scripts/windows/startup-status.ps1
           test -s scripts/windows/uninstall-startup.ps1
+          test -s scripts/windows/ShinoControlTray.cs
           grep -q 'SHINO_CONTROL_Core' scripts/windows/install-startup.ps1
-          grep -q 'consoleVisible' scripts/windows/install-startup.ps1
-          grep -q 'WindowStyle Normal' scripts/windows/install-startup.ps1 || grep -q "'Normal'" scripts/windows/install-startup.ps1
-          grep -q 'SHINO // CONTROL Runtime' scripts/windows/control-supervisor.ps1
-          grep -q 'CONTROL Core is responding normally' scripts/windows/control-supervisor.ps1
+          grep -q 'SHINO_CONTROL_Tray' scripts/windows/install-startup.ps1
+          grep -q 'OutputType WindowsApplication' scripts/windows/install-startup.ps1
+          grep -q 'WindowStyle Hidden' scripts/windows/install-startup.ps1
+          grep -q 'NotifyIcon' scripts/windows/ShinoControlTray.cs
+          grep -q 'CreateControlIcon' scripts/windows/ShinoControlTray.cs
+          grep -q 'Restart CONTROL Core' scripts/windows/ShinoControlTray.cs
           grep -q '127.0.0.1' scripts/windows/control-supervisor.ps1
           test -s public/focus-engine.js
           test -s public/focus-now.js
