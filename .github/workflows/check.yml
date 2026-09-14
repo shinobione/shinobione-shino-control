@@ -80,10 +80,11 @@ jobs:
         run: |
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.9.20' public/build-info.js
+          grep -q '0.9.21' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
-          grep -q '"version": "0.2.3"' extension/control-collector/manifest.json
+          grep -q '"version": "0.2.4"' extension/control-collector/manifest.json
+          grep -q '"alarms"' extension/control-collector/manifest.json
           test -s extension/control-collector/catchup-main.js
           test -s extension/control-collector/catchup-client.js
           grep -q 'chatgpt-project-api-metadata-v1' extension/control-collector/catchup-main.js
@@ -91,7 +92,11 @@ jobs:
           grep -q 'DEFAULT_FETCH_TIMEOUT_MS = 15000' extension/control-collector/catchup-main.js
           grep -q 'FETCH_CONCURRENCY = 4' extension/control-collector/catchup-main.js
           grep -q 'ACTIVE_REQUEST_STALE_MS = 5 \* 60 \* 1000' extension/control-collector/catchup-client.js
+          grep -q 'CONTROL_CATCHUP_TICK' extension/control-collector/catchup-client.js
           grep -q 'CATCHUP_RUNNING_STALE_MS = 5 \* 60 \* 1000' extension/control-collector/background.js
+          grep -q "CATCHUP_ALARM_NAME = 'shino-control-catchup-tick'" extension/control-collector/background.js
+          grep -q 'chrome.alarms.onAlarm' extension/control-collector/background.js
+          grep -q 'catchupSchedulerLastTickStatus' extension/control-collector/background.js
           grep -q 'CONTROL_CATCHUP_PLAN' extension/control-collector/background.js
           grep -q '/api/chatgpt/catchup-plan' server-entry.mjs
           grep -q '/api/chatgpt/catchup-report' server-entry.mjs
@@ -157,7 +162,7 @@ jobs:
           test -s dist/radar-copy-cleaner.js
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.9.20"' dist/state.json
+          grep -q '"version": "0.9.21"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'lastChatgptCatchup' dist/state.json; then
             echo 'Private ChatGPT catch-up diagnostics leaked into public snapshot'

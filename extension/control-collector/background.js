@@ -6,6 +6,8 @@ const DEFAULTS = {
 const CATCHUP_SUCCESS_INTERVAL_MS = 30 * 60 * 1000;
 const CATCHUP_RETRY_INTERVAL_MS = 5 * 60 * 1000;
 const CATCHUP_RUNNING_STALE_MS = 5 * 60 * 1000;
+const CATCHUP_ALARM_NAME = 'shino-control-catchup-tick';
+const CATCHUP_ALARM_PERIOD_MINUTES = 1;
 
 async function config() {
   return chrome.storage.local.get(DEFAULTS);
@@ -43,6 +45,58 @@ async function ingestDelta(payload) {
   return controlPost('/api/ingest/chatgpt-delta', payload || {});
 }
 
+async function ensureCatchupAlarm() {
+  const existing = await chrome.alarms.get(CATCHUP_ALARM_NAME);
+  if (existing) return;
+  await chrome.alarms.create(CATCHUP_ALARM_NAME, {
+    delayInMinutes:CATCHUP_ALARM_PERIOD_MINUTES,
+    periodInMinutes:CATCHUP_ALARM_PERIOD_MINUTES
+  });
+}
+
+async function dispatchCatchupTick() {
+  const at = new Date().toISOString();
+  const tabs = await chrome.tabs.query({
+    url:['https://chatgpt.com/*','https://chat.openai.com/*']
+  }).catch(()=>[]);
+  const candidates = [...tabs].sort((a,b) => Number(Boolean(b.active)) - Number(Boolean(a.active)));
+  let delivered = false;
+  let tabId = null;
+
+  for (const tab of candidates) {
+    if (!tab?.id) continue;
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, {type:'CONTROL_CATCHUP_TICK'});
+      if (response?.ok !== false) {
+        delivered = true;
+        tabId = tab.id;
+        break;
+      }
+    } catch {}
+  }
+
+  await chrome.storage.local.set({
+    catchupSchedulerLastTickAt:at,
+    catchupSchedulerLastTickStatus:delivered ? 'delivered' : candidates.length ? 'no-listener' : 'no-chatgpt-tab',
+    catchupSchedulerLastTabId:tabId
+  });
+}
+
+chrome.alarms.onAlarm.addListener(alarm => {
+  if (alarm?.name !== CATCHUP_ALARM_NAME) return;
+  dispatchCatchupTick().catch(async error => {
+    await chrome.storage.local.set({
+      catchupSchedulerLastTickAt:new Date().toISOString(),
+      catchupSchedulerLastTickStatus:'error',
+      catchupSchedulerLastTickError:String(error?.message || error)
+    }).catch(()=>{});
+  });
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  ensureCatchupAlarm().catch(()=>{});
+});
+
 chrome.runtime.onInstalled.addListener(async () => {
   const current = await chrome.storage.local.get(DEFAULTS);
   await chrome.storage.local.set({
@@ -50,7 +104,10 @@ chrome.runtime.onInstalled.addListener(async () => {
     endpoint: current.endpoint || DEFAULTS.endpoint,
     token: current.token || ''
   });
+  await ensureCatchupAlarm();
 });
+
+ensureCatchupAlarm().catch(()=>{});
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message?.type?.startsWith('CONTROL_')) return;
