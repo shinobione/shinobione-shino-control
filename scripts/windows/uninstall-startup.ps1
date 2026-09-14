@@ -8,15 +8,21 @@ $ErrorActionPreference = 'SilentlyContinue'
 $runtimeRoot = Join-Path $env:LOCALAPPDATA 'SHINO-Control'
 $configPath = Join-Path $runtimeRoot 'startup.json'
 $pidFile = Join-Path $runtimeRoot 'supervisor.pid'
+$trayPath = Join-Path $runtimeRoot 'SHINO-Control-Tray.exe'
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
-$runName = 'SHINO_CONTROL_Core'
+$coreRunName = 'SHINO_CONTROL_Core'
+$trayRunName = 'SHINO_CONTROL_Tray'
 
 $config = $null
 if (Test-Path -LiteralPath $configPath) {
   $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 }
 
-Remove-ItemProperty -Path $runKey -Name $runName -ErrorAction SilentlyContinue
+Remove-ItemProperty -Path $runKey -Name $coreRunName -ErrorAction SilentlyContinue
+Remove-ItemProperty -Path $runKey -Name $trayRunName -ErrorAction SilentlyContinue
+
+Get-Process -Name 'SHINO-Control-Tray' -ErrorAction SilentlyContinue |
+  Stop-Process -Force -ErrorAction SilentlyContinue
 
 if (Test-Path -LiteralPath $pidFile) {
   $supervisorPid = [int](Get-Content -LiteralPath $pidFile -Raw)
@@ -34,11 +40,13 @@ if ($StopCore -and $config) {
 }
 
 Remove-Item -LiteralPath (Join-Path $runtimeRoot 'control-supervisor.ps1') -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $trayPath -Force -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath $configPath -Force -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
 
 Write-Host ''
 Write-Host 'SHINO // CONTROL Windows autostart removed.' -ForegroundColor Green
+Write-Host 'Tray icon stopped and removed.' -ForegroundColor Cyan
 if ($StopCore) {
   Write-Host 'Current CONTROL Core process was also stopped.' -ForegroundColor Yellow
 }
