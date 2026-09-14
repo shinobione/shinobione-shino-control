@@ -6,10 +6,12 @@ const server = fs.readFileSync('server-entry.mjs','utf8');
 const ui = fs.readFileSync('public/sync-health.js','utf8');
 const html = fs.readFileSync('public/index.html','utf8');
 
-assert.match(background,/catchupLastStatus:failed > 0 \? 'partial' : 'complete'/);
+assert.match(background,/const partial = failed > 0 \|\| deferred > 0/);
+assert.match(background,/catchupLastStatus:partial \? 'partial' : 'complete'/);
 assert.match(background,/unchangedCount:plan\.unchanged/);
 assert.match(background,/failures:Array\.isArray\(ingested\.failures\)/);
 assert.match(background,/\['error','partial'\]\.includes/);
+assert.match(background,/catchupLastStateSchemaUpgrades/);
 assert.match(server,/lastChatgptCatchup/);
 assert.match(server,/unchangedCount:Number\(payload\.unchangedCount/);
 assert.match(server,/failures = Array\.isArray\(payload\.failures\)/);

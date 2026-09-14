@@ -1,6 +1,6 @@
 {
   "name": "shino-control",
-  "version": "0.9.18",
+  "version": "0.9.19",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,7 @@
     "start": "node server-entry.mjs",
     "predev": "npm run assets",
     "dev": "node --watch server-entry.mjs",
-    "check": "node scripts-check.mjs && node scripts-status-check.mjs && node scripts-derivation-cache-check.mjs && node scripts-github-cursor-check.mjs && node scripts-chatgpt-delta-check.mjs && node scripts-chatgpt-catchup-check.mjs && node scripts-chatgpt-project-ownership-check.mjs && node scripts-focus-now-check.mjs && node scripts-sync-health-check.mjs && node scripts-tray-check.mjs",
+    "check": "node scripts-check.mjs && node scripts-status-check.mjs && node scripts-derivation-cache-check.mjs && node scripts-github-cursor-check.mjs && node scripts-chatgpt-delta-check.mjs && node scripts-chatgpt-catchup-check.mjs && node scripts-chatgpt-project-ownership-check.mjs && node scripts-chatgpt-tail-state-check.mjs && node scripts-focus-now-check.mjs && node scripts-sync-health-check.mjs && node scripts-tray-check.mjs",
     "pages:snapshot": "node scripts/generate-pages-snapshot.mjs",
     "build:pages": "node scripts/build-pages.mjs",
     "repair": "node scripts/repair-state.mjs",
