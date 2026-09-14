@@ -17,6 +17,7 @@ export function syncHealthModel(catchup, now = Date.now()) {
   const ageMs = Math.max(0, now - (Date.parse(catchup.at) || 0));
   const failed = Number(catchup.failedCount || 0);
   const deferred = Number(catchup.deferredCount || 0);
+  const inaccessible = Number(catchup.inaccessibleCount || 0);
   let status = 'LIVE';
   if (ageMs > 45 * 60 * 1000) status = 'STALE';
   else if (failed > 0 || deferred > 0 || String(catchup.status || '').toUpperCase() === 'PARTIAL') status = 'PARTIAL';
@@ -28,21 +29,33 @@ export function syncHealthModel(catchup, now = Date.now()) {
     refreshed:Number(catchup.refreshedCount || 0),
     failed,
     deferred,
+    inaccessible,
     changed:Number(catchup.changedCount || 0),
     failures:Array.isArray(catchup.failures) ? catchup.failures.slice(0,10) : [],
+    inaccessibleItems:Array.isArray(catchup.inaccessible) ? catchup.inaccessible.slice(0,10) : [],
     at:catchup.at
   };
 }
 
 function failuresHtml(model) {
-  if (!model.failed) return '';
-  if (!model.failures.length) {
-    return `<div class="sync-health-note warning">${model.failed} conversation${model.failed===1?'':'s'} failed on the last pass. Detailed errors will appear after the next Collector retry.</div>`;
+  const blocks = [];
+  if (model.failed) {
+    if (!model.failures.length) {
+      blocks.push(`<div class="sync-health-note warning">${model.failed} conversation${model.failed===1?'':'s'} failed on the last pass. Detailed errors will appear after the next Collector retry.</div>`);
+    } else {
+      blocks.push(`<details class="sync-health-failures" open>
+        <summary>${model.failed} transient conversation${model.failed===1?'':'s'} need retry</summary>
+        <div class="sync-health-failure-list">${model.failures.map(item => `<div class="sync-health-failure"><strong>${esc(item.title || 'Untitled conversation')}</strong><span>${esc(item.error || 'Unknown error')}</span></div>`).join('')}</div>
+      </details>`);
+    }
   }
-  return `<details class="sync-health-failures" open>
-    <summary>${model.failed} conversation${model.failed===1?'':'s'} need retry</summary>
-    <div class="sync-health-failure-list">${model.failures.map(item => `<div class="sync-health-failure"><strong>${esc(item.title || 'Untitled conversation')}</strong><span>${esc(item.error || 'Unknown error')}</span></div>`).join('')}</div>
-  </details>`;
+  if (model.inaccessible) {
+    const detail = model.inaccessibleItems.length
+      ? `<div class="sync-health-failure-list">${model.inaccessibleItems.map(item => `<div class="sync-health-failure"><strong>${esc(item.title || 'Untitled conversation')}</strong><span>ChatGPT no longer grants access. Historical CONTROL evidence is kept, but this thread is excluded from automatic retries.</span></div>`).join('')}</div>`
+      : '';
+    blocks.push(`<details class="sync-health-failures"><summary>${model.inaccessible} inaccessible conversation${model.inaccessible===1?'':'s'} excluded from retries</summary>${detail}</details>`);
+  }
+  return blocks.join('');
 }
 
 function panelHtml(model) {
@@ -50,7 +63,7 @@ function panelHtml(model) {
   const context = model.deferred
     ? `${model.planned} planned · ${model.deferred} deferred`
     : `${model.planned} planned · no deferred work`;
-  return `<section class="sync-health sync-${statusClass}" data-sync-signature="${esc([model.status,model.at,model.inventory,model.refreshed,model.failed,model.deferred,model.failures.length].join('|'))}">
+  return `<section class="sync-health sync-${statusClass}" data-sync-signature="${esc([model.status,model.at,model.inventory,model.refreshed,model.failed,model.deferred,model.inaccessible,model.failures.length,model.inaccessibleItems.length].join('|'))}">
     <div class="sync-health-head">
       <div><div class="sync-health-kicker">CHATGPT SYNC HEALTH</div><h3>Collector catch-up</h3></div>
       <span class="sync-health-status">${esc(model.status)}</span>
@@ -59,7 +72,8 @@ function panelHtml(model) {
       <div><span>Known live</span><b>${model.inventory}</b></div>
       <div><span>Unchanged</span><b>${model.unchanged}</b></div>
       <div><span>Refreshed</span><b>${model.refreshed}</b></div>
-      <div class="${model.failed?'metric-bad':''}"><span>Failed</span><b>${model.failed}</b></div>
+      <div class="${model.failed?'metric-bad':''}"><span>Transient failed</span><b>${model.failed}</b></div>
+      <div><span>Inaccessible</span><b>${model.inaccessible}</b></div>
     </div>
     <div class="sync-health-foot"><span>Last catch-up: ${esc(relativeTime(model.at))}</span><span>${esc(context)}</span></div>
     ${failuresHtml(model)}
