@@ -1,4 +1,7 @@
 (() => {
+  if (globalThis.__SHINO_CONTROL_COLLECTOR_V1__) return;
+  globalThis.__SHINO_CONTROL_COLLECTOR_V1__ = true;
+
   let timer = null;
   let lastHref = location.href;
   let lastSentFingerprint = '';
@@ -120,8 +123,6 @@
     };
 
     const response = await chrome.runtime.sendMessage({ type:'CONTROL_COLLECT_DELTA', payload });
-    // Only suppress future sends after CONTROL accepted this fingerprint. A transient localhost
-    // failure therefore retries automatically on the next DOM/navigation observation.
     if (response?.ok) lastSentFingerprint = fingerprint;
     return response;
   }
@@ -150,7 +151,6 @@
     observe();
   }
 
-  // ChatGPT is an SPA. Route changes do not reload the extension content script.
   setInterval(() => {
     if (location.href === lastHref) return;
     lastHref = location.href;
@@ -159,7 +159,6 @@
     schedule(900);
   }, 700);
 
-  // If the DOM settled while CONTROL was temporarily unavailable, retry the unsent observation.
   setInterval(() => {
     if (lastObservedFingerprint && lastObservedFingerprint !== lastSentFingerprint) schedule(0);
   }, 30000);
