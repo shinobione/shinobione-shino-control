@@ -3,10 +3,11 @@
   const CHANNEL = 'SHINO_CONTROL_CATCHUP_V1';
   const DEFAULT_FETCH_TIMEOUT_MS = 30000;
   const SESSION_FETCH_TIMEOUT_MS = 10000;
-  const FETCH_CONCURRENCY = 2;
-  const FETCH_MAX_ATTEMPTS = 2;
-  const FETCH_RETRY_DELAY_MS = 750;
+  const FETCH_CONCURRENCY = 1;
+  const FETCH_MAX_ATTEMPTS = 1;
+  const FETCH_INTER_ITEM_DELAY_MS = 1500;
   const INACCESSIBLE_FAILURE = {kind:'inaccessible'};
+  const RATE_LIMIT_FAILURE = {kind:'rate-limited'};
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
 
@@ -179,11 +180,8 @@
 
   function failureKind(errorText = '') {
     if (/CHATGPT_HTTP_404\b/i.test(errorText)) return INACCESSIBLE_FAILURE.kind;
+    if (/CHATGPT_HTTP_429\b/i.test(errorText)) return RATE_LIMIT_FAILURE.kind;
     return 'transient';
-  }
-
-  function retryable(errorText = '') {
-    return /CHATGPT_FETCH_TIMEOUT_|CHATGPT_HTTP_5\d\d\b|Failed to fetch|NetworkError/i.test(errorText);
   }
 
   async function fetchChangedItem(item, headers) {
@@ -207,15 +205,11 @@
           conversationUpdatedAt:item.updatedAt || conversation?.update_time || conversation?.updated_at || new Date().toISOString(),
           conversationCreatedAt:item.createdAt || conversation?.create_time || conversation?.created_at || null,
           clientTimestamp:new Date().toISOString(),
-          collectorVersion:'0.2.5',
+          collectorVersion:'0.2.6',
           catchupReason:item.reason || 'targeted-catchup'
         }};
       } catch (error) {
         lastError = String(error?.message || error);
-        if (attempt < FETCH_MAX_ATTEMPTS && retryable(lastError)) {
-          await sleep(FETCH_RETRY_DELAY_MS * attempt);
-          continue;
-        }
         break;
       }
     }
@@ -233,18 +227,25 @@
     const payloads = [];
     const failures = [];
     const items = plan.slice(0,32);
+    let rateLimited = false;
+    let unprocessedCount = 0;
 
     for (let offset=0; offset<items.length; offset+=FETCH_CONCURRENCY) {
-      const chunk = items.slice(offset, offset + FETCH_CONCURRENCY);
-      const results = await Promise.all(chunk.map(item => fetchChangedItem(item, headers)));
-      for (const result of results) {
-        if (result?.payload) payloads.push(result.payload);
-        if (result?.failure) failures.push(result.failure);
+      const item = items[offset];
+      const result = await fetchChangedItem(item, headers);
+      if (result?.payload) payloads.push(result.payload);
+      if (result?.failure) {
+        failures.push(result.failure);
+        if (result.failure.kind === RATE_LIMIT_FAILURE.kind) {
+          rateLimited = true;
+          unprocessedCount = Math.max(0, items.length - offset - 1);
+          break;
+        }
       }
-      if (offset + FETCH_CONCURRENCY < items.length) await sleep(250);
+      if (offset + FETCH_CONCURRENCY < items.length) await sleep(FETCH_INTER_ITEM_DELAY_MS);
     }
 
-    return {payloads,failures};
+    return {payloads,failures,rateLimited,unprocessedCount};
   }
 
   window.addEventListener('message', async event => {
