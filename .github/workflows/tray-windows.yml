@@ -1,0 +1,45 @@
+name: SHINO CONTROL Windows tray
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  compile-tray:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile native tray app with Windows PowerShell
+        shell: powershell
+        run: |
+          $source = Get-Content -LiteralPath 'scripts/windows/ShinoControlTray.cs' -Raw
+          $out = Join-Path $env:RUNNER_TEMP 'SHINO-Control-Tray.exe'
+          Add-Type `
+            -TypeDefinition $source `
+            -Language CSharp `
+            -ReferencedAssemblies @('System.Windows.Forms','System.Drawing') `
+            -OutputAssembly $out `
+            -OutputType WindowsApplication
+          if (-not (Test-Path -LiteralPath $out)) {
+            throw 'Tray executable was not produced.'
+          }
+          $info = Get-Item -LiteralPath $out
+          Write-Host "Tray compiled: $($info.FullName) ($($info.Length) bytes)"
+      - name: Parse startup PowerShell
+        shell: powershell
+        run: |
+          foreach ($file in @(
+            'scripts/windows/control-supervisor.ps1',
+            'scripts/windows/install-startup.ps1',
+            'scripts/windows/startup-status.ps1',
+            'scripts/windows/uninstall-startup.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Host $_ }
+              throw "PowerShell parse failed: $file"
+            }
+          }
