@@ -72,4 +72,25 @@ const capped = planChatgptCatchup({sources:[],evidence:[]}, {
 assert.equal(capped.plan.length, 7);
 assert.equal(capped.deferredCount, 33);
 
+const inaccessibleState = {
+  settings:{
+    chatgptInaccessible:{
+      locked:{remoteUpdatedAt:'2026-09-14T10:00:00.000Z'},
+      changed:{remoteUpdatedAt:'2026-09-14T10:00:00.000Z'}
+    }
+  },
+  sources:[
+    {id:'src-locked',type:'chatgpt_thread',externalId:'locked',projectId:'control',conversationUpdatedAt:'2026-09-10T10:00:00.000Z',chatgptStateSchemaVersion:currentSchema},
+    {id:'src-changed',type:'chatgpt_thread',externalId:'changed',projectId:'control',conversationUpdatedAt:'2026-09-10T10:00:00.000Z',chatgptStateSchemaVersion:currentSchema}
+  ],
+  evidence:[]
+};
+const inaccessibleResult = planChatgptCatchup(inaccessibleState, {threads:[
+  {key:'locked',title:'Still inaccessible',updatedAt:'2026-09-14T10:00:00.000Z'},
+  {key:'changed',title:'Remote changed after inaccessible mark',updatedAt:'2026-09-14T11:00:00.000Z'}
+]}, {maxPlan:10});
+assert.equal(inaccessibleResult.inaccessibleCount, 1, 'unchanged inaccessible threads should be excluded from retries');
+assert.equal(inaccessibleResult.plan.some(item=>item.key==='locked'), false);
+assert.equal(inaccessibleResult.plan.some(item=>item.key==='changed'), true, 'a remote update must make an inaccessible thread retryable again');
+
 console.log('ChatGPT targeted catch-up checks passed');
