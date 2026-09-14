@@ -32,6 +32,7 @@ jobs:
           node --check scripts-chatgpt-delta-check.mjs
           node --check scripts-chatgpt-catchup-check.mjs
           node --check scripts-focus-now-check.mjs
+          node --check scripts-runtime-console-check.mjs
           node --check scripts/repair-state.mjs
           node --check scripts/generate-build-info.mjs
           node --check scripts/generate-pages-snapshot.mjs
