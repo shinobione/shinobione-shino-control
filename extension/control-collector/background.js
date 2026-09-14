@@ -89,16 +89,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       if (message.type === 'CONTROL_CATCHUP_PLAN') {
         const inventory = message.inventory || {};
-        const result = await controlPost('/api/chatgpt/catchup-plan', {
-          ...inventory,
-          maxPlan:32
-        });
+        const result = await controlPost('/api/chatgpt/catchup-plan', {...inventory,maxPlan:32});
         await chrome.storage.local.set({
           catchupLastInventoryCount:result.inventoryCount || 0,
           catchupLastChangedCount:result.changedCount || 0,
           catchupLastUnchangedCount:result.unchanged || 0,
           catchupLastNewCount:result.newCount || 0,
-          catchupLastBaselineMissing:result.baselineMissing || 0
+          catchupLastBaselineMissing:result.baselineMissing || 0,
+          catchupLastStateSchemaUpgrades:result.stateSchemaUpgrades || 0,
+          catchupLastDeferredCount:result.deferredCount || 0
         });
         return sendResponse({ok:true,...result});
       }
@@ -126,14 +125,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const plan = message.plan || {};
         const ingested = message.ingested || {};
         const failed = Number(ingested.failed || 0);
+        const deferred = Number(plan.deferredCount || 0);
+        const partial = failed > 0 || deferred > 0;
+        const errorText = failed > 0
+          ? `${failed} conversation(s) need retry`
+          : deferred > 0 ? `${deferred} conversation(s) deferred to next catch-up batch` : '';
+
         await chrome.storage.local.set({
           catchupLastCompletedAt:at,
-          catchupLastStatus:failed > 0 ? 'partial' : 'complete',
-          catchupLastError:failed > 0 ? `${failed} conversation(s) need retry` : '',
+          catchupLastStatus:partial ? 'partial' : 'complete',
+          catchupLastError:errorText,
           catchupLastPlanCount:plan.plan?.length || 0,
           catchupLastChangedCount:plan.changedCount || 0,
           catchupLastIngestedChanged:ingested.changed || 0,
           catchupLastFailed:failed,
+          catchupLastDeferredCount:deferred,
+          catchupLastStateSchemaUpgrades:plan.stateSchemaUpgrades || 0,
           catchupLastFailures:Array.isArray(ingested.failures) ? ingested.failures.slice(0,10) : []
         });
         await controlPost('/api/chatgpt/catchup-report', {
@@ -143,14 +150,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           changedCount:plan.changedCount || 0,
           newCount:plan.newCount || 0,
           baselineMissingCount:plan.baselineMissing || 0,
+          stateSchemaUpgrades:Number(plan.stateSchemaUpgrades || 0),
           plannedCount:plan.plan?.length || 0,
           refreshedCount:ingested.changed || 0,
           skippedCount:ingested.skipped || 0,
           failedCount:failed,
-          deferredCount:plan.deferredCount || 0,
+          deferredCount:deferred,
           failures:Array.isArray(ingested.failures) ? ingested.failures.slice(0,10) : []
         }).catch(()=>{});
-        return sendResponse({ok:true,completedAt:at,status:failed > 0 ? 'partial' : 'complete'});
+        return sendResponse({ok:true,completedAt:at,status:partial ? 'partial' : 'complete'});
       }
 
       if (message.type === 'CONTROL_CATCHUP_FAILED') {
