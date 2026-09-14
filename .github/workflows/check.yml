@@ -24,6 +24,7 @@ jobs:
           node --check lib/github-incremental-sync.mjs
           node --check lib/chatgpt-delta-ingest.mjs
           node --check lib/chatgpt-catchup-plan.mjs
+          node --check lib/chatgpt-project-ownership.mjs
           node --check lib/resolver.mjs
           node --check scripts-check.mjs
           node --check scripts-status-check.mjs
@@ -31,6 +32,7 @@ jobs:
           node --check scripts-github-cursor-check.mjs
           node --check scripts-chatgpt-delta-check.mjs
           node --check scripts-chatgpt-catchup-check.mjs
+          node --check scripts-chatgpt-project-ownership-check.mjs
           node --check scripts-focus-now-check.mjs
           node --check scripts-sync-health-check.mjs
           node --check scripts-tray-check.mjs
@@ -76,7 +78,7 @@ jobs:
         run: |
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.9.17' public/build-info.js
+          grep -q '0.9.18' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
           grep -q '"version": "0.2.1"' extension/control-collector/manifest.json
@@ -90,6 +92,9 @@ jobs:
           grep -q '/api/control/restart' server-entry.mjs
           grep -q 'unchangedCount' server-entry.mjs
           grep -q 'failures' server-entry.mjs
+          test -s lib/chatgpt-project-ownership.mjs
+          grep -q 'live ChatGPT project title' lib/chatgpt-project-ownership.mjs
+          grep -q 'project-ownership-mismatch' lib/chatgpt-catchup-plan.mjs
           test -s scripts/windows/control-supervisor.ps1
           test -s scripts/windows/install-startup.ps1
           test -s scripts/windows/startup-status.ps1
@@ -141,7 +146,7 @@ jobs:
           test -s dist/radar-copy-cleaner.js
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.9.17"' dist/state.json
+          grep -q '"version": "0.9.18"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'lastChatgptCatchup' dist/state.json; then
             echo 'Private ChatGPT catch-up diagnostics leaked into public snapshot'
