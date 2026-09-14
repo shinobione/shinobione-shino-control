@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
   [int]$Port = 4177,
-  [switch]$NoStart
+  [switch]$NoStart,
+  [switch]$Hidden
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,6 +19,7 @@ $runtimeRoot = Join-Path $env:LOCALAPPDATA 'SHINO-Control'
 $configPath = Join-Path $runtimeRoot 'startup.json'
 $supervisorSource = Join-Path $PSScriptRoot 'control-supervisor.ps1'
 $supervisorTarget = Join-Path $runtimeRoot 'control-supervisor.ps1'
+$pidFile = Join-Path $runtimeRoot 'supervisor.pid'
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $runName = 'SHINO_CONTROL_Core'
 
@@ -28,6 +30,7 @@ $config = [ordered]@{
   repoRoot = $repoRoot
   nodePath = $nodePath
   port = $Port
+  consoleVisible = (-not $Hidden)
   installedAt = (Get-Date).ToString('o')
 }
 $config | ConvertTo-Json | Set-Content -LiteralPath $configPath -Encoding UTF8
@@ -40,7 +43,8 @@ else {
   $powerShellPath = (Get-Process -Id $PID).Path
 }
 
-$arguments = "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$supervisorTarget`" -ConfigPath `"$configPath`""
+$windowStyle = if ($Hidden) { 'Hidden' } else { 'Normal' }
+$arguments = "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle $windowStyle -File `"$supervisorTarget`" -ConfigPath `"$configPath`""
 $runCommand = "`"$powerShellPath`" $arguments"
 
 New-Item -Path $runKey -Force | Out-Null
@@ -51,11 +55,27 @@ Write-Host 'SHINO // CONTROL Windows autostart installed.' -ForegroundColor Gree
 Write-Host "Repo       : $repoRoot"
 Write-Host "Node       : $nodePath"
 Write-Host "Port       : $Port"
+Write-Host "Console    : $(if ($Hidden) { 'HIDDEN' } else { 'VISIBLE runtime status' })"
 Write-Host "Run entry  : HKCU\\...\\Run\\$runName"
 Write-Host "Runtime    : $runtimeRoot"
 
 if (-not $NoStart) {
-  Start-Process -FilePath $powerShellPath -ArgumentList $arguments -WindowStyle Hidden
+  # Upgrade/reinstall in place: stop only the existing supervisor, never the Core.
+  # The replacement supervisor will immediately adopt an already-healthy Core.
+  if (Test-Path -LiteralPath $pidFile) {
+    $existingPid = 0
+    try { $existingPid = [int](Get-Content -LiteralPath $pidFile -Raw) } catch {}
+    if ($existingPid -gt 0) {
+      $existing = Get-CimInstance Win32_Process -Filter "ProcessId=$existingPid" -ErrorAction SilentlyContinue
+      if ($existing -and [string]$existing.CommandLine -match 'control-supervisor\.ps1') {
+        Write-Host "Supervisor : restarting old PID $existingPid" -ForegroundColor Yellow
+        Stop-Process -Id $existingPid -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 800
+      }
+    }
+  }
+
+  Start-Process -FilePath $powerShellPath -ArgumentList $arguments -WindowStyle $windowStyle
 
   $healthUrl = "http://127.0.0.1:$Port/api/state"
   $healthy = $false
@@ -81,5 +101,10 @@ if (-not $NoStart) {
 
 Write-Host ''
 Write-Host 'From now on CONTROL starts automatically at Windows sign-in.' -ForegroundColor Cyan
+if (-not $Hidden) {
+  Write-Host 'Runtime    : the SHINO // CONTROL Runtime window stays open and shows live status.'
+  Write-Host '             Closing that window stops automatic Core restart until the next sign-in/reinstall.' -ForegroundColor DarkGray
+}
 Write-Host 'Status     : npm run startup:status'
 Write-Host 'Uninstall  : npm run startup:uninstall'
+Write-Host 'Hidden mode: npm run startup:install -- --Hidden'
