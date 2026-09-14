@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "SHINO // CONTROL Collector",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "ChatGPT delta sensor + targeted metadata catch-up for SHINO // CONTROL. No DOM crawler or conversation backfill.",
   "permissions": [
     "storage",
-    "alarms"
+    "alarms",
+    "scripting"
   ],
   "host_permissions": [
     "https://chatgpt.com/*",

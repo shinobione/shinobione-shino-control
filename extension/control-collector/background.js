@@ -4,10 +4,13 @@ const DEFAULTS = {
   token: ''
 };
 const CATCHUP_SUCCESS_INTERVAL_MS = 30 * 60 * 1000;
-const CATCHUP_RETRY_INTERVAL_MS = 5 * 60 * 1000;
-const CATCHUP_RUNNING_STALE_MS = 5 * 60 * 1000;
+const CATCHUP_RETRY_INTERVAL_MS = 10 * 60 * 1000;
+const CATCHUP_RUNNING_STALE_MS = 20 * 60 * 1000;
 const CATCHUP_ALARM_NAME = 'shino-control-catchup-tick';
 const CATCHUP_ALARM_PERIOD_MINUTES = 1;
+const CATCHUP_RECOVERY_FILES = ['collector.js','catchup-client.js'];
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function config() {
   return chrome.storage.local.get(DEFAULTS);
@@ -54,31 +57,88 @@ async function ensureCatchupAlarm() {
   });
 }
 
+function senderTabId(sender) {
+  const value = Number(sender?.tab?.id || 0);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+async function assertRunOwner(sender) {
+  const tabId = senderTabId(sender);
+  const stored = await chrome.storage.local.get({catchupRunOwnerTabId:null});
+  const owner = Number(stored.catchupRunOwnerTabId || 0) || null;
+  if (owner && tabId && owner !== tabId) {
+    throw new Error(`CATCHUP_RUN_OWNED_BY_TAB_${owner}`);
+  }
+  return {owner,tabId};
+}
+
+async function injectCatchupListeners(tabId) {
+  await chrome.scripting.executeScript({
+    target:{tabId},
+    files:CATCHUP_RECOVERY_FILES
+  });
+}
+
+async function sendCatchupTick(tabId) {
+  return chrome.tabs.sendMessage(tabId, {type:'CONTROL_CATCHUP_TICK'});
+}
+
 async function dispatchCatchupTick() {
   const at = new Date().toISOString();
   const tabs = await chrome.tabs.query({
     url:['https://chatgpt.com/*','https://chat.openai.com/*']
   }).catch(()=>[]);
-  const candidates = [...tabs].sort((a,b) => Number(Boolean(b.active)) - Number(Boolean(a.active)));
+  const state = await chrome.storage.local.get({
+    catchupLastStatus:'',
+    catchupRunOwnerTabId:null
+  });
+  const ownerTabId = Number(state.catchupRunOwnerTabId || 0) || null;
+  const candidates = [...tabs].sort((a,b) => {
+    const score = tab => (tab?.id === ownerTabId ? 4 : 0) + (tab?.active ? 2 : 0);
+    return score(b) - score(a);
+  });
+
   let delivered = false;
+  let recovered = false;
   let tabId = null;
+  let clientVersion = null;
+  let recoveryError = '';
 
   for (const tab of candidates) {
     if (!tab?.id) continue;
     try {
-      const response = await chrome.tabs.sendMessage(tab.id, {type:'CONTROL_CATCHUP_TICK'});
+      const response = await sendCatchupTick(tab.id);
       if (response?.ok !== false) {
         delivered = true;
         tabId = tab.id;
+        clientVersion = response?.version || null;
         break;
       }
-    } catch {}
+    } catch {
+      try {
+        await injectCatchupListeners(tab.id);
+        await sleep(100);
+        const response = await sendCatchupTick(tab.id);
+        if (response?.ok !== false) {
+          delivered = true;
+          recovered = true;
+          tabId = tab.id;
+          clientVersion = response?.version || null;
+          break;
+        }
+      } catch (error) {
+        recoveryError = String(error?.message || error);
+      }
+    }
   }
 
   await chrome.storage.local.set({
     catchupSchedulerLastTickAt:at,
-    catchupSchedulerLastTickStatus:delivered ? 'delivered' : candidates.length ? 'no-listener' : 'no-chatgpt-tab',
-    catchupSchedulerLastTabId:tabId
+    catchupSchedulerLastTickStatus:recovered ? 'recovered' : delivered ? 'delivered' : candidates.length ? 'no-listener' : 'no-chatgpt-tab',
+    catchupSchedulerLastTabId:tabId,
+    catchupSchedulerLastClientVersion:clientVersion,
+    catchupSchedulerLastRecoveryAt:recovered ? at : null,
+    catchupSchedulerLastRecoveryError:recoveryError
   });
 }
 
@@ -129,7 +189,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const cfg = await config();
         if (!cfg.enabled) return sendResponse({ok:true,run:false,reason:'collector disabled'});
         const stored = await chrome.storage.local.get({
-          catchupLastAttemptAt:'', catchupLastCompletedAt:'', catchupLastStatus:''
+          catchupLastAttemptAt:'', catchupLastCompletedAt:'', catchupLastStatus:'', catchupRunOwnerTabId:null
         });
         const now = Date.now();
         const lastAttempt = Date.parse(stored.catchupLastAttemptAt || '') || 0;
@@ -138,21 +198,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const staleRunning = status === 'running' && lastAttempt && now - lastAttempt >= CATCHUP_RUNNING_STALE_MS;
         const needsRetry = ['error','partial'].includes(status) || staleRunning;
         const retryWindow = needsRetry ? CATCHUP_RETRY_INTERVAL_MS : CATCHUP_SUCCESS_INTERVAL_MS;
-        const baseline = needsRetry ? lastAttempt : Math.max(lastAttempt,lastCompleted);
+        const baseline = needsRetry ? Math.max(lastAttempt,lastCompleted) : Math.max(lastAttempt,lastCompleted);
+        if (status === 'running' && !staleRunning) {
+          return sendResponse({ok:true,run:false,reason:'catch-up already running',ownerTabId:stored.catchupRunOwnerTabId || null});
+        }
         if (baseline && now - baseline < retryWindow) {
           return sendResponse({ok:true,run:false,reason:'catch-up cooldown'});
         }
         const at = new Date().toISOString();
+        const ownerTabId = senderTabId(sender);
         await chrome.storage.local.set({
           catchupLastAttemptAt:at,
           catchupLastStatus:'running',
           catchupLastError:'',
-          catchupRecoveredStaleRunning:Boolean(staleRunning)
+          catchupLastFailureStage:'',
+          catchupRecoveredStaleRunning:Boolean(staleRunning),
+          catchupRunOwnerTabId:ownerTabId,
+          catchupRunLeaseStartedAt:at
         });
-        return sendResponse({ok:true,run:true,startedAt:at,recoveredStaleRunning:Boolean(staleRunning)});
+        return sendResponse({ok:true,run:true,startedAt:at,recoveredStaleRunning:Boolean(staleRunning),ownerTabId});
       }
 
       if (message.type === 'CONTROL_CATCHUP_PLAN') {
+        await assertRunOwner(sender);
         const inventory = message.inventory || {};
         const result = await controlPost('/api/chatgpt/catchup-plan', {...inventory,maxPlan:32});
         await chrome.storage.local.set({
@@ -169,6 +237,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       if (message.type === 'CONTROL_CATCHUP_INGEST') {
+        await assertRunOwner(sender);
         const payloads = Array.isArray(message.payloads) ? message.payloads.slice(0,32) : [];
         const fetchFailures = Array.isArray(message.failures) ? message.failures : [];
         const inaccessibleItems = fetchFailures.filter(item => item?.kind === 'inaccessible');
@@ -194,6 +263,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       if (message.type === 'CONTROL_CATCHUP_COMPLETE') {
+        await assertRunOwner(sender);
         const at = new Date().toISOString();
         const plan = message.plan || {};
         const ingested = message.ingested || {};
@@ -210,6 +280,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           catchupLastCompletedAt:at,
           catchupLastStatus:partial ? 'partial' : 'complete',
           catchupLastError:errorText,
+          catchupLastFailureStage:'',
           catchupLastPlanCount:plan.plan?.length || 0,
           catchupLastChangedCount:plan.changedCount || 0,
           catchupLastIngestedChanged:ingested.changed || 0,
@@ -218,7 +289,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           catchupLastDeferredCount:deferred,
           catchupLastStateSchemaUpgrades:plan.stateSchemaUpgrades || 0,
           catchupLastFailures:Array.isArray(ingested.failures) ? ingested.failures.slice(0,10) : [],
-          catchupLastInaccessibleItems:inaccessibleItems.slice(0,10)
+          catchupLastInaccessibleItems:inaccessibleItems.slice(0,10),
+          catchupRunOwnerTabId:null,
+          catchupRunLeaseStartedAt:''
         });
         await controlPost('/api/chatgpt/catchup-report', {
           inventoryCount:plan.inventoryCount || 0,
@@ -241,11 +314,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       if (message.type === 'CONTROL_CATCHUP_FAILED') {
+        await assertRunOwner(sender);
         const text = String(message.error || 'catch-up failed');
         await chrome.storage.local.set({
           catchupLastStatus:'error',
           catchupLastError:text,
-          catchupLastFailureStage:message.stage || 'unknown'
+          catchupLastFailureStage:message.stage || 'unknown',
+          catchupRunOwnerTabId:null,
+          catchupRunLeaseStartedAt:''
         });
         return sendResponse({ok:true});
       }
