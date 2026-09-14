@@ -162,7 +162,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           catchupLastNewCount:result.newCount || 0,
           catchupLastBaselineMissing:result.baselineMissing || 0,
           catchupLastStateSchemaUpgrades:result.stateSchemaUpgrades || 0,
-          catchupLastDeferredCount:result.deferredCount || 0
+          catchupLastDeferredCount:result.deferredCount || 0,
+          catchupKnownInaccessibleCount:result.inaccessibleCount || 0
         });
         return sendResponse({ok:true,...result});
       }
@@ -170,8 +171,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.type === 'CONTROL_CATCHUP_INGEST') {
         const payloads = Array.isArray(message.payloads) ? message.payloads.slice(0,32) : [];
         const fetchFailures = Array.isArray(message.failures) ? message.failures : [];
-        const counts = {attempted:payloads.length,changed:0,skipped:0,failed:fetchFailures.length};
-        const failures = [...fetchFailures];
+        const inaccessibleItems = fetchFailures.filter(item => item?.kind === 'inaccessible');
+        const transientFailures = fetchFailures.filter(item => item?.kind !== 'inaccessible');
+        const counts = {
+          attempted:payloads.length,
+          changed:0,
+          skipped:0,
+          failed:transientFailures.length
+        };
+        const failures = [...transientFailures];
         for (const payload of payloads) {
           try {
             const body = await ingestDelta(payload);
@@ -179,10 +187,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             else counts.skipped++;
           } catch (error) {
             counts.failed++;
-            failures.push({key:payload?.conversationKey || '',title:payload?.title || '',error:String(error?.message || error)});
+            failures.push({key:payload?.conversationKey || '',title:payload?.title || '',error:String(error?.message || error),kind:'transient'});
           }
         }
-        return sendResponse({ok:true,...counts,failures});
+        return sendResponse({ok:true,...counts,failures,inaccessibleItems});
       }
 
       if (message.type === 'CONTROL_CATCHUP_COMPLETE') {
@@ -190,6 +198,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const plan = message.plan || {};
         const ingested = message.ingested || {};
         const failed = Number(ingested.failed || 0);
+        const inaccessibleItems = Array.isArray(ingested.inaccessibleItems) ? ingested.inaccessibleItems : [];
+        const inaccessible = inaccessibleItems.length;
         const deferred = Number(plan.deferredCount || 0);
         const partial = failed > 0 || deferred > 0;
         const errorText = failed > 0
@@ -204,9 +214,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           catchupLastChangedCount:plan.changedCount || 0,
           catchupLastIngestedChanged:ingested.changed || 0,
           catchupLastFailed:failed,
+          catchupLastInaccessible:inaccessible,
           catchupLastDeferredCount:deferred,
           catchupLastStateSchemaUpgrades:plan.stateSchemaUpgrades || 0,
-          catchupLastFailures:Array.isArray(ingested.failures) ? ingested.failures.slice(0,10) : []
+          catchupLastFailures:Array.isArray(ingested.failures) ? ingested.failures.slice(0,10) : [],
+          catchupLastInaccessibleItems:inaccessibleItems.slice(0,10)
         });
         await controlPost('/api/chatgpt/catchup-report', {
           inventoryCount:plan.inventoryCount || 0,
@@ -215,6 +227,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           changedCount:plan.changedCount || 0,
           newCount:plan.newCount || 0,
           baselineMissingCount:plan.baselineMissing || 0,
+          inaccessibleCount:Number(plan.inaccessibleCount || 0) + inaccessible,
+          inaccessible:inaccessibleItems.slice(0,20),
           stateSchemaUpgrades:Number(plan.stateSchemaUpgrades || 0),
           plannedCount:plan.plan?.length || 0,
           refreshedCount:ingested.changed || 0,
