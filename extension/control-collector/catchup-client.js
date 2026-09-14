@@ -1,10 +1,14 @@
 (() => {
+  if (globalThis.__SHINO_CONTROL_CATCHUP_CLIENT_V1__) return;
+  globalThis.__SHINO_CONTROL_CATCHUP_CLIENT_V1__ = true;
+
   const CHANNEL = 'SHINO_CONTROL_CATCHUP_V1';
   const ACTIVE_REQUEST_STALE_MS = 20 * 60 * 1000;
   const CLIENT_RUNNING_STALE_MS = 20 * 60 * 1000;
   const CLIENT_PARTIAL_COOLDOWN_MS = 10 * 60 * 1000;
   const RATE_LIMIT_COOLDOWN_MS = 15 * 60 * 1000;
   const EXECUTION_PLAN_LIMIT = 8;
+  const CLIENT_VERSION = '0.2.7';
   let activeRequest = null;
 
   function requestId(prefix) {
@@ -133,12 +137,14 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once:true});
   else boot();
 
-  // The reliable periodic scheduler lives in the MV3 service worker via chrome.alarms.
-  // Content scripts execute the tick only when the shared pacing guard permits it.
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message?.type === 'CONTROL_CATCHUP_PING') {
+      sendResponse({ok:true,version:CLIENT_VERSION,active:Boolean(activeRequest),stage:activeRequest?.stage || null});
+      return false;
+    }
     if (message?.type !== 'CONTROL_CATCHUP_TICK') return;
     attempt();
-    sendResponse({ok:true});
+    sendResponse({ok:true,version:CLIENT_VERSION,active:Boolean(activeRequest),stage:activeRequest?.stage || null});
     return false;
   });
 
