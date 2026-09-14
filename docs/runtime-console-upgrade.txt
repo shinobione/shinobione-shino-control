@@ -1,1 +1,0 @@
-Upgrade activation: after pulling v0.9.16, run `npm run startup:install`. The installer replaces the per-user Run command, safely restarts only the CONTROL supervisor, leaves an already-healthy Core running, and opens the visible runtime console immediately. Use `npm run startup:install -- --Hidden` to opt back into silent background mode.
