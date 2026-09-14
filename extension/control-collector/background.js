@@ -76,8 +76,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const now = Date.now();
         const lastAttempt = Date.parse(stored.catchupLastAttemptAt || '') || 0;
         const lastCompleted = Date.parse(stored.catchupLastCompletedAt || '') || 0;
-        const retryWindow = stored.catchupLastStatus === 'error' ? CATCHUP_RETRY_INTERVAL_MS : CATCHUP_SUCCESS_INTERVAL_MS;
-        const baseline = stored.catchupLastStatus === 'error' ? lastAttempt : Math.max(lastAttempt,lastCompleted);
+        const needsRetry = ['error','partial'].includes(stored.catchupLastStatus);
+        const retryWindow = needsRetry ? CATCHUP_RETRY_INTERVAL_MS : CATCHUP_SUCCESS_INTERVAL_MS;
+        const baseline = needsRetry ? lastAttempt : Math.max(lastAttempt,lastCompleted);
         if (baseline && now - baseline < retryWindow) {
           return sendResponse({ok:true,run:false,reason:'catch-up cooldown'});
         }
@@ -124,23 +125,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const at = new Date().toISOString();
         const plan = message.plan || {};
         const ingested = message.ingested || {};
+        const failed = Number(ingested.failed || 0);
         await chrome.storage.local.set({
           catchupLastCompletedAt:at,
-          catchupLastStatus:'complete',
-          catchupLastError:'',
+          catchupLastStatus:failed > 0 ? 'partial' : 'complete',
+          catchupLastError:failed > 0 ? `${failed} conversation(s) need retry` : '',
           catchupLastPlanCount:plan.plan?.length || 0,
           catchupLastChangedCount:plan.changedCount || 0,
           catchupLastIngestedChanged:ingested.changed || 0,
-          catchupLastFailed:ingested.failed || 0
+          catchupLastFailed:failed,
+          catchupLastFailures:Array.isArray(ingested.failures) ? ingested.failures.slice(0,10) : []
         });
         await controlPost('/api/chatgpt/catchup-report', {
           inventoryCount:plan.inventoryCount || 0,
+          knownCount:plan.known || 0,
+          unchangedCount:plan.unchanged || 0,
+          changedCount:plan.changedCount || 0,
+          newCount:plan.newCount || 0,
+          baselineMissingCount:plan.baselineMissing || 0,
           plannedCount:plan.plan?.length || 0,
           refreshedCount:ingested.changed || 0,
-          failedCount:ingested.failed || 0,
-          deferredCount:plan.deferredCount || 0
+          skippedCount:ingested.skipped || 0,
+          failedCount:failed,
+          deferredCount:plan.deferredCount || 0,
+          failures:Array.isArray(ingested.failures) ? ingested.failures.slice(0,10) : []
         }).catch(()=>{});
-        return sendResponse({ok:true,completedAt:at});
+        return sendResponse({ok:true,completedAt:at,status:failed > 0 ? 'partial' : 'complete'});
       }
 
       if (message.type === 'CONTROL_CATCHUP_FAILED') {
