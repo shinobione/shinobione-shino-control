@@ -11,6 +11,7 @@ import { syncGithubIncremental } from './lib/github-incremental-sync.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.join(__dirname, 'data', 'state.json');
 const originalCreateServer = http.createServer.bind(http);
+const TIMEOUT_RETRY_DELAYS_MS = [30 * 60 * 1000, 2 * 60 * 60 * 1000, 6 * 60 * 60 * 1000, 24 * 60 * 60 * 1000];
 const COLLECTOR_COMPONENT = {
   id:'control-collector',
   name:'CONTROL Collector',
@@ -178,6 +179,50 @@ function catchupInaccessible(item = {}) {
   };
 }
 
+function catchupTimeout(item = {}) {
+  return {
+    ...catchupFailure(item),
+    kind:'timeout',
+    remoteUpdatedAt:item.updatedAt || item.remoteUpdatedAt || null
+  };
+}
+
+function isCatchupTimeout(item = {}) {
+  return /CHATGPT_FETCH_TIMEOUT_\d+MS/i.test(String(item.error || ''));
+}
+
+function sameRemoteTimestamp(a, b) {
+  const aMs = Date.parse(a || '');
+  const bMs = Date.parse(b || '');
+  if (Number.isFinite(aMs) && Number.isFinite(bMs)) return aMs === bMs;
+  return !a && !b;
+}
+
+function timeoutRetryDelayMs(attempts) {
+  const index = Math.max(0, Math.min(TIMEOUT_RETRY_DELAYS_MS.length - 1, Number(attempts || 1) - 1));
+  return TIMEOUT_RETRY_DELAYS_MS[index];
+}
+
+function activeTimeoutQuarantine(state, nowMs = Date.now()) {
+  const items = [];
+  for (const [key, item] of Object.entries(state.settings?.chatgptTimeoutQuarantine || {})) {
+    const retryMs = Date.parse(item?.retryAt || '');
+    if (!Number.isFinite(retryMs) || retryMs <= nowMs) continue;
+    items.push({
+      key,
+      title:item.title || 'Untitled conversation',
+      error:item.error || 'ChatGPT conversation fetch timed out',
+      kind:'timeout',
+      remoteUpdatedAt:item.remoteUpdatedAt || null,
+      observedAt:item.observedAt || null,
+      attempts:Number(item.attempts || 1),
+      retryAt:item.retryAt
+    });
+  }
+  items.sort((a,b) => Date.parse(a.retryAt || '') - Date.parse(b.retryAt || ''));
+  return items;
+}
+
 {
   const state = readState({ derive:true });
   writeState(state);
@@ -248,9 +293,13 @@ http.createServer = function wrappedCreateServer(listener) {
         const state = readState();
         state.settings ||= {};
         state.settings.chatgptInaccessible ||= {};
-        const failures = Array.isArray(payload.failures) ? payload.failures.slice(0,10).map(catchupFailure) : [];
+        state.settings.chatgptTimeoutQuarantine ||= {};
+        const rawFailures = Array.isArray(payload.failures) ? payload.failures.slice(0,10) : [];
+        const failures = rawFailures.map(catchupFailure);
         const inaccessible = Array.isArray(payload.inaccessible) ? payload.inaccessible.slice(0,20).map(catchupInaccessible) : [];
         const observedAt = new Date().toISOString();
+        const observedMs = Date.parse(observedAt);
+
         for (const item of inaccessible) {
           if (!item.key) continue;
           state.settings.chatgptInaccessible[item.key] = {
@@ -260,6 +309,26 @@ http.createServer = function wrappedCreateServer(listener) {
             observedAt
           };
         }
+
+        for (const raw of rawFailures) {
+          if (!isCatchupTimeout(raw)) continue;
+          const item = catchupTimeout(raw);
+          if (!item.key) continue;
+          const previous = state.settings.chatgptTimeoutQuarantine[item.key] || null;
+          const attempts = previous && sameRemoteTimestamp(previous.remoteUpdatedAt, item.remoteUpdatedAt)
+            ? Number(previous.attempts || 0) + 1
+            : 1;
+          state.settings.chatgptTimeoutQuarantine[item.key] = {
+            title:item.title,
+            error:item.error,
+            remoteUpdatedAt:item.remoteUpdatedAt,
+            observedAt,
+            attempts,
+            retryAt:new Date(observedMs + timeoutRetryDelayMs(attempts)).toISOString()
+          };
+        }
+
+        const quarantined = activeTimeoutQuarantine(state, observedMs);
         const failedCount = Number(payload.failedCount || 0);
         const deferredCount = Number(payload.deferredCount || 0);
         state.settings.lastChatgptCatchup = {
@@ -272,6 +341,7 @@ http.createServer = function wrappedCreateServer(listener) {
           newCount:Number(payload.newCount || 0),
           baselineMissingCount:Number(payload.baselineMissingCount || 0),
           inaccessibleCount:Number(payload.inaccessibleCount || 0),
+          quarantinedCount:quarantined.length,
           plannedCount:Number(payload.plannedCount || 0),
           refreshedCount:Number(payload.refreshedCount || 0),
           skippedCount:Number(payload.skippedCount || 0),
@@ -279,7 +349,8 @@ http.createServer = function wrappedCreateServer(listener) {
           deferredCount,
           status:failedCount > 0 || deferredCount > 0 ? 'PARTIAL' : 'HEALTHY',
           failures,
-          inaccessible
+          inaccessible,
+          quarantined:quarantined.slice(0,20)
         };
         writeState(state);
         return json(res, 200, {ok:true, ...state.settings.lastChatgptCatchup});
@@ -290,8 +361,14 @@ http.createServer = function wrappedCreateServer(listener) {
         const payload = await readBody(req);
         const state = readState();
         const result = ingestChatgptDelta(state, payload);
-        if (result.changed) writeState(state);
-        return json(res, 200, result);
+        const conversationKey = String(payload.conversationKey || '').trim();
+        let quarantineCleared = false;
+        if (conversationKey && state.settings?.chatgptTimeoutQuarantine?.[conversationKey]) {
+          delete state.settings.chatgptTimeoutQuarantine[conversationKey];
+          quarantineCleared = true;
+        }
+        if (result.changed || quarantineCleared) writeState(state);
+        return json(res, 200, {...result, timeoutQuarantineCleared:quarantineCleared});
       }
 
       if (req.method === 'POST' && url.pathname === '/api/sync/github') {
