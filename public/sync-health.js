@@ -18,6 +18,7 @@ export function syncHealthModel(catchup, now = Date.now()) {
   const failed = Number(catchup.failedCount || 0);
   const deferred = Number(catchup.deferredCount || 0);
   const inaccessible = Number(catchup.inaccessibleCount || 0);
+  const quarantined = Number(catchup.quarantinedCount || 0);
   let status = 'LIVE';
   if (ageMs > 45 * 60 * 1000) status = 'STALE';
   else if (failed > 0 || deferred > 0 || String(catchup.status || '').toUpperCase() === 'PARTIAL') status = 'PARTIAL';
@@ -30,9 +31,11 @@ export function syncHealthModel(catchup, now = Date.now()) {
     failed,
     deferred,
     inaccessible,
+    quarantined,
     changed:Number(catchup.changedCount || 0),
     failures:Array.isArray(catchup.failures) ? catchup.failures.slice(0,10) : [],
     inaccessibleItems:Array.isArray(catchup.inaccessible) ? catchup.inaccessible.slice(0,10) : [],
+    quarantinedItems:Array.isArray(catchup.quarantined) ? catchup.quarantined.slice(0,10) : [],
     at:catchup.at
   };
 }
@@ -49,6 +52,12 @@ function failuresHtml(model) {
       </details>`);
     }
   }
+  if (model.quarantined) {
+    const detail = model.quarantinedItems.length
+      ? `<div class="sync-health-failure-list">${model.quarantinedItems.map(item => `<div class="sync-health-failure"><strong>${esc(item.title || 'Untitled conversation')}</strong><span>Timed out repeatedly. Retry ${esc(relativeTime(item.retryAt)) === 'just now' ? 'soon' : `scheduled ${esc(relativeTime(item.retryAt))}`}; any remote update bypasses quarantine immediately.</span></div>`).join('')}</div>`
+      : '';
+    blocks.push(`<details class="sync-health-failures"><summary>${model.quarantined} timeout conversation${model.quarantined===1?'':'s'} quarantined from normal passes</summary>${detail}</details>`);
+  }
   if (model.inaccessible) {
     const detail = model.inaccessibleItems.length
       ? `<div class="sync-health-failure-list">${model.inaccessibleItems.map(item => `<div class="sync-health-failure"><strong>${esc(item.title || 'Untitled conversation')}</strong><span>ChatGPT no longer grants access. Historical CONTROL evidence is kept, but this thread is excluded from automatic retries.</span></div>`).join('')}</div>`
@@ -63,7 +72,7 @@ function panelHtml(model) {
   const context = model.deferred
     ? `${model.planned} planned · ${model.deferred} deferred`
     : `${model.planned} planned · no deferred work`;
-  return `<section class="sync-health sync-${statusClass}" data-sync-signature="${esc([model.status,model.at,model.inventory,model.refreshed,model.failed,model.deferred,model.inaccessible,model.failures.length,model.inaccessibleItems.length].join('|'))}">
+  return `<section class="sync-health sync-${statusClass}" data-sync-signature="${esc([model.status,model.at,model.inventory,model.refreshed,model.failed,model.deferred,model.inaccessible,model.quarantined,model.failures.length,model.inaccessibleItems.length,model.quarantinedItems.length].join('|'))}">
     <div class="sync-health-head">
       <div><div class="sync-health-kicker">CHATGPT SYNC HEALTH</div><h3>Collector catch-up</h3></div>
       <span class="sync-health-status">${esc(model.status)}</span>
@@ -73,6 +82,7 @@ function panelHtml(model) {
       <div><span>Unchanged</span><b>${model.unchanged}</b></div>
       <div><span>Refreshed</span><b>${model.refreshed}</b></div>
       <div class="${model.failed?'metric-bad':''}"><span>Transient failed</span><b>${model.failed}</b></div>
+      <div><span>Quarantined</span><b>${model.quarantined}</b></div>
       <div><span>Inaccessible</span><b>${model.inaccessible}</b></div>
     </div>
     <div class="sync-health-foot"><span>Last catch-up: ${esc(relativeTime(model.at))}</span><span>${esc(context)}</span></div>
