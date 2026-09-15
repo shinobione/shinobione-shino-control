@@ -93,4 +93,30 @@ assert.equal(inaccessibleResult.inaccessibleCount, 1, 'unchanged inaccessible th
 assert.equal(inaccessibleResult.plan.some(item=>item.key==='locked'), false);
 assert.equal(inaccessibleResult.plan.some(item=>item.key==='changed'), true, 'a remote update must make an inaccessible thread retryable again');
 
+const quarantineNow = Date.parse('2026-09-15T20:00:00.000Z');
+const quarantineState = {
+  settings:{
+    chatgptTimeoutQuarantine:{
+      slow:{remoteUpdatedAt:'2026-09-15T19:00:00.000Z',retryAt:'2026-09-15T20:30:00.000Z'},
+      remoteChanged:{remoteUpdatedAt:'2026-09-15T19:00:00.000Z',retryAt:'2026-09-15T20:30:00.000Z'},
+      retryDue:{remoteUpdatedAt:'2026-09-15T19:00:00.000Z',retryAt:'2026-09-15T19:59:00.000Z'}
+    }
+  },
+  sources:[
+    {id:'src-slow',type:'chatgpt_thread',externalId:'slow',projectId:'control',conversationUpdatedAt:'2026-09-15T18:00:00.000Z',chatgptStateSchemaVersion:currentSchema},
+    {id:'src-remote-changed',type:'chatgpt_thread',externalId:'remoteChanged',projectId:'control',conversationUpdatedAt:'2026-09-15T18:00:00.000Z',chatgptStateSchemaVersion:currentSchema},
+    {id:'src-retry-due',type:'chatgpt_thread',externalId:'retryDue',projectId:'control',conversationUpdatedAt:'2026-09-15T18:00:00.000Z',chatgptStateSchemaVersion:currentSchema}
+  ],
+  evidence:[]
+};
+const quarantineResult = planChatgptCatchup(quarantineState, {threads:[
+  {key:'slow',title:'Still slow',updatedAt:'2026-09-15T19:00:00.000Z'},
+  {key:'remoteChanged',title:'Changed while quarantined',updatedAt:'2026-09-15T19:30:00.000Z'},
+  {key:'retryDue',title:'Retry window elapsed',updatedAt:'2026-09-15T19:00:00.000Z'}
+]}, {maxPlan:10,nowMs:quarantineNow});
+assert.equal(quarantineResult.timeoutQuarantinedCount, 1, 'only unchanged conversations inside their retry window stay quarantined');
+assert.equal(quarantineResult.plan.some(item=>item.key==='slow'), false);
+assert.equal(quarantineResult.plan.some(item=>item.key==='remoteChanged'), true, 'remote updates must bypass timeout quarantine immediately');
+assert.equal(quarantineResult.plan.some(item=>item.key==='retryDue'), true, 'expired quarantine must become retryable');
+
 console.log('ChatGPT targeted catch-up checks passed');
