@@ -142,4 +142,56 @@ const unknown = ingestChatgptDelta(state,{
 if (unknown.mapped !== false || !unknown.discovered) throw new Error(`unknown chat should be discovered, not guessed: ${JSON.stringify(unknown)}`);
 if (!state.discovered.some(item => item.id === unknown.discoveredId)) throw new Error('unknown conversation missing from discovered queue');
 
+const newProjectKey = 'g-p-cccccccccccccccccccccccccccccccc';
+const newProject = ingestChatgptDelta(state,{
+  conversationKey:'44444444-4444-4444-4444-444444444444',
+  url:`https://chatgpt.com/g/${newProjectKey}/c/44444444-4444-4444-4444-444444444444`,
+  title:'Génération vidéo Kling MiniMax',
+  projectKey:newProjectKey,
+  projectTitle:'NiceHash',
+  projectUrl:`https://chatgpt.com/g/${newProjectKey}`,
+  messages:[
+    {role:'user',text:'Create a new project conversation.'},
+    {role:'assistant',text:'NEXT: continue the NiceHash video workflow.'}
+  ],
+  messageCount:2,
+  fingerprint:'new-project-fixture',
+  conversationUpdatedAt:'2026-09-18T19:30:00.000Z'
+});
+if (!newProject.mapped || !newProject.changed || !newProject.projectCreated) {
+  throw new Error(`new ChatGPT project was not auto-created: ${JSON.stringify(newProject)}`);
+}
+const createdProject = state.projects.find(project => project.id === newProject.projectId);
+if (!createdProject || createdProject.name !== 'NiceHash' || createdProject.kind !== 'CHATGPT_PROJECT') {
+  throw new Error(`created ChatGPT project is invalid: ${JSON.stringify(createdProject)}`);
+}
+if (state.settings.chatgptProjectMappings[newProjectKey] !== newProject.projectId) {
+  throw new Error('new ChatGPT project key was not persisted');
+}
+if (!state.sources.some(source => source.externalId === '44444444-4444-4444-4444-444444444444' && source.projectId === newProject.projectId)) {
+  throw new Error('new ChatGPT project conversation was not attached to the created project');
+}
+
+const secondNewProjectChat = ingestChatgptDelta(state,{
+  conversationKey:'55555555-5555-5555-5555-555555555555',
+  url:`https://chatgpt.com/g/${newProjectKey}/c/55555555-5555-5555-5555-555555555555`,
+  title:'NiceHash follow-up',
+  projectKey:newProjectKey,
+  projectTitle:'NiceHash',
+  projectUrl:`https://chatgpt.com/g/${newProjectKey}`,
+  messages:[
+    {role:'user',text:'Follow-up.'},
+    {role:'assistant',text:'NEXT: verify the next NiceHash step.'}
+  ],
+  messageCount:2,
+  fingerprint:'new-project-fixture-2',
+  conversationUpdatedAt:'2026-09-18T19:35:00.000Z'
+});
+if (!secondNewProjectChat.mapped || secondNewProjectChat.projectCreated || secondNewProjectChat.projectId !== newProject.projectId) {
+  throw new Error(`second chat did not reuse auto-created project: ${JSON.stringify(secondNewProjectChat)}`);
+}
+if (state.projects.filter(project => project.name === 'NiceHash').length !== 1) {
+  throw new Error('auto-create duplicated the ChatGPT project');
+}
+
 console.log('ChatGPT delta ingest checks PASS');
