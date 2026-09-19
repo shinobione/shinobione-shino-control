@@ -12,7 +12,7 @@ const rel = ts => {
 const statusClass = status => `status-${String(status||'UNKNOWN').replace(/[^A-Z0-9]+/gi,'-').replace(/^-|-$/g,'')}`;
 const sourceClass = type => type==='github_repo'?'source-github':type==='chatgpt_thread'?'source-chatgpt':type==='github_component'?'source-component':'source-other';
 const sourceLabel = s => s.type==='github_repo'?'GitHub':s.type==='chatgpt_thread'?'ChatGPT':s.type==='chatgpt_archived'?'ChatGPT archive':s.type==='github_component'?(s.title||'Component'):s.type;
-let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, radarMode=localStorage.getItem('controlRadarMode') || 'board';
+let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, radarMode=localStorage.getItem('controlRadarModeV5') || 'overview';
 
 async function api(path, options={}) {
   const r = await fetch(path, {headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
@@ -184,20 +184,71 @@ function activityRailV4(){
     <section class="rail-panel quick-panel"><div class="rail-head"><div><span class="eyebrow">INBOX</span><h3>Needs sorting</h3></div><span class="rail-count">${discovered}</span></div><p>${discovered?`${discovered} source${discovered===1?'':'s'} attend${discovered===1?'':'ent'} un rattachement.`:'Tout est correctement rattaché.'}</p><button class="rail-action" data-view="discovered">${discovered?'Open Discovered':'View inbox'}</button></section>
   </aside>`;
 }
+function projectAccent(p){
+  const value=String(p?.name||p?.id||'project');
+  let hash=0;
+  for(let i=0;i<value.length;i++) hash=((hash<<5)-hash)+value.charCodeAt(i);
+  return `accent-${Math.abs(hash)%6}`;
+}
+function projectGlyph(p){
+  const words=String(p?.name||'P').replace(/[^A-Za-z0-9À-ÿ]+/g,' ').trim().split(/\s+/).filter(Boolean);
+  if(words.length>1) return esc((words[0][0]+words[1][0]).toUpperCase());
+  return esc(String(words[0]||'P').slice(0,2).toUpperCase());
+}
+function featuredProjectCard(p){
+  const d=projectState(p.id); if(!d)return '';
+  const e=evidenceFor(p.id)[0], c=ctAs(p), badges=sourceBadges(p.id);
+  const summary=displaySummary(p,d,e), resume=displayResume(p,d,e);
+  return `<article class="feature-project ${statusClass(d.status)} ${projectAccent(p)}" data-open-project="${p.id}">
+    <div class="feature-project-glow"></div>
+    <div class="feature-project-head">
+      <div class="project-emblem">${projectGlyph(p)}</div>
+      <div class="feature-title"><span>${esc(p.universe||'PROJECT')}</span><h4>${esc(p.name)}</h4></div>
+      <span class="status-tag">${esc(boardLabel(d.status))}</span>
+    </div>
+    <p class="feature-summary">${esc(summary)}</p>
+    <div class="feature-next"><small>REPRENDRE ICI</small><strong>${esc(resume)}</strong></div>
+    <div class="feature-project-foot">
+      <div class="feature-meta"><span class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</span><span>${e?`${esc(rel(e.timestamp))} ago`:'No evidence'}</span></div>
+      <div class="feature-actions">${badges.slice(0,2).map(g=>`<span class="${sourceClass(g.type)}">${esc(g.label)}</span>`).join('')}${c.chat?`<a href="${esc(c.chat.url)}" target="_blank" data-stop>Continue ↗</a>`:c.pr?`<a href="${esc(c.pr.url)}" target="_blank" data-stop>Open PR ↗</a>`:''}</div>
+    </div>
+  </article>`;
+}
+function attentionItem(p){
+  const d=projectState(p.id); if(!d)return '';
+  const e=evidenceFor(p.id)[0], c=ctAs(p), resume=displayResume(p,d,e);
+  return `<article class="attention-item ${statusClass(d.status)}" data-open-project="${p.id}">
+    <span class="attention-led"></span>
+    <div class="attention-copy"><div><b>${esc(p.name)}</b><span>${esc(boardLabel(d.status))}</span></div><p>${esc(resume)}</p></div>
+    <small>${e?`${esc(rel(e.timestamp))} ago`:'—'}</small>
+    ${c.chat?`<a href="${esc(c.chat.url)}" target="_blank" data-stop>Open ↗</a>`:''}
+  </article>`;
+}
+function overviewWorkspace(projects){
+  const top=priorityProjects(projects,6);
+  const attention=projects.filter(isAttention).slice(0,4);
+  return `<div class="overview-layout">
+    <section class="overview-main">
+      <div class="section-title-row"><div><span class="eyebrow">WORKSPACE</span><h3>Projects to resume</h3><p>Les chantiers les plus utiles à reprendre maintenant.</p></div><button class="text-action" data-radar-mode="list">See all projects →</button></div>
+      <div class="feature-project-grid">${top.map(featuredProjectCard).join('')}</div>
+      ${attention.length?`<section class="attention-panel"><div class="section-title-row compact"><div><span class="eyebrow">ATTENTION</span><h3>Needs a decision</h3></div><span class="section-count">${attention.length}</span></div><div class="attention-list">${attention.map(attentionItem).join('')}</div></section>`:''}
+    </section>
+    ${activityRailV4()}
+  </div>`;
+}
+function fullProjectsWorkspace(projects,buckets){
+  return `<section class="dashboard-workspace full-workspace"><div class="workspace-head"><div><span class="eyebrow">PROJECTS</span><h3>${radarMode==='board'?'Project board':'Project list'}</h3><p>${projects.length} projet${projects.length===1?'':'s'} dans la vue actuelle</p></div><span class="workspace-hint">Clique une carte pour ouvrir le détail</span></div>${radarMode==='board'?projectBoard(buckets):projectListV3(projects)}</section>`;
+}
+
 function radarView(s){
   const projects=visibleProjects();
   const buckets={attention:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='attention'),active:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='active'),stable:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='stable'),other:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='other')};
   const attentionCount=s.blocked+s.test;
   const modeButton=(id,label)=>`<button class="mode-btn ${radarMode===id?'active':''}" data-radar-mode="${id}">${label}</button>`;
-  const priorities=priorityProjects(projects,4);
-  return `<div class="topbar hub-topbar"><div class="hub-title"><span class="eyebrow">SHINO // CONTROL</span><h2>Dashboard</h2></div><div class="dashboard-tools"><div class="command-search"><span>⌕</span><input id="search" placeholder="Rechercher un projet, un état, une source…" value="${esc(query)}"></div><select id="statusFilter" class="select command-filter">${['ALL','ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','EMPTY','UNSYNCED'].map(x=>`<option ${statusFilter===x?'selected':''}>${x}</option>`).join('')}</select><div class="mode-switch">${modeButton('board','▦ Board')}${modeButton('list','☷ List')}</div><button class="btn gold sync-command" id="syncBtn">↻ Sync</button></div></div>
-  ${heroPanel(projects)}
+  return `<div class="topbar hub-topbar"><div class="hub-title"><span class="eyebrow">SHINO // CONTROL</span><h2>Project Hub</h2><p>Vue d’ensemble, reprise rapide et signaux utiles.</p></div><div class="dashboard-tools"><div class="command-search"><span>⌕</span><input id="search" placeholder="Rechercher un projet, un état, une source…" value="${esc(query)}"></div><select id="statusFilter" class="select command-filter">${['ALL','ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','EMPTY','UNSYNCED'].map(x=>`<option ${statusFilter===x?'selected':''}>${x}</option>`).join('')}</select><div class="mode-switch">${modeButton('overview','◫ Overview')}${modeButton('board','▦ Board')}${modeButton('list','☷ List')}</div><button class="btn gold sync-command" id="syncBtn">↻ Sync</button></div></div>
+  ${radarMode==='overview'?heroPanel(projects):''}
   <section class="overview-grid">${overviewCard('Projects',state.projects.length,'Tous les projets suivis','overview-total','ALL')}${overviewCard('Active',s.active,'Travail en cours','overview-active','ACTIVE')}${overviewCard('Attention',attentionCount,`${s.blocked} blocked · ${s.test} needs test`,'overview-attention',attentionCount?'NEEDS TEST':'ALL')}${overviewCard('Stable',s.stable,'État confirmé','overview-stable','STABLE')}</section>
-  <div class="dashboard-layout hub-layout"><section class="hub-main">
-    <div class="workspace-head priority-head"><div><h3>Priority projects</h3><p>Les projets à garder sous la main maintenant</p></div><span class="workspace-hint">Top ${priorities.length}</span></div>
-    <div class="priority-grid">${priorities.map(priorityProjectCard).join('')}</div>
-    <section class="dashboard-workspace board-workspace"><div class="workspace-head"><div><h3>${radarMode==='board'?'All projects':'Project list'}</h3><p>${projects.length} projet${projects.length===1?'':'s'} dans la vue actuelle</p></div><span class="workspace-hint">Clique une carte pour ouvrir le détail</span></div>${radarMode==='board'?projectBoard(buckets):projectListV3(projects)}</section>
-  </section>${activityRailV4()}</div>`;
+  ${radarMode==='overview'?overviewWorkspace(projects):fullProjectsWorkspace(projects,buckets)}`;
 }
 
 function sectionHeading(title, subtitle, cls=''){return `<div class="section-head ${cls}"><div><h3>${esc(title)}</h3><p>${esc(subtitle)}</p></div></div>`}
@@ -260,7 +311,7 @@ function bind(){
   document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;render()});
   $('#search')?.addEventListener('input',e=>{query=e.target.value;render()});
   $('#statusFilter')?.addEventListener('change',e=>{statusFilter=e.target.value;render()});
-  document.querySelectorAll('[data-radar-mode]').forEach(b=>b.addEventListener('click',()=>{radarMode=b.dataset.radarMode;localStorage.setItem('controlRadarMode',radarMode);render()}));
+  document.querySelectorAll('[data-radar-mode]').forEach(b=>b.addEventListener('click',()=>{radarMode=b.dataset.radarMode;localStorage.setItem('controlRadarModeV5',radarMode);render()}));
   document.querySelectorAll('[data-status-pick]').forEach(b=>b.addEventListener('click',()=>{statusFilter=b.dataset.statusPick||'ALL';render()}));
   $('#syncBtn')?.addEventListener('click',()=>{view='sources';render();setTimeout(()=>$('#ghToken')?.focus(),0)});
   $('#syncBtn2')?.addEventListener('click',syncGithub);
