@@ -174,21 +174,21 @@ function priorityProjectCard(p){
 }
 function dashboardHero(){
   const build=window.SHINO_CONTROL_BUILD?.version||'';
-  return \`<section class="v8-hero">
+  return `<section class="v8-hero">
     <div class="v8-hero-copy">
       <span class="v8-welcome">Bon retour. ☀</span>
       <h1>SHINO <em>//</em> CONTROL</h1>
       <p>Interface centrale pour piloter tes projets, dépôts GitHub, tâches ChatGPT et tout ton travail en cours.</p>
-      <div class="v8-hero-search"><span>⌕</span><input data-search placeholder="Rechercher un projet, un dépôt, une tâche… (Ctrl + K)" value="\${esc(query)}"><kbd>CTRL</kbd><kbd>K</kbd></div>
+      <div class="v8-hero-search"><span>⌕</span><input data-search placeholder="Rechercher un projet, un dépôt, une tâche… (Ctrl + K)" value="${esc(query)}"><kbd>CTRL</kbd><kbd>K</kbd></div>
       <div class="v8-hero-actions"><button class="v8-primary" data-scroll-projects>Explorer les projets →</button><button class="v8-secondary" data-view="sources">Sources / Sync</button></div>
     </div>
     <div class="v8-hero-art" aria-hidden="true">
-      <span class="v8-build">BUILD v\${esc(build)}</span>
+      <span class="v8-build">BUILD v${esc(build)}</span>
       <div class="v8-ribbon r1"></div><div class="v8-ribbon r2"></div><div class="v8-ribbon r3"></div>
       <div class="v8-logo-stack"><span>S<small>//</small></span></div>
       <div class="v8-art-copy"><small>BUILD</small><small>ORGANIZE</small><small>AUTOMATE</small><b>PROGRESS</b></div>
     </div>
-  </section>\`;
+  </section>`;
 }
 function syncMiniPanel(){
   const m=state.settings?.lastChatgptCatchup;
@@ -226,16 +226,16 @@ function systemStatusPanel(){
   const healthy=failed===0;
   const hasGithub=state.sources.some(s=>String(s.type||'').startsWith('github_'));
   const hasChat=state.sources.some(s=>s.type==='chatgpt_thread');
-  const row=(icon,label,value,ok=true)=>\`<div class="v8-system-row"><span class="v8-system-icon">\${icon}</span><div><small>\${label}</small><b><i class="\${ok?'ok':'warn'}"></i>\${value}</b></div></div>\`;
-  return \`<section class="v8-system-panel"><div class="v8-system-head"><span>SYSTEM</span><b>\${healthy?'Tout OK':'À surveiller'}</b></div>\${row('◆','Environnement',healthy?'Opérationnel':'À surveiller',healthy)}\${row('GH','GitHub',hasGithub?'Connecté':'Non détecté',hasGithub)}\${row('AI','ChatGPT',hasChat?'Connecté':'Non détecté',hasChat)}\${row('▣','Environnement local','Opérationnel',true)}</section>\`;
+  const row=(icon,label,value,ok=true)=>`<div class="v8-system-row"><span class="v8-system-icon">${icon}</span><div><small>${label}</small><b><i class="${ok?'ok':'warn'}"></i>${value}</b></div></div>`;
+  return `<section class="v8-system-panel"><div class="v8-system-head"><span>SYSTEM</span><b>${healthy?'Tout OK':'À surveiller'}</b></div>${row('◆','Environnement',healthy?'Opérationnel':'À surveiller',healthy)}${row('GH','GitHub',hasGithub?'Connecté':'Non détecté',hasGithub)}${row('AI','ChatGPT',hasChat?'Connecté':'Non détecté',hasChat)}${row('▣','Environnement local','Opérationnel',true)}</section>`;
 }
 function premiumRail(){
   const rows=latestEvidenceRows(6), discovered=state.discovered?.length||0;
-  return \`<aside class="v8-rail">\${systemStatusPanel()}
-    <section class="v8-rail-card"><div class="v8-rail-head"><h3>Activité récente</h3><button>Voir tout →</button></div><div class="v8-activity">\${rows.length?rows.map(activityItem).join(''):'<div class="rail-empty">Aucune activité récente.</div>'}</div></section>
-    \${syncMiniPanel()}
-    <section class="v8-rail-card v8-sort"><div class="v8-rail-head"><h3>À trier</h3><span>\${discovered}</span></div><div class="v8-sort-body"><div class="v8-sort-icon">▣</div><div><b>\${discovered}</b><small>élément\${discovered===1?'':'s'} à organiser</small></div><button data-view="discovered">Ouvrir dans Discover →</button></div></section>
-  </aside>\`;
+  return `<aside class="v8-rail">${systemStatusPanel()}
+    <section class="v8-rail-card"><div class="v8-rail-head"><h3>Activité récente</h3><button>Voir tout →</button></div><div class="v8-activity">${rows.length?rows.map(activityItem).join(''):'<div class="rail-empty">Aucune activité récente.</div>'}</div></section>
+    ${syncMiniPanel()}
+    <section class="v8-rail-card v8-sort"><div class="v8-rail-head"><h3>À trier</h3><span>${discovered}</span></div><div class="v8-sort-body"><div class="v8-sort-icon">▣</div><div><b>${discovered}</b><small>élément${discovered===1?'':'s'} à organiser</small></div><button data-view="discovered">Ouvrir dans Discover →</button></div></section>
+  </aside>`;
 }
 function githubPulse(){
   const now=Date.now(), days=Array.from({length:14},(_,i)=>{const dayStart=new Date();dayStart.setHours(0,0,0,0);dayStart.setDate(dayStart.getDate()-(13-i));const start=dayStart.getTime(),end=start+86400000;const count=state.evidence.filter(e=>e.sourceType==='github_commit'&&Date.parse(e.timestamp)>=start&&Date.parse(e.timestamp)<end).length;return count;});
@@ -254,7 +254,7 @@ function radarView(s){
   const projects=visibleProjects();
   const buckets={attention:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='attention'),active:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='active'),stable:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='stable'),other:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='other')};
   const attentionCount=s.blocked+s.test, priorities=priorityProjects(projects,4);
-  return \`<div class="v8-dashboard"><section class="v8-dashboard-main">\${dashboardHero()}<section class="overview-grid">\${overviewCard('Projects',state.projects.length,'Tous les projets suivis','overview-total','ALL')}\${overviewCard('Active',s.active,'En développement','overview-active','ACTIVE')}\${overviewCard('Attention',attentionCount,'Nécessitent un suivi','overview-attention',attentionCount?'NEEDS TEST':'ALL')}\${overviewCard('Stable',s.stable,'À jour et OK','overview-stable','STABLE')}</section><section class="priority-panel"><div class="premium-section-head"><div><span>★</span><h3>Projets prioritaires</h3><p>Les projets à suivre en priorité pour un avancement maximal.</p></div><button data-scroll-projects>Voir tous les projets →</button></div><div class="priority-row">\${priorities.map(premiumPriorityCard).join('')}</div></section>\${allProjectsPanel(projects,buckets)}\${githubPulse()}</section>\${premiumRail()}</div>\`;
+  return `<div class="v8-dashboard"><section class="v8-dashboard-main">${dashboardHero()}<section class="overview-grid">${overviewCard('Projects',state.projects.length,'Tous les projets suivis','overview-total','ALL')}${overviewCard('Active',s.active,'En développement','overview-active','ACTIVE')}${overviewCard('Attention',attentionCount,'Nécessitent un suivi','overview-attention',attentionCount?'NEEDS TEST':'ALL')}${overviewCard('Stable',s.stable,'À jour et OK','overview-stable','STABLE')}</section><section class="priority-panel"><div class="premium-section-head"><div><span>★</span><h3>Projets prioritaires</h3><p>Les projets à suivre en priorité pour un avancement maximal.</p></div><button data-scroll-projects>Voir tous les projets →</button></div><div class="priority-row">${priorities.map(premiumPriorityCard).join('')}</div></section>${allProjectsPanel(projects,buckets)}${githubPulse()}</section>${premiumRail()}</div>`;
 }
 function controlPriority(status){
   return ({BLOCKED:'Critique','NEEDS TEST':'Haute',ACTIVE:'Moyenne',WAITING:'Moyenne',STABLE:'Basse',DONE:'Basse',EMPTY:'Basse',UNSYNCED:'Moyenne'})[status]||'Moyenne';
@@ -263,7 +263,7 @@ function projectProgress(status){
   return ({BLOCKED:28,'NEEDS TEST':72,ACTIVE:58,WAITING:44,STABLE:100,DONE:100,EMPTY:8,UNSYNCED:20})[status]||45;
 }
 function projectIssueCount(id){
-  return evidenceFor(id).filter(e=>e.sourceType==='github_issue'&&!/closed|resolved/i.test(\`\${e.title||''} \${e.summary||''}\`)).length;
+  return evidenceFor(id).filter(e=>e.sourceType==='github_issue'&&!/closed|resolved/i.test(`${e.title||''} ${e.summary||''}`)).length;
 }
 function projectStage(p,d,e){
   return d.status==='NEEDS TEST'?'Validation & tests':d.status==='BLOCKED'?'Blocage à lever':d.status==='STABLE'?'Stable / maintenance':e?.sourceType==='github_pr'?'Pull request active':d.status==='ACTIVE'?'Développement actif':boardLabel(d.status);
@@ -271,7 +271,7 @@ function projectStage(p,d,e){
 function extractProjectFiles(id){
   const found=new Set();
   for(const e of evidenceFor(id)){
-    const txt=\`\${e.title||''} \${e.summary||''}\`;
+    const txt=`${e.title||''} ${e.summary||''}`;
     for(const m of txt.matchAll(/\\b(?:src|lib|public|docs|tests|scripts|app|packages)\\/[A-Za-z0-9_.\\/-]+\\.(?:js|mjs|ts|tsx|jsx|json|md|css|html|py|ps1|cs)\\b/g)) found.add(m[0]);
     if(found.size>=5) break;
   }
@@ -282,7 +282,7 @@ function workflowSteps(status){
     :status==='NEEDS TEST'?[['Implémentation','done'],['Tests en cours','active'],['Validation','todo'],['Merge / clôture','todo']]
     :status==='BLOCKED'?[['Implémentation','done'],['Blocage','blocked'],['Validation','todo'],['Reprise','todo']]
     :[['Travail en cours','active'],['Revue','todo'],['Validation','todo'],['Clôture','todo']];
-  return rows.map(([label,cls])=>\`<li class="\${cls}"><i></i><span>\${label}</span></li>\`).join('');
+  return rows.map(([label,cls])=>`<li class="${cls}"><i></i><span>${label}</span></li>`).join('');
 }
 function projectPage(id){
   const p=projectById(id), d=projectState(id); if(!p||!d)return radarView(stats());
@@ -290,35 +290,35 @@ function projectPage(id){
   const summary=displaySummary(p,d,e), resume=displayResume(p,d,e), recent=ev.slice(0,8);
   const progress=projectProgress(d.status), issueCount=projectIssueCount(id), build=window.SHINO_CONTROL_BUILD?.version||'';
   const actionLinks=[
-    cta.pr?\`<a class="v8-action primary" href="\${esc(cta.pr.url)}" target="_blank">Ouvrir PR ↗</a>\`:'',
-    cta.chat?\`<a class="v8-action violet" href="\${esc(cta.chat.url)}" target="_blank">Continuer</a>\`:'',
-    cta.repo?\`<a class="v8-action" href="\${esc(cta.repo)}" target="_blank">GitHub</a>\`:''
+    cta.pr?`<a class="v8-action primary" href="${esc(cta.pr.url)}" target="_blank">Ouvrir PR ↗</a>`:'',
+    cta.chat?`<a class="v8-action violet" href="${esc(cta.chat.url)}" target="_blank">Continuer</a>`:'',
+    cta.repo?`<a class="v8-action" href="${esc(cta.repo)}" target="_blank">GitHub</a>`:''
   ].join('');
-  return \`<div class="v8-project \${statusClass(d.status)} \${projectAccent(p)}">
-    <header class="v8-project-top"><div class="v8-breadcrumb"><button id="closeModal">←</button><span>Projets</span><i>›</i><b>\${esc(p.name)}</b></div><div class="v8-project-search"><span>⌕</span><input data-global-project-search placeholder="Rechercher un projet, un fichier, une commande…"><kbd>CTRL K</kbd></div><span class="v8-project-build">BUILD v\${esc(build)}</span></header>
+  return `<div class="v8-project ${statusClass(d.status)} ${projectAccent(p)}">
+    <header class="v8-project-top"><div class="v8-breadcrumb"><button id="closeModal">←</button><span>Projets</span><i>›</i><b>${esc(p.name)}</b></div><div class="v8-project-search"><span>⌕</span><input data-global-project-search placeholder="Rechercher un projet, un fichier, une commande…"><kbd>CTRL K</kbd></div><span class="v8-project-build">BUILD v${esc(build)}</span></header>
     <section class="v8-project-hero">
-      <div class="v8-project-identity"><div class="v8-project-heading"><span class="project-emblem large">\${projectGlyph(p)}</span><div><div class="v8-project-chips"><span>Projet</span><span>\${esc(p.universe||'CONTROL')}</span><span class="status-tag">\${esc(boardLabel(d.status))}</span></div><h1>\${esc(p.name)}</h1><p class="v8-project-subtitle">\${esc(projectStage(p,d,e))}</p></div></div><p class="v8-project-summary">\${esc(summary)}</p><div class="v8-project-actions">\${actionLinks}<button class="v8-action" data-scroll-activity>Voir l’activité</button></div></div>
-      <div class="v8-project-art" aria-hidden="true"><div class="v8-pj-card back"></div><div class="v8-pj-card front"><b>\${projectGlyph(p)}</b></div><div class="v8-pj-words"><span>BUILD</span><span>TEST</span><span>SHIP</span><strong>PROGRESS</strong></div></div>
-      <aside class="v8-workflow-card"><div class="v8-workflow-title"><span>⌘</span><strong>\${esc(cta.pr?.title||e?.title||projectStage(p,d,e))}</strong></div><div class="v8-progress"><i style="width:\${progress}%"></i></div><div class="v8-progress-meta"><b>\${progress}%</b><span>Progression CONTROL</span></div><ul>\${workflowSteps(d.status)}</ul><footer><span>Dernière mise à jour</span><b>\${e?esc(rel(e.timestamp))+' ago':'—'}</b></footer></aside>
+      <div class="v8-project-identity"><div class="v8-project-heading"><span class="project-emblem large">${projectGlyph(p)}</span><div><div class="v8-project-chips"><span>Projet</span><span>${esc(p.universe||'CONTROL')}</span><span class="status-tag">${esc(boardLabel(d.status))}</span></div><h1>${esc(p.name)}</h1><p class="v8-project-subtitle">${esc(projectStage(p,d,e))}</p></div></div><p class="v8-project-summary">${esc(summary)}</p><div class="v8-project-actions">${actionLinks}<button class="v8-action" data-scroll-activity>Voir l’activité</button></div></div>
+      <div class="v8-project-art" aria-hidden="true"><div class="v8-pj-card back"></div><div class="v8-pj-card front"><b>${projectGlyph(p)}</b></div><div class="v8-pj-words"><span>BUILD</span><span>TEST</span><span>SHIP</span><strong>PROGRESS</strong></div></div>
+      <aside class="v8-workflow-card"><div class="v8-workflow-title"><span>⌘</span><strong>${esc(cta.pr?.title||e?.title||projectStage(p,d,e))}</strong></div><div class="v8-progress"><i style="width:${progress}%"></i></div><div class="v8-progress-meta"><b>${progress}%</b><span>Progression CONTROL</span></div><ul>${workflowSteps(d.status)}</ul><footer><span>Dernière mise à jour</span><b>${e?esc(rel(e.timestamp))+' ago':'—'}</b></footer></aside>
     </section>
     <section class="v8-project-metrics">
-      <article class="state"><span>◌</span><div><small>État</small><b>\${esc(boardLabel(d.status))}</b><p>\${esc(d.freshness)}</p></div><div class="v8-mini-bars">\${[35,52,64,48,78,90].map(h=>\`<i style="height:\${h}%"></i>\`).join('')}</div></article>
-      <article class="priority"><span>!</span><div><small>Priorité CONTROL</small><b>\${esc(controlPriority(d.status))}</b><p>\${d.status==='BLOCKED'?'Action requise':d.status==='NEEDS TEST'?'Tests / validation':'Suivi courant'}</p></div><div class="v8-mini-bars">\${[28,44,69,82,63,91].map(h=>\`<i style="height:\${h}%"></i>\`).join('')}</div></article>
-      <article class="stage"><span>▱</span><div><small>Étape actuelle</small><b>\${esc(projectStage(p,d,e))}</b><p>\${src.length} source\${src.length===1?'':'s'} connectée\${src.length===1?'':'s'}</p></div><div class="v8-mini-bars">\${[38,62,50,74,86,71].map(h=>\`<i style="height:\${h}%"></i>\`).join('')}</div></article>
-      <article class="issues"><span>▤</span><div><small>Issues ouvertes</small><b>\${issueCount}</b><p>\${issueCount?'À examiner':'Aucune issue ouverte détectée'}</p></div><div class="v8-mini-bars">\${[20,32,48,62,55,76].map(h=>\`<i style="height:\${h}%"></i>\`).join('')}</div></article>
+      <article class="state"><span>◌</span><div><small>État</small><b>${esc(boardLabel(d.status))}</b><p>${esc(d.freshness)}</p></div><div class="v8-mini-bars">${[35,52,64,48,78,90].map(h=>`<i style="height:${h}%"></i>`).join('')}</div></article>
+      <article class="priority"><span>!</span><div><small>Priorité CONTROL</small><b>${esc(controlPriority(d.status))}</b><p>${d.status==='BLOCKED'?'Action requise':d.status==='NEEDS TEST'?'Tests / validation':'Suivi courant'}</p></div><div class="v8-mini-bars">${[28,44,69,82,63,91].map(h=>`<i style="height:${h}%"></i>`).join('')}</div></article>
+      <article class="stage"><span>▱</span><div><small>Étape actuelle</small><b>${esc(projectStage(p,d,e))}</b><p>${src.length} source${src.length===1?'':'s'} connectée${src.length===1?'':'s'}</p></div><div class="v8-mini-bars">${[38,62,50,74,86,71].map(h=>`<i style="height:${h}%"></i>`).join('')}</div></article>
+      <article class="issues"><span>▤</span><div><small>Issues ouvertes</small><b>${issueCount}</b><p>${issueCount?'À examiner':'Aucune issue ouverte détectée'}</p></div><div class="v8-mini-bars">${[20,32,48,62,55,76].map(h=>`<i style="height:${h}%"></i>`).join('')}</div></article>
     </section>
     <div class="v8-project-grid">
       <main class="v8-project-main">
-        <section class="v8-next-action"><div class="v8-next-copy"><span class="v8-section-icon">◎</span><div><small>PROCHAINE ACTION</small><h2>\${esc(resume)}</h2><p>\${e?esc(e.summary||e.title):'Ouvrir la source la plus récente et reprendre le contexte.'}</p><div class="v8-project-actions">\${actionLinks}</div></div></div><aside><div><small>Statut</small><b>\${esc(boardLabel(d.status))}</b></div><div><small>Dernier mouvement</small><b>\${e?esc(rel(e.timestamp))+' ago':'—'}</b></div><div><small>Sources</small><b>\${src.length}</b></div></aside></section>
-        <section class="v8-activity-panel" data-activity-section><div class="v8-section-head"><div><span class="v8-section-icon">⌘</span><h2>Activité du projet</h2></div><div class="v8-tabs"><button class="active">Toutes</button><button>Commits</button><button>Pull requests</button><button>Issues</button></div></div><div class="v8-activity-list">\${recent.length?recent.map(item=>\`<article><span class="event-marker"></span><div><time>\${esc(rel(item.timestamp))} ago · \${esc(item.sourceType)}</time><h3>\${esc(item.title)}</h3><p>\${esc(item.summary)}</p></div>\${item.url?\`<a href="\${esc(item.url)}" target="_blank">Ouvrir ↗</a>\`:''}</article>\`).join(''):'<div class="project-empty">Aucune activité courante.</div>'}</div></section>
+        <section class="v8-next-action"><div class="v8-next-copy"><span class="v8-section-icon">◎</span><div><small>PROCHAINE ACTION</small><h2>${esc(resume)}</h2><p>${e?esc(e.summary||e.title):'Ouvrir la source la plus récente et reprendre le contexte.'}</p><div class="v8-project-actions">${actionLinks}</div></div></div><aside><div><small>Statut</small><b>${esc(boardLabel(d.status))}</b></div><div><small>Dernier mouvement</small><b>${e?esc(rel(e.timestamp))+' ago':'—'}</b></div><div><small>Sources</small><b>${src.length}</b></div></aside></section>
+        <section class="v8-activity-panel" data-activity-section><div class="v8-section-head"><div><span class="v8-section-icon">⌘</span><h2>Activité du projet</h2></div><div class="v8-tabs"><button class="active">Toutes</button><button>Commits</button><button>Pull requests</button><button>Issues</button></div></div><div class="v8-activity-list">${recent.length?recent.map(item=>`<article><span class="event-marker"></span><div><time>${esc(rel(item.timestamp))} ago · ${esc(item.sourceType)}</time><h3>${esc(item.title)}</h3><p>${esc(item.summary)}</p></div>${item.url?`<a href="${esc(item.url)}" target="_blank">Ouvrir ↗</a>`:''}</article>`).join(''):'<div class="project-empty">Aucune activité courante.</div>'}</div></section>
       </main>
       <aside class="v8-project-side">
-        <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">↗</span><h2>Connexions</h2></div><span class="v8-good">Connecté</span></div>\${['GitHub','ChatGPT','Environnement local'].map(label=>{const ok=label==='GitHub'?src.some(s=>String(s.type||'').startsWith('github_')):label==='ChatGPT'?src.some(s=>s.type==='chatgpt_thread'):true;return \`<div class="v8-connection"><b>\${label}</b><span><i class="\${ok?'ok':'warn'}"></i>\${ok?'Connecté':'Non détecté'}</span></div>\`}).join('')}</section>
-        <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">💡</span><h2>Pourquoi cet état ?</h2></div></div><p class="v8-why">\${d.status==='EMPTY'?'CONTROL connaît le projet mais aucune conversation courante n’est rattachée.':\`CONTROL dérive cet état depuis \${d.evidenceIds.length} élément\${d.evidenceIds.length===1?'':'s'} récent\${d.evidenceIds.length===1?'':'s'}.\`}</p><ul class="v8-why-list">\${d.evidenceIds.slice(0,5).map(eid=>{const item=state.evidence.find(x=>x.id===eid&&x.inventoryCurrent!==false);return item?\`<li>\${esc(item.title)}</li>\`:''}).join('')}</ul></section>
-        <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">▣</span><h2>Fichiers clés</h2></div></div>\${files.length?files.map(path=>\`<div class="v8-file"><span>‹›</span><b>\${esc(path)}</b></div>\`).join(''):'<p class="v8-empty-note">Aucun chemin de fichier détecté dans les évidences courantes.</p>'}</section>
+        <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">↗</span><h2>Connexions</h2></div><span class="v8-good">Connecté</span></div>${['GitHub','ChatGPT','Environnement local'].map(label=>{const ok=label==='GitHub'?src.some(s=>String(s.type||'').startsWith('github_')):label==='ChatGPT'?src.some(s=>s.type==='chatgpt_thread'):true;return `<div class="v8-connection"><b>${label}</b><span><i class="${ok?'ok':'warn'}"></i>${ok?'Connecté':'Non détecté'}</span></div>`}).join('')}</section>
+        <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">💡</span><h2>Pourquoi cet état ?</h2></div></div><p class="v8-why">${d.status==='EMPTY'?'CONTROL connaît le projet mais aucune conversation courante n’est rattachée.':`CONTROL dérive cet état depuis ${d.evidenceIds.length} élément${d.evidenceIds.length===1?'':'s'} récent${d.evidenceIds.length===1?'':'s'}.`}</p><ul class="v8-why-list">${d.evidenceIds.slice(0,5).map(eid=>{const item=state.evidence.find(x=>x.id===eid&&x.inventoryCurrent!==false);return item?`<li>${esc(item.title)}</li>`:''}).join('')}</ul></section>
+        <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">▣</span><h2>Fichiers clés</h2></div></div>${files.length?files.map(path=>`<div class="v8-file"><span>‹›</span><b>${esc(path)}</b></div>`).join(''):'<p class="v8-empty-note">Aucun chemin de fichier détecté dans les évidences courantes.</p>'}</section>
       </aside>
     </div>
-  </div>\`;
+  </div>`;
 }
 function sectionHeading(title, subtitle, cls=''){return `<div class="section-head ${cls}"><div><h3>${esc(title)}</h3><p>${esc(subtitle)}</p></div></div>`}
 function projectCard(p){
