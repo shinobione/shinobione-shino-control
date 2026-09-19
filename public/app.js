@@ -176,20 +176,20 @@ function priorityProjectCard(p){
 function dashboardHero(){
   const build=window.SHINO_CONTROL_BUILD?.version||'';
   const focus=selectFocusProject(state)?.project;
-  return \`<section class="v8-hero">
+  return `<section class="v8-hero">
     <div class="v8-hero-copy">
       <span class="v8-welcome">BIENVENUE DANS</span>
       <h1>SHINO <em>//</em> CONTROL</h1>
       <p>Interface centrale pour piloter tes projets, dépôts GitHub, tâches ChatGPT et orchestrer tout ton workflow.</p>
-      <div class="v8-hero-search"><span>⌕</span><input data-search placeholder="Rechercher un projet, un dépôt, une tâche… (Ctrl + K)" value="\${esc(query)}"><kbd>CTRL</kbd><kbd>K</kbd></div>
-      <div class="v8-hero-actions"><button class="v8-primary" data-scroll-projects>Explorer les projets →</button>\${focus?\`<button class="v8-secondary v9-focus-cta" data-open-project="\${focus.id}">◎ Continuer le focus</button>\`:''}</div>
+      <div class="v8-hero-search"><span>⌕</span><input data-search placeholder="Rechercher un projet, un dépôt, une tâche… (Ctrl + K)" value="${esc(query)}"><kbd>CTRL</kbd><kbd>K</kbd></div>
+      <div class="v8-hero-actions"><button class="v8-primary" data-scroll-projects>Explorer les projets →</button>${focus?`<button class="v8-secondary v9-focus-cta" data-open-project="${focus.id}">◎ Continuer le focus</button>`:''}</div>
     </div>
     <div class="v8-hero-art" aria-hidden="true">
-      <span class="v8-build">BUILD v\${esc(build)}</span>
+      <span class="v8-build">BUILD v${esc(build)}</span>
       <div class="v8-logo-stack"><span>S<small>//</small></span></div>
       <div class="v8-art-copy"><small>BUILD</small><small>IDEAS</small><small>AUTOMATE</small><small>CREATE</small><b>FURTHER</b></div>
     </div>
-  </section>\`;
+  </section>`;
 }
 function syncMiniPanel(){
   const m=state.settings?.lastChatgptCatchup;
@@ -340,36 +340,36 @@ function projectPage(id){
   const summary=displaySummary(p,d,e), resume=displayResume(p,d,e), recent=ev.slice(0,5);
   const progress=projectProgress(d.status), issueCount=projectIssueCount(id), build=window.SHINO_CONTROL_BUILD?.version||'';
   const actionLinks=[
-    cta.pr?\`<a class="v8-action primary" href="\${esc(cta.pr.url)}" target="_blank">Ouvrir PR ↗</a>\`:'',
-    cta.chat?\`<a class="v8-action violet" href="\${esc(cta.chat.url)}" target="_blank">Continuer</a>\`:'',
-    cta.repo?\`<a class="v8-action" href="\${esc(cta.repo)}" target="_blank">GitHub</a>\`:''
+    cta.pr?`<a class="v8-action primary" href="${esc(cta.pr.url)}" target="_blank">Ouvrir PR ↗</a>`:'',
+    cta.chat?`<a class="v8-action violet" href="${esc(cta.chat.url)}" target="_blank">Continuer</a>`:'',
+    cta.repo?`<a class="v8-action" href="${esc(cta.repo)}" target="_blank">GitHub</a>`:''
   ].join('');
-  const sourcePanel=src.slice(0,5).map(s=>\`<div class="v9-source-row"><span class="v9-source-icon \${sourceClass(s.type)}">\${s.type==='chatgpt_thread'?'AI':String(s.type||'').startsWith('github_')?'GH':'•'}</span><div><b>\${esc(sourceLabel(s))}</b><small>\${esc(s.title||s.state||'Source enregistrée')}</small></div><time>\${esc(rel(s.conversationUpdatedAt||s.lastObservedAt))} ago</time></div>\`).join('');
-  return \`<div class="v8-project \${statusClass(d.status)} \${projectAccent(p)}">
-    <header class="v8-project-top"><div class="v8-breadcrumb"><button id="closeModal">←</button><span>Projets</span><i>›</i><b>\${esc(p.name)}</b></div><div class="v8-project-search"><span>⌕</span><input data-global-project-search placeholder="Rechercher un projet, un fichier, une commande…"><kbd>CTRL K</kbd></div><span class="v8-project-build">BUILD v\${esc(build)}</span></header>
+  const sourcePanel=src.slice(0,5).map(s=>`<div class="v9-source-row"><span class="v9-source-icon ${sourceClass(s.type)}">${s.type==='chatgpt_thread'?'AI':String(s.type||'').startsWith('github_')?'GH':'•'}</span><div><b>${esc(sourceLabel(s))}</b><small>${esc(s.title||s.state||'Source enregistrée')}</small></div><time>${esc(rel(s.conversationUpdatedAt||s.lastObservedAt))} ago</time></div>`).join('');
+  return `<div class="v8-project ${statusClass(d.status)} ${projectAccent(p)}">
+    <header class="v8-project-top"><div class="v8-breadcrumb"><button id="closeModal">←</button><span>Projets</span><i>›</i><b>${esc(p.name)}</b></div><div class="v8-project-search"><span>⌕</span><input data-global-project-search placeholder="Rechercher un projet, un fichier, une commande…"><kbd>CTRL K</kbd></div><span class="v8-project-build">BUILD v${esc(build)}</span></header>
     <div class="v9-project-shell">
       <main class="v9-project-core">
         <section class="v8-project-hero">
-          <div class="v8-project-identity"><div class="v8-project-heading"><span class="project-emblem large">\${projectGlyph(p)}</span><div><div class="v8-project-chips"><span>Projet</span><span>\${esc(p.universe||'CONTROL')}</span><span class="status-tag">\${esc(boardLabel(d.status))}</span></div><h1>\${esc(p.name)}</h1><p class="v8-project-subtitle">\${esc(projectStage(p,d,e))}</p></div></div><p class="v8-project-summary">\${esc(summary)}</p><div class="v8-project-actions">\${actionLinks}<button class="v8-action" data-scroll-activity>Voir l’activité</button></div></div>
+          <div class="v8-project-identity"><div class="v8-project-heading"><span class="project-emblem large">${projectGlyph(p)}</span><div><div class="v8-project-chips"><span>Projet</span><span>${esc(p.universe||'CONTROL')}</span><span class="status-tag">${esc(boardLabel(d.status))}</span></div><h1>${esc(p.name)}</h1><p class="v8-project-subtitle">${esc(projectStage(p,d,e))}</p></div></div><p class="v8-project-summary">${esc(summary)}</p><div class="v8-project-actions">${actionLinks}<button class="v8-action" data-scroll-activity>Voir l’activité</button></div></div>
           <div class="v8-project-art v84-project-art" aria-hidden="true"><div class="v84-project-art-copy"><small>WORKFLOW</small><small>VOICE PREP</small><small>AI AUDIO</small><b>BETTER TOGETHER</b></div><div class="v8-pj-words"><span>BUILD</span><span>TEST</span><span>SHIP</span><strong>PROGRESS</strong></div></div>
         </section>
         <section class="v8-project-metrics">
-          <article class="state"><span>◌</span><div><small>État</small><b>\${esc(boardLabel(d.status))}</b><p>\${esc(d.freshness)}</p></div><div class="v8-mini-bars">\${[35,52,64,48,78,90].map(h=>\`<i style="height:\${h}%"></i>\`).join('')}</div></article>
-          <article class="priority"><span>!</span><div><small>Priorité CONTROL</small><b>\${esc(controlPriority(d.status))}</b><p>\${d.status==='BLOCKED'?'Action requise':d.status==='NEEDS TEST'?'Tests / validation':'Suivi courant'}</p></div><div class="v8-mini-bars">\${[28,44,69,82,63,91].map(h=>\`<i style="height:\${h}%"></i>\`).join('')}</div></article>
-          <article class="stage"><span>▱</span><div><small>Étape actuelle</small><b>\${esc(projectStage(p,d,e))}</b><p>\${src.length} source\${src.length===1?'':'s'} connectée\${src.length===1?'':'s'}</p></div><div class="v8-mini-bars">\${[38,62,50,74,86,71].map(h=>\`<i style="height:\${h}%"></i>\`).join('')}</div></article>
-          <article class="issues"><span>▤</span><div><small>Issues ouvertes</small><b>\${issueCount}</b><p>\${issueCount?'À examiner':'Aucune issue ouverte détectée'}</p></div><div class="v8-mini-bars">\${[20,32,48,62,55,76].map(h=>\`<i style="height:\${h}%"></i>\`).join('')}</div></article>
+          <article class="state"><span>◌</span><div><small>État</small><b>${esc(boardLabel(d.status))}</b><p>${esc(d.freshness)}</p></div><div class="v8-mini-bars">${[35,52,64,48,78,90].map(h=>`<i style="height:${h}%"></i>`).join('')}</div></article>
+          <article class="priority"><span>!</span><div><small>Priorité CONTROL</small><b>${esc(controlPriority(d.status))}</b><p>${d.status==='BLOCKED'?'Action requise':d.status==='NEEDS TEST'?'Tests / validation':'Suivi courant'}</p></div><div class="v8-mini-bars">${[28,44,69,82,63,91].map(h=>`<i style="height:${h}%"></i>`).join('')}</div></article>
+          <article class="stage"><span>▱</span><div><small>Étape actuelle</small><b>${esc(projectStage(p,d,e))}</b><p>${src.length} source${src.length===1?'':'s'} connectée${src.length===1?'':'s'}</p></div><div class="v8-mini-bars">${[38,62,50,74,86,71].map(h=>`<i style="height:${h}%"></i>`).join('')}</div></article>
+          <article class="issues"><span>▤</span><div><small>Issues ouvertes</small><b>${issueCount}</b><p>${issueCount?'À examiner':'Aucune issue ouverte détectée'}</p></div><div class="v8-mini-bars">${[20,32,48,62,55,76].map(h=>`<i style="height:${h}%"></i>`).join('')}</div></article>
         </section>
-        <div class="v84-action-row"><section class="v8-next-action"><div class="v8-next-copy"><span class="v8-section-icon">◎</span><div><small>PROCHAINE ACTION</small><h2>\${esc(resume)}</h2><p>\${e?esc(e.summary||e.title):'Ouvrir la source la plus récente et reprendre le contexte.'}</p><div class="v8-project-actions">\${actionLinks}</div></div></div><aside><div><small>Statut</small><b>\${esc(boardLabel(d.status))}</b></div><div><small>Dernier mouvement</small><b>\${e?esc(rel(e.timestamp))+' ago':'—'}</b></div><div><small>Sources</small><b>\${src.length}</b></div></aside></section>\${projectPipelinePanel(d,progress)}</div>
-        <section class="v8-activity-panel" data-activity-section><div class="v8-section-head"><div><span class="v8-section-icon">⌘</span><h2>Activité du projet</h2></div><div class="v8-tabs"><button class="active">Toutes</button><button>Commits</button><button>Pull requests</button><button>Issues</button></div></div><div class="v8-activity-list">\${recent.length?recent.map(item=>{const meta=projectEventMeta(item);return \`<article class="event-\${meta.cls}"><span class="event-icon">\${meta.glyph}</span><div><time>\${esc(rel(item.timestamp))} ago · \${esc(item.sourceType)}</time><h3>\${esc(item.title)}</h3><p>\${esc(item.summary)}</p></div>\${item.url?\`<a href="\${esc(item.url)}" target="_blank">Voir →</a>\`:''}</article>\`}).join(''):'<div class="project-empty">Aucune activité courante.</div>'}</div></section>
+        <div class="v84-action-row"><section class="v8-next-action"><div class="v8-next-copy"><span class="v8-section-icon">◎</span><div><small>PROCHAINE ACTION</small><h2>${esc(resume)}</h2><p>${e?esc(e.summary||e.title):'Ouvrir la source la plus récente et reprendre le contexte.'}</p><div class="v8-project-actions">${actionLinks}</div></div></div><aside><div><small>Statut</small><b>${esc(boardLabel(d.status))}</b></div><div><small>Dernier mouvement</small><b>${e?esc(rel(e.timestamp))+' ago':'—'}</b></div><div><small>Sources</small><b>${src.length}</b></div></aside></section>${projectPipelinePanel(d,progress)}</div>
+        <section class="v8-activity-panel" data-activity-section><div class="v8-section-head"><div><span class="v8-section-icon">⌘</span><h2>Activité du projet</h2></div><div class="v8-tabs"><button class="active">Toutes</button><button>Commits</button><button>Pull requests</button><button>Issues</button></div></div><div class="v8-activity-list">${recent.length?recent.map(item=>{const meta=projectEventMeta(item);return `<article class="event-${meta.cls}"><span class="event-icon">${meta.glyph}</span><div><time>${esc(rel(item.timestamp))} ago · ${esc(item.sourceType)}</time><h3>${esc(item.title)}</h3><p>${esc(item.summary)}</p></div>${item.url?`<a href="${esc(item.url)}" target="_blank">Voir →</a>`:''}</article>`}).join(''):'<div class="project-empty">Aucune activité courante.</div>'}</div></section>
       </main>
       <aside class="v8-project-side v9-project-side">
-        <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">↗</span><h2>Connexions</h2></div><span class="v8-good">Connecté</span></div>\${['GitHub','ChatGPT','Environnement local'].map(label=>{const ok=label==='GitHub'?src.some(s=>String(s.type||'').startsWith('github_')):label==='ChatGPT'?src.some(s=>s.type==='chatgpt_thread'):true;return \`<div class="v8-connection"><b>\${label}</b><span><i class="\${ok?'ok':'warn'}"></i>\${ok?'Connecté':'Non détecté'}</span></div>\`}).join('')}</section>
-        <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">?</span><h2>Pourquoi cet état ?</h2></div></div><p class="v8-why">\${d.status==='EMPTY'?'CONTROL connaît le projet mais aucune conversation courante n’est rattachée.':\`CONTROL dérive cet état depuis \${d.evidenceIds.length} élément\${d.evidenceIds.length===1?'':'s'} récent\${d.evidenceIds.length===1?'':'s'}.\`}</p><ul class="v8-why-list">\${d.evidenceIds.slice(0,5).map(eid=>{const item=state.evidence.find(x=>x.id===eid&&x.inventoryCurrent!==false);return item?\`<li>\${esc(item.title)}</li>\`:''}).join('')}</ul></section>
-        <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">▣</span><h2>Fichiers clés</h2></div></div>\${files.length?files.map(path=>\`<div class="v8-file"><span>‹›</span><b>\${esc(path)}</b></div>\`).join(''):'<p class="v8-empty-note">Aucun chemin de fichier détecté dans les évidences courantes.</p>'}</section>
-        <section class="v8-side-card v9-sources-card"><div class="v8-section-head"><div><span class="v8-section-icon">◎</span><h2>Sources du projet</h2></div><span class="v8-good">\${src.length}</span></div>\${sourcePanel||'<p class="v8-empty-note">Aucune source courante.</p>'}</section>
+        <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">↗</span><h2>Connexions</h2></div><span class="v8-good">Connecté</span></div>${['GitHub','ChatGPT','Environnement local'].map(label=>{const ok=label==='GitHub'?src.some(s=>String(s.type||'').startsWith('github_')):label==='ChatGPT'?src.some(s=>s.type==='chatgpt_thread'):true;return `<div class="v8-connection"><b>${label}</b><span><i class="${ok?'ok':'warn'}"></i>${ok?'Connecté':'Non détecté'}</span></div>`}).join('')}</section>
+        <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">?</span><h2>Pourquoi cet état ?</h2></div></div><p class="v8-why">${d.status==='EMPTY'?'CONTROL connaît le projet mais aucune conversation courante n’est rattachée.':`CONTROL dérive cet état depuis ${d.evidenceIds.length} élément${d.evidenceIds.length===1?'':'s'} récent${d.evidenceIds.length===1?'':'s'}.`}</p><ul class="v8-why-list">${d.evidenceIds.slice(0,5).map(eid=>{const item=state.evidence.find(x=>x.id===eid&&x.inventoryCurrent!==false);return item?`<li>${esc(item.title)}</li>`:''}).join('')}</ul></section>
+        <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">▣</span><h2>Fichiers clés</h2></div></div>${files.length?files.map(path=>`<div class="v8-file"><span>‹›</span><b>${esc(path)}</b></div>`).join(''):'<p class="v8-empty-note">Aucun chemin de fichier détecté dans les évidences courantes.</p>'}</section>
+        <section class="v8-side-card v9-sources-card"><div class="v8-section-head"><div><span class="v8-section-icon">◎</span><h2>Sources du projet</h2></div><span class="v8-good">${src.length}</span></div>${sourcePanel||'<p class="v8-empty-note">Aucune source courante.</p>'}</section>
       </aside>
     </div>
-  </div>\`;
+  </div>`;
 }
 function sectionHeading(title, subtitle, cls=''){return `<div class="section-head ${cls}"><div><h3>${esc(title)}</h3><p>${esc(subtitle)}</p></div></div>`}
 function projectCard(p){
