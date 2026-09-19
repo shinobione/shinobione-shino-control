@@ -138,17 +138,7 @@ function activityItem(item){
 
 function render(){
   const s=stats();
-  $('#app').innerHTML=`<div class="app view-${view}">
-    <aside class="sidebar">
-      <div class="brand"><h1>SHINO <span>//</span> CONTROL</h1><p>SOURCE-DERIVED PROJECT RADAR</p></div>
-      <nav class="nav">${navBtn('radar','◉  Radar')}${navBtn('discovered','⌁  Discovered')}${navBtn('sources','⇄  Sources / Sync')}</nav>
-      <div class="side-foot">Derived ${esc(rel(state.derivedAt))} ago<br><span class="fresh-${overallFresh()}">${overallFresh()}</span> source picture</div>
-    </aside>
-    <main class="main"><div class="main-inner">
-      <div class="mobile-menu actions"><button class="btn" data-view="radar">Radar</button><button class="btn" data-view="discovered">Discovered</button><button class="btn" data-view="sources">Sources</button></div>
-      ${view==='radar'?radarView(s):view==='discovered'?discoveredView():sourcesView()}
-    </div></main>
-  </div>${modalProject?projectModal(modalProject):''}`;
+  $("#app").innerHTML=`<div class="app view-${view}"><aside class="sidebar"><div class="brand"><div class="brand-lockup"><div class="brand-mark">S<span>//</span></div><div><h1>CONTROL</h1><p>PROJECT COMMAND</p></div></div></div><nav class="nav">${navBtn("radar","<span class=\"nav-icon\">⌂</span><span>Dashboard</span>")}${navBtn("discovered","<span class=\"nav-icon\">◇</span><span>Discovered</span>")}${navBtn("sources","<span class=\"nav-icon\">⇄</span><span>Sources / Sync</span>")}</nav><div class="side-spacer"></div><div class="side-status"><span class="live-dot"></span><div><b>${state.projects.length} projects</b><small>${overallFresh()} source picture</small></div></div><div class="side-foot">Derived ${esc(rel(state.derivedAt))} ago</div></aside><main class="main"><div class="main-inner"><div class="mobile-menu actions"><button class="btn" data-view="radar">Dashboard</button><button class="btn" data-view="discovered">Discovered</button><button class="btn" data-view="sources">Sources</button></div>${view==="radar"?radarView(s):view==="discovered"?discoveredView():sourcesView()}</div></main></div>${modalProject?projectModal(modalProject):""}`;
   bind();
 }
 
