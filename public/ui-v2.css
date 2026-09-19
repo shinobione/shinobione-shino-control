@@ -301,3 +301,57 @@
   .view-radar .stat{min-width:calc(50% - 3px)}
   .modal{width:100vw;border-radius:0}
 }
+
+
+/* UI v2.1 — ultrawide readability and breathing room */
+.main-inner{width:100%;max-width:none}
+.view-radar .topbar{margin-bottom:16px}
+.view-radar .titleblock h2{font-size:30px}
+.view-radar .titleblock p{font-size:13px}
+.view-radar .focus-now{padding:16px 18px;margin-bottom:14px}
+.view-radar .focus-topline h3{font-size:22px}
+.view-radar .focus-block p{font-size:12.5px}
+.view-radar .focus-block.action p{font-size:13.5px}
+.view-radar .sync-health{padding:10px 12px;margin-bottom:14px}
+.view-radar .sync-health h3{font-size:12px}
+.view-radar .sync-health-foot{font-size:10px}
+.view-radar .stats{gap:8px;margin-bottom:12px}
+.view-radar .stat{min-width:122px;padding:9px 12px 9px 14px}
+.view-radar .stat span{font-size:9px}
+.view-radar .stat b{font-size:18px}
+.view-radar .toolbar{margin-bottom:20px;padding:9px}
+.view-radar .search{font-size:13px;padding:10px 12px}
+.view-radar .select{font-size:12px}
+.view-radar .section-head{margin:22px 0 9px}
+.view-radar .section-head h3{font-size:15px}
+.view-radar .section-head p{font-size:11px}
+.view-radar .grid{gap:8px}
+.view-radar .card{
+  min-height:62px;
+  padding:13px 14px 13px 16px;
+  grid-template-columns:minmax(240px,.95fr) minmax(420px,1.7fr) minmax(280px,1fr) auto;
+  gap:18px;
+}
+.view-radar .card h3{font-size:15px}
+.view-radar .universe{font-size:9px}
+.view-radar .pill{font-size:9px;padding:5px 7px}
+.view-radar .resume .meta-label,
+.view-radar .movement .meta-label{font-size:9px}
+.view-radar .resume p{font-size:12.8px;line-height:1.42}
+.view-radar .movement p{font-size:11.5px;line-height:1.4}
+.view-radar .card-actions .btn.small{font-size:10px;padding:7px 9px}
+.modal{width:min(720px,96vw)}
+.modal-body{padding:20px 21px 32px}
+@media(min-width:1700px){
+  .main{padding-left:34px;padding-right:34px}
+}
+@media(min-width:2500px){
+  .main{padding-left:42px;padding-right:42px}
+  .view-radar .card{
+    grid-template-columns:minmax(280px,1fr) minmax(560px,1.8fr) minmax(340px,1.05fr) auto;
+    min-height:68px;
+  }
+  .view-radar .card h3{font-size:16px}
+  .view-radar .resume p{font-size:13.5px}
+  .view-radar .movement p{font-size:12px}
+}
