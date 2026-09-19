@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 560" preserveAspectRatio="xMidYMid slice">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07162e"/><stop offset=".42" stop-color="#123f83"/><stop offset=".72" stop-color="#29165f"/><stop offset="1" stop-color="#090f25"/></linearGradient>
+  <radialGradient id="gl1" cx=".62" cy=".32" r=".48"><stop stop-color="#268cff" stop-opacity=".5"/><stop offset=".4" stop-color="#4d5cff" stop-opacity=".18"/><stop offset="1" stop-opacity="0"/></radialGradient>
+  <radialGradient id="gl2" cx=".86" cy=".42" r=".4"><stop stop-color="#d14be0" stop-opacity=".35"/><stop offset="1" stop-opacity="0"/></radialGradient>
+  <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#29a5ff"/><stop offset=".48" stop-color="#6556ff"/><stop offset="1" stop-color="#cf4fdf"/></linearGradient>
+  <filter id="shadow"><feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#020713" flood-opacity=".7"/></filter>
+  <filter id="blur"><feGaussianBlur stdDeviation="24"/></filter>
+</defs>
+<rect width="1100" height="560" fill="url(#bg)"/>
+<ellipse cx="700" cy="160" rx="420" ry="250" fill="url(#gl1)" filter="url(#blur)"/>
+<ellipse cx="900" cy="260" rx="260" ry="200" fill="url(#gl2)" filter="url(#blur)"/>
+<path d="M0 455L140 360 245 417 372 310 500 428 628 330 748 430 880 350 1005 420 1100 372V560H0Z" fill="#071426" opacity=".92"/>
+<g transform="translate(480 74)" filter="url(#shadow)">
+  <g transform="translate(0 74) rotate(-8 160 105)">
+    <rect width="330" height="220" rx="26" fill="#173f8f" opacity=".7" stroke="#4b98ff" stroke-opacity=".55"/>
+    <rect x="26" y="22" width="278" height="44" rx="11" fill="#102a5d"/>
+    <rect x="26" y="84" width="82" height="110" rx="14" fill="#10265a"/>
+    <rect x="124" y="84" width="180" height="110" rx="14" fill="#0c214c"/>
+    <path d="M144 161h16v-48h14v48h16v-74h14v74h16v-52h14v52h16v-92h14v92h16v-64h14v64" fill="none" stroke="#5ce9ff" stroke-width="7" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(252 10) rotate(7 160 105)">
+    <rect width="330" height="220" rx="26" fill="url(#panel)" stroke="#b2e3ff" stroke-opacity=".72"/>
+    <rect x="25" y="26" width="280" height="166" rx="18" fill="#09295f" opacity=".48"/>
+    <rect x="46" y="48" width="76" height="18" rx="9" fill="#41d7ff"/><rect x="46" y="80" width="52" height="12" rx="6" fill="#7868ff"/>
+    <rect x="46" y="106" width="63" height="12" rx="6" fill="#d34fe2"/><rect x="46" y="132" width="42" height="12" rx="6" fill="#2dd0b5"/>
+    <path d="M146 148c18-62 34-62 52 0s34 62 52 0 34-62 52 0" fill="none" stroke="#75f3ff" stroke-width="7" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(528 110) rotate(12 86 58)">
+    <rect width="172" height="116" rx="22" fill="#1f53cb" opacity=".85" stroke="#73b8ff" stroke-opacity=".7"/>
+    <rect x="18" y="18" width="136" height="80" rx="16" fill="#0e2a66" opacity=".54"/>
+    <path d="M34 70h18v-28h12v28h18v-44h12v44h18v-34h12v34h18" fill="none" stroke="#b685ff" stroke-width="6"/>
+  </g>
+</g>
+<path d="M110 382C240 322 330 430 472 370S720 336 960 402" fill="none" stroke="#47cfff" stroke-width="5" opacity=".55"/>
+<path d="M90 410C242 362 350 446 500 396S744 370 990 426" fill="none" stroke="#d050df" stroke-width="4" opacity=".48"/>
+</svg>
