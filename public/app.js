@@ -1,3 +1,4 @@
+import { cleanFocusSummary, selectFocusProject } from './focus-engine.js';
 const $ = (s, root=document) => root.querySelector(s);
 const esc = (s='') => String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 const fmt = ts => ts ? new Intl.DateTimeFormat('fr-FR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(ts)) : '—';
@@ -220,6 +221,45 @@ function premiumPriorityCard(p){
   const e=evidenceFor(p.id)[0], c=ctAs(p), badges=sourceBadges(p.id), resume=displayResume(p,d,e), summary=displaySummary(p,d,e);
   return `<article class="priority-tile ${statusClass(d.status)} ${projectAccent(p)}" data-open-project="${p.id}"><div class="priority-tile-top"><div class="priority-symbol">${projectGlyph(p)}</div><div class="priority-name"><h4>${esc(p.name)}</h4><p>${esc(summary)}</p></div><span class="status-tag">${esc(boardLabel(d.status))}</span></div><div class="signal-track"><i></i></div><div class="priority-tile-foot"><div class="tile-tags">${[esc(p.universe||'PROJECT'),...badges.slice(0,1).map(g=>esc(g.label))].map(x=>`<span>${x}</span>`).join('')}</div><div class="tile-time"><span>${e?`${esc(rel(e.timestamp))} ago`:'—'}</span>${c.chat?`<a href="${esc(c.chat.url)}" target="_blank" data-stop>↗</a>`:''}</div></div><div class="tile-next" title="${esc(resume)}">${esc(resume)}</div></article>`;
 }
+
+function v84PriorityMiniCard(p){
+  const d=projectState(p.id); if(!d)return '';
+  const e=evidenceFor(p.id)[0], badges=sourceBadges(p.id), progress=projectProgress(d.status);
+  return `<article class="v84-priority-mini ${statusClass(d.status)} ${projectAccent(p)}" data-open-project="${p.id}">
+    <div class="v84-mini-head"><span class="v84-mini-glyph">${projectGlyph(p)}</span><div><h4>${esc(p.name)}</h4><p>${esc(displaySummary(p,d,e))}</p></div><span class="v84-mini-star">★</span></div>
+    <div class="v84-mini-progress"><i style="width:${progress}%"></i><b>${progress}%</b></div>
+    <div class="v84-mini-tags">${[esc(p.universe||'PROJECT'),...badges.slice(0,2).map(g=>esc(g.label))].slice(0,3).map(x=>`<span>${x}</span>`).join('')}</div>
+    <div class="v84-mini-meta"><span>${e?esc(rel(e.timestamp))+' ago':'—'}</span><span>${esc(boardLabel(d.status))}</span></div>
+  </article>`;
+}
+function focusTodayPanel(projects){
+  const focus=selectFocusProject(state);
+  const p=focus?.project || priorityProjects(projects,1)[0];
+  if(!p)return '';
+  const d=projectState(p.id), e=evidenceFor(p.id)[0], cta=ctAs(p);
+  if(!d)return '';
+  const action=focus?.action || displayResume(p,d,e);
+  const summary=cleanFocusSummary(displaySummary(p,d,e),220);
+  const progress=projectProgress(d.status);
+  return `<section class="v84-focus-panel ${projectAccent(p)}" data-open-project="${p.id}">
+    <div class="v84-focus-copy">
+      <div class="v84-focus-kicker"><span>FOCUS AUJOURD'HUI</span><b>${esc(boardLabel(d.status))}</b></div>
+      <div class="v84-focus-title"><span class="v84-focus-glyph">${projectGlyph(p)}</span><div><small>PROJET PRINCIPAL</small><h3>${esc(p.name)}</h3></div></div>
+      <p>${esc(summary)}</p>
+      <div class="v84-focus-progress"><i style="width:${progress}%"></i><b>${progress}%</b></div>
+      <div class="v84-focus-next"><span>→</span><div><small>Prochaine étape</small><strong>${esc(action)}</strong></div></div>
+      <div class="v84-focus-actions"><button class="v8-primary" data-open-project="${p.id}">Ouvrir le projet →</button>${cta.chat?`<a class="v8-secondary" href="${esc(cta.chat.url)}" target="_blank" data-stop>Continuer dans ChatGPT</a>`:''}</div>
+    </div>
+    <div class="v84-focus-art" aria-hidden="true"><span class="v84-art-glyph">${projectGlyph(p)}</span><em>Ideas<br>into<br>motion</em></div>
+  </section>`;
+}
+function projectPipelinePanel(d, progress){
+  const rows=workflowSteps(d.status);
+  return `<section class="v84-pipeline"><div class="v8-section-head"><div><span class="v8-section-icon">↯</span><h2>Pipeline de validation</h2></div><strong>${progress}%</strong></div>
+    <div class="v84-pipeline-track"><i style="width:${progress}%"></i></div>
+    <ul class="v84-pipeline-steps">${rows}</ul>
+  </section>`;
+}
 function systemStatusPanel(){
   const m=state.settings?.lastChatgptCatchup;
   const failed=Number(m?.failedCount||0)+Number(m?.deferredCount||0);
@@ -253,8 +293,9 @@ function allProjectsPanel(projects,buckets){
 function radarView(s){
   const projects=visibleProjects();
   const buckets={attention:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='attention'),active:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='active'),stable:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='stable'),other:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='other')};
-  const attentionCount=s.blocked+s.test, priorities=priorityProjects(projects,4);
-  return `<div class="v8-dashboard"><section class="v8-dashboard-main">${dashboardHero()}<section class="overview-grid">${overviewCard('Projects',state.projects.length,'Tous les projets suivis','overview-total','ALL')}${overviewCard('Active',s.active,'En développement','overview-active','ACTIVE')}${overviewCard('Attention',attentionCount,'Nécessitent un suivi','overview-attention',attentionCount?'NEEDS TEST':'ALL')}${overviewCard('Stable',s.stable,'À jour et OK','overview-stable','STABLE')}</section><section class="priority-panel"><div class="premium-section-head"><div><span>★</span><h3>Projets prioritaires</h3><p>Les projets à suivre en priorité pour un avancement maximal.</p></div><button data-scroll-projects>Voir tous les projets →</button></div><div class="priority-row">${priorities.map(premiumPriorityCard).join('')}</div></section>${allProjectsPanel(projects,buckets)}${githubPulse()}</section>${premiumRail()}</div>`;
+  const attentionCount=s.blocked+s.test, focus=selectFocusProject(state)?.project || priorityProjects(projects,1)[0];
+  const priorities=priorityProjects(projects,5).filter(p=>p.id!==focus?.id).slice(0,3);
+  return `<div class="v8-dashboard"><section class="v8-dashboard-main">${dashboardHero()}<section class="overview-grid">${overviewCard('Projects',state.projects.length,'Tous les projets suivis','overview-total','ALL')}${overviewCard('Active',s.active,'En développement','overview-active','ACTIVE')}${overviewCard('Attention',attentionCount,'Nécessitent un suivi','overview-attention',attentionCount?'NEEDS TEST':'ALL')}${overviewCard('Stable',s.stable,'À jour et OK','overview-stable','STABLE')}</section><section class="v84-workspace-row">${focusTodayPanel(projects)}<section class="v84-priority-panel"><div class="premium-section-head"><div><span>★</span><h3>Projets prioritaires</h3><p>Trois chantiers à garder dans le champ.</p></div><button data-scroll-projects>Voir tous →</button></div><div class="v84-priority-grid">${priorities.map(v84PriorityMiniCard).join('')}</div></section></section>${allProjectsPanel(projects,buckets)}${githubPulse()}</section>${premiumRail()}</div>`;
 }
 function controlPriority(status){
   return ({BLOCKED:'Critique','NEEDS TEST':'Haute',ACTIVE:'Moyenne',WAITING:'Moyenne',STABLE:'Basse',DONE:'Basse',EMPTY:'Basse',UNSYNCED:'Moyenne'})[status]||'Moyenne';
@@ -298,8 +339,7 @@ function projectPage(id){
     <header class="v8-project-top"><div class="v8-breadcrumb"><button id="closeModal">←</button><span>Projets</span><i>›</i><b>${esc(p.name)}</b></div><div class="v8-project-search"><span>⌕</span><input data-global-project-search placeholder="Rechercher un projet, un fichier, une commande…"><kbd>CTRL K</kbd></div><span class="v8-project-build">BUILD v${esc(build)}</span></header>
     <section class="v8-project-hero">
       <div class="v8-project-identity"><div class="v8-project-heading"><span class="project-emblem large">${projectGlyph(p)}</span><div><div class="v8-project-chips"><span>Projet</span><span>${esc(p.universe||'CONTROL')}</span><span class="status-tag">${esc(boardLabel(d.status))}</span></div><h1>${esc(p.name)}</h1><p class="v8-project-subtitle">${esc(projectStage(p,d,e))}</p></div></div><p class="v8-project-summary">${esc(summary)}</p><div class="v8-project-actions">${actionLinks}<button class="v8-action" data-scroll-activity>Voir l’activité</button></div></div>
-      <div class="v8-project-art" aria-hidden="true"><div class="v8-pj-card back"></div><div class="v8-pj-card front"><b>${projectGlyph(p)}</b></div><div class="v8-pj-words"><span>BUILD</span><span>TEST</span><span>SHIP</span><strong>PROGRESS</strong></div></div>
-      <aside class="v8-workflow-card"><div class="v8-workflow-title"><span>⌘</span><strong>${esc(cta.pr?.title||e?.title||projectStage(p,d,e))}</strong></div><div class="v8-progress"><i style="width:${progress}%"></i></div><div class="v8-progress-meta"><b>${progress}%</b><span>Progression CONTROL</span></div><ul>${workflowSteps(d.status)}</ul><footer><span>Dernière mise à jour</span><b>${e?esc(rel(e.timestamp))+' ago':'—'}</b></footer></aside>
+      <div class="v8-project-art v84-project-art" aria-hidden="true"><div class="v84-project-art-copy"><small>WORKFLOW</small><small>VOICE PREP</small><small>AI AUDIO</small><b>BETTER TOGETHER</b></div><div class="v8-pj-card back"></div><div class="v8-pj-card front"><b>${projectGlyph(p)}</b></div><div class="v8-pj-words"><span>BUILD</span><span>TEST</span><span>SHIP</span><strong>PROGRESS</strong></div></div>
     </section>
     <section class="v8-project-metrics">
       <article class="state"><span>◌</span><div><small>État</small><b>${esc(boardLabel(d.status))}</b><p>${esc(d.freshness)}</p></div><div class="v8-mini-bars">${[35,52,64,48,78,90].map(h=>`<i style="height:${h}%"></i>`).join('')}</div></article>
@@ -309,7 +349,7 @@ function projectPage(id){
     </section>
     <div class="v8-project-grid">
       <main class="v8-project-main">
-        <section class="v8-next-action"><div class="v8-next-copy"><span class="v8-section-icon">◎</span><div><small>PROCHAINE ACTION</small><h2>${esc(resume)}</h2><p>${e?esc(e.summary||e.title):'Ouvrir la source la plus récente et reprendre le contexte.'}</p><div class="v8-project-actions">${actionLinks}</div></div></div><aside><div><small>Statut</small><b>${esc(boardLabel(d.status))}</b></div><div><small>Dernier mouvement</small><b>${e?esc(rel(e.timestamp))+' ago':'—'}</b></div><div><small>Sources</small><b>${src.length}</b></div></aside></section>
+        <div class="v84-action-row"><section class="v8-next-action"><div class="v8-next-copy"><span class="v8-section-icon">◎</span><div><small>PROCHAINE ACTION</small><h2>${esc(resume)}</h2><p>${e?esc(e.summary||e.title):'Ouvrir la source la plus récente et reprendre le contexte.'}</p><div class="v8-project-actions">${actionLinks}</div></div></div><aside><div><small>Statut</small><b>${esc(boardLabel(d.status))}</b></div><div><small>Dernier mouvement</small><b>${e?esc(rel(e.timestamp))+' ago':'—'}</b></div><div><small>Sources</small><b>${src.length}</b></div></aside></section>${projectPipelinePanel(d,progress)}</div>
         <section class="v8-activity-panel" data-activity-section><div class="v8-section-head"><div><span class="v8-section-icon">⌘</span><h2>Activité du projet</h2></div><div class="v8-tabs"><button class="active">Toutes</button><button>Commits</button><button>Pull requests</button><button>Issues</button></div></div><div class="v8-activity-list">${recent.length?recent.map(item=>`<article><span class="event-marker"></span><div><time>${esc(rel(item.timestamp))} ago · ${esc(item.sourceType)}</time><h3>${esc(item.title)}</h3><p>${esc(item.summary)}</p></div>${item.url?`<a href="${esc(item.url)}" target="_blank">Ouvrir ↗</a>`:''}</article>`).join(''):'<div class="project-empty">Aucune activité courante.</div>'}</div></section>
       </main>
       <aside class="v8-project-side">
