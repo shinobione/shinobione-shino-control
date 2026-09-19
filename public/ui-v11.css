@@ -40,6 +40,12 @@ body{
   box-shadow:0 12px 30px rgba(0,0,0,.32),0 0 26px rgba(53,142,255,.22),inset 0 1px rgba(255,255,255,.16);
 }
 
+/* Explicitly retire the v10 pseudo-card/vector treatment. The generated raster master owns the hero art. */
+.v8-hero-art:before,
+.v8-hero-art:after{
+  display:none!important;
+}
+
 /* Dashboard hero: the generated raster asset is the art direction, not decoration pasted on top. */
 .v8-hero{
   min-height:300px;
