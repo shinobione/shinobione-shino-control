@@ -1,0 +1,303 @@
+/* CONTROL UI v2 — calmer radar, compact project rows, drawer details.
+   Presentation-only: state derivation, sync and source semantics stay untouched. */
+
+:root{
+  --ui2-surface:#0e141e;
+  --ui2-surface-2:#111a27;
+  --ui2-line:#273345;
+  --ui2-line-soft:#1d2735;
+  --ui2-muted:#7f8ea3;
+}
+
+/* Shell */
+.app{grid-template-columns:204px minmax(0,1fr)}
+.sidebar{padding:18px 12px;border-right-color:#1b2533;box-shadow:none}
+.brand{padding:7px 9px 20px}
+.brand h1{font-size:15px;letter-spacing:.13em}
+.brand p{font-size:9px;line-height:1.5;letter-spacing:.12em}
+.nav{gap:4px}
+.nav button{padding:10px 11px;border-radius:8px;font-size:12px}
+.main{padding:22px 28px 48px}
+.main-inner{width:min(100%,1680px)}
+.topbar{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--ui2-line-soft)}
+.titleblock h2{font-size:26px}
+.titleblock p{font-size:12px;max-width:760px}
+.btn{border-radius:8px}
+.panel{box-shadow:none;background:rgba(14,20,30,.92);border-color:var(--ui2-line)}
+
+/* Focus Now is the only prominent card on Radar. */
+.view-radar .focus-now{
+  margin:0 0 12px;
+  padding:13px 15px;
+  border-radius:12px;
+  box-shadow:none;
+  background:linear-gradient(120deg,color-mix(in srgb,var(--focus-accent) 7%,#101722),#0d141e 68%);
+}
+.view-radar .focus-topline{align-items:center}
+.view-radar .focus-kicker{font-size:8px;margin-bottom:3px}
+.view-radar .focus-topline h3{font-size:19px}
+.view-radar .focus-universe{font-size:8px;margin-top:3px}
+.view-radar .focus-status{font-size:8px;padding:4px 7px}
+.view-radar .focus-grid{grid-template-columns:.85fr 1.65fr;gap:8px;margin-top:10px}
+.view-radar .focus-block{padding:9px 10px;border-radius:9px}
+.view-radar .focus-block.context{display:none}
+.view-radar .focus-block span{font-size:8px;margin-bottom:3px}
+.view-radar .focus-block p{font-size:11.5px;line-height:1.4}
+.view-radar .focus-block.action p{font-size:12px}
+.view-radar .focus-footer{margin-top:9px}
+.view-radar .focus-meta{display:none}
+.view-radar .focus-btn{padding:6px 9px;font-size:10px;border-radius:7px}
+
+/* Sync health becomes a status strip on Radar; full diagnostics stay on Sources / Sync. */
+.view-radar .sync-health{
+  margin:0 0 14px;
+  padding:8px 11px;
+  min-height:0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  border-radius:9px;
+  box-shadow:none;
+  background:#0d141d;
+}
+.view-radar .sync-health-head{align-items:center;min-width:max-content}
+.view-radar .sync-health-kicker{display:none}
+.view-radar .sync-health h3{font-size:11px;font-weight:750;color:#9cabbf}
+.view-radar .sync-health-status{font-size:8px;padding:3px 6px;margin-left:8px}
+.view-radar .sync-health-metrics,
+.view-radar .sync-health-note,
+.view-radar .sync-health-failures{display:none}
+.view-radar .sync-health-foot{margin:0;margin-left:auto;font-size:9px;white-space:nowrap}
+.view-radar .sync-health-foot span:last-child{display:none}
+
+/* Counters become a quiet summary bar instead of five competing cards. */
+.view-radar .stats{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  margin:0 0 10px;
+}
+.view-radar .stat{
+  min-width:100px;
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:12px;
+  padding:7px 10px 7px 12px;
+  border-radius:8px;
+  box-shadow:none;
+  background:#0e151f;
+}
+.view-radar .stat:before{width:2px}
+.view-radar .stat span{font-size:8px;letter-spacing:.1em}
+.view-radar .stat b{font-size:16px;margin:0}
+
+/* Search + status control */
+.view-radar .toolbar{
+  margin:0 0 16px;
+  padding:8px;
+  border:1px solid var(--ui2-line-soft);
+  border-radius:10px;
+  background:#0b121b;
+}
+.view-radar .search{
+  max-width:none;
+  padding:9px 11px;
+  border-color:transparent;
+  background:#101823;
+  font-size:12px;
+}
+.view-radar .select{padding:9px 10px;font-size:11px}
+
+/* Section labels are hierarchy, not banners. */
+.view-radar .section-head{margin:18px 0 7px;padding:0}
+.view-radar .section-head h3{font-size:13px;letter-spacing:.01em}
+.view-radar .section-head p{font-size:10px;margin-top:2px}
+.view-radar .attention-title h3{color:#e8c46e}
+
+/* Projects: one project = one row. */
+.view-radar .grid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:6px;
+}
+.view-radar .card{
+  min-height:0;
+  padding:11px 12px 11px 14px;
+  border-radius:10px;
+  box-shadow:none;
+  display:grid;
+  grid-template-columns:minmax(180px,.85fr) minmax(300px,1.65fr) minmax(170px,.85fr) auto;
+  grid-template-areas:"head resume movement actions";
+  align-items:center;
+  gap:14px;
+  overflow:hidden;
+  background:#0f1722;
+  cursor:pointer;
+}
+.view-radar .card:before{
+  left:0;right:auto;top:0;bottom:0;width:3px;height:auto;
+}
+.view-radar .card:after{display:none}
+.view-radar .card:hover{
+  transform:none;
+  background:#121c29;
+  border-color:color-mix(in srgb,var(--accent) 42%,#334158);
+  box-shadow:none;
+}
+.view-radar .card-head{grid-area:head;align-items:center;min-width:0}
+.view-radar .card h3{
+  font-size:13px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.view-radar .universe{font-size:8px;margin-top:3px}
+.view-radar .pill{font-size:8px;padding:4px 6px}
+.view-radar .summary{display:none}
+.view-radar .resume{
+  grid-area:resume;
+  border:0;
+  margin:0;
+  padding:0;
+  min-width:0;
+}
+.view-radar .resume .meta-label{font-size:8px;color:#8b7952}
+.view-radar .resume p{
+  margin:3px 0 0;
+  font-size:11.5px;
+  line-height:1.35;
+  -webkit-line-clamp:2;
+  color:#e8d5a4;
+}
+.view-radar .movement{
+  grid-area:movement;
+  border:0;
+  margin:0;
+  padding:0;
+  min-width:0;
+}
+.view-radar .movement .meta-label{font-size:8px}
+.view-radar .movement p{
+  margin:3px 0 0;
+  font-size:10px;
+  line-height:1.3;
+  -webkit-line-clamp:2;
+  color:#92a0b3;
+}
+.view-radar .source-row{display:none}
+.view-radar .card-actions{
+  grid-area:actions;
+  margin:0;
+  padding:0;
+  justify-content:flex-end;
+  align-items:center;
+  flex-wrap:nowrap;
+}
+.view-radar .card-actions .btn{white-space:nowrap}
+.view-radar .card-actions .btn.why,
+.view-radar .card-actions .btn.ghost{display:none}
+.view-radar .card-actions .btn.small{font-size:9px;padding:6px 8px}
+.view-radar .compact-empty{padding:12px;font-size:11px;border-radius:9px}
+.view-radar .unsynced-grid{grid-template-columns:1fr;gap:5px}
+.view-radar .unsynced-card{
+  min-height:48px;
+  padding:8px 11px;
+  border-radius:8px;
+  background:#10131b;
+  box-shadow:none;
+}
+.view-radar .unsynced-card strong{font-size:11px}
+.view-radar .unsynced-card span{font-size:8px}
+
+/* Project details are a drawer, not a giant centered modal. */
+.modal-backdrop{
+  place-items:stretch end;
+  padding:0;
+  background:rgba(3,6,10,.62);
+  backdrop-filter:blur(4px);
+}
+.modal{
+  width:min(650px,96vw);
+  height:100vh;
+  max-height:none;
+  border-radius:16px 0 0 16px;
+  border-right:0;
+  box-shadow:-28px 0 80px rgba(0,0,0,.52);
+}
+.modal:before{left:0;right:auto;top:0;bottom:0;width:3px;height:auto}
+.modal-head{padding:17px 18px}
+.modal-head h2{font-size:21px}
+.modal-body{
+  padding:17px 18px 28px;
+  grid-template-columns:1fr;
+  gap:13px;
+}
+.big-state{font-size:14px;line-height:1.5}
+.info-grid{gap:7px;margin-bottom:12px}
+.info{padding:10px;border-radius:9px}
+.resume-panel{padding:13px}
+.resume-panel p{font-size:12.5px}
+.timeline-title{font-size:13px}
+.timeline{gap:7px}
+.event{padding:10px 11px 10px 15px;border-radius:9px}
+.event time{font-size:8px}
+.event strong{font-size:11px}
+.event p{font-size:10.5px}
+.modal-body aside{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:9px;
+}
+.modal-body aside .source-health{margin-top:0}
+.why-box,.source-health{border-radius:9px;padding:11px}
+
+/* Discovered / Sources */
+.view-discovered .topbar,
+.view-sources .topbar{margin-bottom:14px}
+.discover-list,.source-list{gap:7px}
+.discover-item,.source-item{border-radius:9px;padding:11px 12px;box-shadow:none}
+.discover-item p,.source-item p{font-size:10.5px;line-height:1.4}
+.view-sources .sync-health{box-shadow:none}
+
+/* Less visual noise globally */
+.toast{border-radius:8px}
+.confidence{color:#738197}
+.side-foot{font-size:9px}
+#githubPagesBadge{opacity:.8}
+
+/* Responsive */
+@media(max-width:1280px){
+  .view-radar .card{
+    grid-template-columns:minmax(170px,.8fr) minmax(260px,1.5fr) minmax(150px,.8fr);
+    grid-template-areas:"head resume movement";
+  }
+  .view-radar .card-actions{display:none}
+}
+@media(max-width:900px){
+  .app{grid-template-columns:178px minmax(0,1fr)}
+  .main{padding:18px}
+  .view-radar .card{
+    grid-template-columns:minmax(150px,.8fr) minmax(0,1.5fr);
+    grid-template-areas:"head resume" "movement movement";
+    gap:7px 12px;
+  }
+  .view-radar .movement p{-webkit-line-clamp:1}
+  .modal-body aside{grid-template-columns:1fr}
+}
+@media(max-width:760px){
+  .app{grid-template-columns:1fr}
+  .main{padding:12px}
+  .view-radar .focus-grid{grid-template-columns:1fr}
+  .view-radar .focus-block:first-child{display:none}
+  .view-radar .sync-health-foot{display:none}
+  .view-radar .card{
+    grid-template-columns:1fr;
+    grid-template-areas:"head" "resume" "movement";
+    gap:7px;
+  }
+  .view-radar .stats{gap:5px}
+  .view-radar .stat{min-width:calc(50% - 3px)}
+  .modal{width:100vw;border-radius:0}
+}
