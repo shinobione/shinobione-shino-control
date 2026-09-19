@@ -12,7 +12,7 @@ const rel = ts => {
 const statusClass = status => `status-${String(status||'UNKNOWN').replace(/[^A-Z0-9]+/gi,'-').replace(/^-|-$/g,'')}`;
 const sourceClass = type => type==='github_repo'?'source-github':type==='chatgpt_thread'?'source-chatgpt':type==='github_component'?'source-component':'source-other';
 const sourceLabel = s => s.type==='github_repo'?'GitHub':s.type==='chatgpt_thread'?'ChatGPT':s.type==='chatgpt_archived'?'ChatGPT archive':s.type==='github_component'?(s.title||'Component'):s.type;
-let state = null, view='radar', query='', statusFilter='ALL', modalProject=null;
+let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, radarMode=localStorage.getItem('controlRadarMode') || 'board';
 
 async function api(path, options={}) {
   const r = await fetch(path, {headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
@@ -88,6 +88,52 @@ function displayResume(p,d,e){
     if(e?.sourceType==='chatgpt_thread') return `Reprendre « ${e.title || p.name} » dans ChatGPT.`;
   }
   return raw || 'Ouvrir la source la plus récente.';
+}
+
+
+function boardBucket(status="") {
+  if (["BLOCKED","NEEDS TEST"].includes(status)) return "attention";
+  if (status === "ACTIVE") return "active";
+  if (["STABLE","DONE"].includes(status)) return "stable";
+  return "other";
+}
+function boardLabel(status="") {
+  return ({BLOCKED:"Blocked","NEEDS TEST":"Needs test",ACTIVE:"Active",STABLE:"Stable",DONE:"Done",WAITING:"Waiting",EMPTY:"Empty",UNSYNCED:"Unsynced"})[status] || status || "Unknown";
+}
+function visibleProjects(){
+  return state.projects.filter(matchesFilter).sort((a,b)=>priorityScore(b)-priorityScore(a) || a.name.localeCompare(b.name));
+}
+function latestEvidenceRows(limit=8){
+  return [...state.evidence].filter(e=>e.inventoryCurrent!==false && e.timestamp).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,limit);
+}
+function overviewCard(label,value,subtitle,cls,filter){
+  return `<button class="overview-card ${cls}" data-status-pick="${esc(filter)}"><span class="overview-icon"></span><div><small>${esc(label)}</small><strong>${esc(value)}</strong><p>${esc(subtitle)}</p></div></button>`;
+}
+function projectBoard(buckets){
+  const columns=[["attention","Attention","Blocages & validations"],["active","In progress","Projets actifs"],["stable","Stable","État confirmé"],["other","Other","Waiting / empty / unsynced"]];
+  return `<div class="project-board">${columns.map(([key,title,subtitle])=>`<section class="board-column board-${key}"><header><div><h4>${esc(title)} <span>${buckets[key].length}</span></h4><p>${esc(subtitle)}</p></div><i></i></header><div class="board-stack">${buckets[key].length?buckets[key].map(boardProjectCard).join(""):`<div class="board-empty">Rien ici pour le moment.</div>`}</div></section>`).join("")}</div>`;
+}
+function boardProjectCard(p){
+  const d=projectState(p.id); if(!d)return "";
+  const e=evidenceFor(p.id)[0], c=ctAs(p), badges=sourceBadges(p.id), resume=displayResume(p,d,e);
+  return `<article class="board-card ${statusClass(d.status)}" data-open-project="${p.id}"><div class="board-card-top"><span class="project-type">${esc(p.universe||"PROJECT")}</span><span class="status-tag">${esc(boardLabel(d.status))}</span></div><h4>${esc(p.name)}</h4><p class="board-resume">${esc(resume)}</p><div class="board-meta"><span class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</span><span>${e?`${esc(rel(e.timestamp))} ago`:"No evidence"}</span></div><div class="board-footer"><div class="mini-sources">${badges.slice(0,2).map(g=>`<span class="${sourceClass(g.type)}">${esc(g.label)}${g.count>1?` ×${g.count}`:""}</span>`).join("")}</div>${c.chat?`<a class="quick-open" href="${esc(c.chat.url)}" target="_blank" data-stop title="Continue in ChatGPT">↗</a>`:c.pr?`<a class="quick-open" href="${esc(c.pr.url)}" target="_blank" data-stop title="Open PR">↗</a>`:""}</div></article>`;
+}
+function projectListV3(projects){
+  return `<div class="project-list-v3">${projects.length?projects.map(listProjectCardV3).join(""):`<div class="empty compact-empty">Aucun projet dans ce filtre.</div>`}</div>`;
+}
+function listProjectCardV3(p){
+  const d=projectState(p.id); if(!d)return "";
+  const e=evidenceFor(p.id)[0], c=ctAs(p), resume=displayResume(p,d,e);
+  return `<article class="list-project ${statusClass(d.status)}" data-open-project="${p.id}"><div class="list-project-main"><span class="status-dot"></span><div><h4>${esc(p.name)}</h4><small>${esc(p.universe||"PROJECT")}</small></div></div><span class="status-tag">${esc(boardLabel(d.status))}</span><p>${esc(resume)}</p><div class="list-project-age"><b class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</b><span>${e?`${esc(rel(e.timestamp))} ago`:"—"}</span></div>${c.chat?`<a class="btn small gold" href="${esc(c.chat.url)}" target="_blank" data-stop>Continue</a>`:c.pr?`<a class="btn small" href="${esc(c.pr.url)}" target="_blank" data-stop>Open PR</a>`:"<span></span>"}</article>`;
+}
+function activityRail(){
+  const rows=latestEvidenceRows(7), discovered=state.discovered?.length||0;
+  return `<aside class="activity-rail"><section class="rail-panel"><div class="rail-head"><div><span class="eyebrow">LIVE FEED</span><h3>Recent activity</h3></div><span class="rail-count">${rows.length}</span></div><div class="activity-list">${rows.length?rows.map(activityItem).join(""):"<div class=\"rail-empty\">Aucune activité récente.</div>"}</div></section><section class="rail-panel quick-panel"><div class="rail-head"><div><span class="eyebrow">INBOX</span><h3>Needs sorting</h3></div><span class="rail-count">${discovered}</span></div><p>${discovered?`${discovered} source${discovered===1?"":"s"} attend${discovered===1?"":"ent"} un rattachement.`:"Tout est correctement rattaché."}</p><button class="rail-action" data-view="discovered">${discovered?"Open Discovered":"View inbox"}</button></section></aside>`;
+}
+function activityItem(item){
+  const p=projectById(item.projectId), kind=item.sourceType?.startsWith("github_")?"GH":item.sourceType==="chatgpt_thread"?"AI":"•";
+  const type=item.sourceType==="chatgpt_thread"?"chatgpt_thread":item.sourceType?.startsWith("github_")?"github_repo":"other";
+  return `<div class="activity-item"><span class="activity-icon ${sourceClass(type)}">${kind}</span><div><strong>${esc(p?.name||item.title||"Activity")}</strong><p>${esc(item.title||item.summary||"Update")}</p><small>${esc(rel(item.timestamp))} ago</small></div></div>`;
 }
 
 function render(){
