@@ -12,7 +12,7 @@ const rel = ts => {
 const statusClass = status => `status-${String(status||'UNKNOWN').replace(/[^A-Z0-9]+/gi,'-').replace(/^-|-$/g,'')}`;
 const sourceClass = type => type==='github_repo'?'source-github':type==='chatgpt_thread'?'source-chatgpt':type==='github_component'?'source-component':'source-other';
 const sourceLabel = s => s.type==='github_repo'?'GitHub':s.type==='chatgpt_thread'?'ChatGPT':s.type==='chatgpt_archived'?'ChatGPT archive':s.type==='github_component'?(s.title||'Component'):s.type;
-let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, radarMode=localStorage.getItem('controlRadarModeV5') || 'overview';
+let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, projectView=localStorage.getItem('controlProjectView') || 'board';
 
 async function api(path, options={}) {
   const r = await fetch(path, {headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
@@ -107,7 +107,9 @@ function latestEvidenceRows(limit=8){
   return [...state.evidence].filter(e=>e.inventoryCurrent!==false && e.timestamp).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,limit);
 }
 function overviewCard(label,value,subtitle,cls,filter){
-  return `<button class="overview-card ${cls}" data-status-pick="${esc(filter)}"><span class="overview-icon"></span><div><small>${esc(label)}</small><strong>${esc(value)}</strong><p>${esc(subtitle)}</p></div></button>`;
+  const icon={Projects:'▱',Active:'</>',Attention:'!',Stable:'✓'}[label]||'•';
+  const bars=[28,42,36,54,67,48,76,62,88,73];
+  return `<button class="overview-card ${cls}" data-status-pick="${esc(filter)}"><span class="overview-icon">${icon}</span><div class="overview-copy"><small>${esc(label)}</small><strong>${esc(value)}</strong><p>${esc(subtitle)}</p></div><div class="metric-bars" aria-hidden="true">${bars.map((h,i)=>`<i style="height:${Math.max(16,Math.min(96,h+(Number(value||0)%5)*2-(i%3)*3))}%"></i>`).join('')}</div></button>`;
 }
 function projectBoard(buckets){
   const columns=[["attention","Attention","Blocages & validations"],["active","In progress","Projets actifs"],["stable","Stable","État confirmé"],["other","Other","Waiting / empty / unsynced"]];
@@ -138,7 +140,18 @@ function activityItem(item){
 
 function render(){
   const s=stats();
-  $("#app").innerHTML=`<div class="app view-${view}"><aside class="sidebar"><div class="brand"><div class="brand-lockup"><div class="brand-mark">S<span>//</span></div><div><h1>CONTROL</h1><p>PROJECT COMMAND</p></div></div></div><nav class="nav">${navBtn("radar","<span class=\"nav-icon\">⌂</span><span>Dashboard</span>")}${navBtn("discovered","<span class=\"nav-icon\">◇</span><span>Discovered</span>")}${navBtn("sources","<span class=\"nav-icon\">⇄</span><span>Sources / Sync</span>")}</nav><div class="side-spacer"></div><div class="side-status"><span class="live-dot"></span><div><b>${state.projects.length} projects</b><small>${overallFresh()} source picture</small></div></div><div class="side-foot">Derived ${esc(rel(state.derivedAt))} ago</div></aside><main class="main"><div class="main-inner"><div class="mobile-menu actions"><button class="btn" data-view="radar">Dashboard</button><button class="btn" data-view="discovered">Discovered</button><button class="btn" data-view="sources">Sources</button></div>${view==="radar"?radarView(s):view==="discovered"?discoveredView():sourcesView()}</div></main></div>${modalProject?projectModal(modalProject):""}`;
+  $('#app').innerHTML=`<div class="app view-${view}">
+    <aside class="sidebar premium-sidebar">
+      <div class="brand"><div class="brand-lockup"><div class="brand-mark">S</div><div><h1>SHINO // CONTROL</h1><p>PROJECT COMMAND</p></div></div></div>
+      <nav class="nav">${navBtn('radar','<span class="nav-icon">⌂</span><span>Tableau de bord</span>')}${navBtn('discovered','<span class="nav-icon">◉</span><span>Découvrir</span>')}${navBtn('sources','<span class="nav-icon">↔</span><span>Sources / Sync</span>')}</nav>
+      <div class="side-spacer"></div>
+      <button class="sidebar-sync" data-view="sources"><span class="live-dot"></span><div><b>Sync GitHub</b><small>Connecté</small></div><span>↻</span></button>
+      <div class="sidebar-facts"><span>Dernière sync</span><b>${esc(rel(state.settings?.lastGithubSync?.at || state.settings?.lastChatgptCatchup?.at || state.derivedAt))} ago</b></div>
+      <div class="side-status"><span class="live-dot"></span><div><b>${state.projects.length} projets</b><small>${overallFresh()} source picture</small></div></div>
+      <div class="side-foot">SHINO // CONTROL<br><span>BUILD ${esc(window.SHINO_CONTROL_BUILD?.version || '')}</span></div>
+    </aside>
+    <main class="main"><div class="main-inner"><div class="mobile-menu actions"><button class="btn" data-view="radar">Dashboard</button><button class="btn" data-view="discovered">Découvrir</button><button class="btn" data-view="sources">Sources</button></div>${view==='radar'?radarView(s):view==='discovered'?discoveredView():sourcesView()}</div></main>
+  </div>${modalProject?projectModal(modalProject):''}`;
   bind();
 }
 
@@ -185,8 +198,7 @@ function activityRailV4(){
   </aside>`;
 }
 function projectAccent(p){
-  const value=String(p?.name||p?.id||'project');
-  let hash=0;
+  const value=String(p?.name||p?.id||'project'); let hash=0;
   for(let i=0;i<value.length;i++) hash=((hash<<5)-hash)+value.charCodeAt(i);
   return `accent-${Math.abs(hash)%6}`;
 }
@@ -195,60 +207,34 @@ function projectGlyph(p){
   if(words.length>1) return esc((words[0][0]+words[1][0]).toUpperCase());
   return esc(String(words[0]||'P').slice(0,2).toUpperCase());
 }
-function featuredProjectCard(p){
+function premiumPriorityCard(p){
   const d=projectState(p.id); if(!d)return '';
-  const e=evidenceFor(p.id)[0], c=ctAs(p), badges=sourceBadges(p.id);
-  const summary=displaySummary(p,d,e), resume=displayResume(p,d,e);
-  return `<article class="feature-project ${statusClass(d.status)} ${projectAccent(p)}" data-open-project="${p.id}">
-    <div class="feature-project-glow"></div>
-    <div class="feature-project-head">
-      <div class="project-emblem">${projectGlyph(p)}</div>
-      <div class="feature-title"><span>${esc(p.universe||'PROJECT')}</span><h4>${esc(p.name)}</h4></div>
-      <span class="status-tag">${esc(boardLabel(d.status))}</span>
-    </div>
-    <p class="feature-summary">${esc(summary)}</p>
-    <div class="feature-next"><small>REPRENDRE ICI</small><strong>${esc(resume)}</strong></div>
-    <div class="feature-project-foot">
-      <div class="feature-meta"><span class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</span><span>${e?`${esc(rel(e.timestamp))} ago`:'No evidence'}</span></div>
-      <div class="feature-actions">${badges.slice(0,2).map(g=>`<span class="${sourceClass(g.type)}">${esc(g.label)}</span>`).join('')}${c.chat?`<a href="${esc(c.chat.url)}" target="_blank" data-stop>Continue ↗</a>`:c.pr?`<a href="${esc(c.pr.url)}" target="_blank" data-stop>Open PR ↗</a>`:''}</div>
-    </div>
-  </article>`;
+  const e=evidenceFor(p.id)[0], c=ctAs(p), badges=sourceBadges(p.id), resume=displayResume(p,d,e), summary=displaySummary(p,d,e);
+  return `<article class="priority-tile ${statusClass(d.status)} ${projectAccent(p)}" data-open-project="${p.id}"><div class="priority-tile-top"><div class="priority-symbol">${projectGlyph(p)}</div><div class="priority-name"><h4>${esc(p.name)}</h4><p>${esc(summary)}</p></div><span class="status-tag">${esc(boardLabel(d.status))}</span></div><div class="signal-track"><i></i></div><div class="priority-tile-foot"><div class="tile-tags">${[esc(p.universe||'PROJECT'),...badges.slice(0,1).map(g=>esc(g.label))].map(x=>`<span>${x}</span>`).join('')}</div><div class="tile-time"><span>${e?`${esc(rel(e.timestamp))} ago`:'—'}</span>${c.chat?`<a href="${esc(c.chat.url)}" target="_blank" data-stop>↗</a>`:''}</div></div><div class="tile-next" title="${esc(resume)}">${esc(resume)}</div></article>`;
 }
-function attentionItem(p){
-  const d=projectState(p.id); if(!d)return '';
-  const e=evidenceFor(p.id)[0], c=ctAs(p), resume=displayResume(p,d,e);
-  return `<article class="attention-item ${statusClass(d.status)}" data-open-project="${p.id}">
-    <span class="attention-led"></span>
-    <div class="attention-copy"><div><b>${esc(p.name)}</b><span>${esc(boardLabel(d.status))}</span></div><p>${esc(resume)}</p></div>
-    <small>${e?`${esc(rel(e.timestamp))} ago`:'—'}</small>
-    ${c.chat?`<a href="${esc(c.chat.url)}" target="_blank" data-stop>Open ↗</a>`:''}
-  </article>`;
+function environmentPanel(projects){
+  const p=heroProject(projects), d=p?projectState(p.id):null, m=state.settings?.lastChatgptCatchup;
+  const failed=Number(m?.failedCount||0)+Number(m?.deferredCount||0), healthy=failed===0;
+  return `<section class="environment-panel"><div class="environment-landscape"><div class="stars"></div><div class="mountain m1"></div><div class="mountain m2"></div></div><div class="environment-card"><span class="env-icon">◆</span><div><small>Environnement</small><b><i class="env-dot ${healthy?'ok':'warn'}"></i>${healthy?'Opérationnel':'À surveiller'}</b></div></div><div class="focus-card"><span>◎</span><div><small>Focus</small><b>${esc(p?.universe||'Développement')}</b></div></div></section>`;
 }
-function overviewWorkspace(projects){
-  const top=priorityProjects(projects,6);
-  const attention=projects.filter(isAttention).slice(0,4);
-  return `<div class="overview-layout">
-    <section class="overview-main">
-      <div class="section-title-row"><div><span class="eyebrow">WORKSPACE</span><h3>Projects to resume</h3><p>Les chantiers les plus utiles à reprendre maintenant.</p></div><button class="text-action" data-radar-mode="list">See all projects →</button></div>
-      <div class="feature-project-grid">${top.map(featuredProjectCard).join('')}</div>
-      ${attention.length?`<section class="attention-panel"><div class="section-title-row compact"><div><span class="eyebrow">ATTENTION</span><h3>Needs a decision</h3></div><span class="section-count">${attention.length}</span></div><div class="attention-list">${attention.map(attentionItem).join('')}</div></section>`:''}
-    </section>
-    ${activityRailV4()}
-  </div>`;
+function premiumRail(){
+  const rows=latestEvidenceRows(6), discovered=state.discovered?.length||0;
+  return `<aside class="premium-rail"><section class="rail-panel activity-panel"><div class="rail-head"><div><span class="rail-title-icon">☷</span><h3>Activité récente</h3></div><button class="rail-link">Voir tout →</button></div><div class="activity-list timeline-feed">${rows.length?rows.map(activityItem).join(''):'<div class="rail-empty">Aucune activité récente.</div>'}</div></section>${syncMiniPanel()}<section class="rail-panel sort-panel"><div class="rail-head"><div><span class="rail-title-icon">◆</span><h3>À trier</h3></div><span class="rail-count">${discovered}</span></div><div class="sort-body"><div class="sort-icon">▣</div><div><b>${discovered}</b><span>élément${discovered===1?'':'s'} à organiser</span></div><button data-view="discovered">Ouvrir dans Discover →</button></div></section></aside>`;
 }
-function fullProjectsWorkspace(projects,buckets){
-  return `<section class="dashboard-workspace full-workspace"><div class="workspace-head"><div><span class="eyebrow">PROJECTS</span><h3>${radarMode==='board'?'Project board':'Project list'}</h3><p>${projects.length} projet${projects.length===1?'':'s'} dans la vue actuelle</p></div><span class="workspace-hint">Clique une carte pour ouvrir le détail</span></div>${radarMode==='board'?projectBoard(buckets):projectListV3(projects)}</section>`;
+function githubPulse(){
+  const now=Date.now(), days=Array.from({length:14},(_,i)=>{const dayStart=new Date();dayStart.setHours(0,0,0,0);dayStart.setDate(dayStart.getDate()-(13-i));const start=dayStart.getTime(),end=start+86400000;const count=state.evidence.filter(e=>e.sourceType==='github_commit'&&Date.parse(e.timestamp)>=start&&Date.parse(e.timestamp)<end).length;return count;});
+  const max=Math.max(1,...days), total=days.reduce((a,b)=>a+b,0);
+  return `<section class="github-pulse"><div class="pulse-icon">‹›</div><div class="pulse-copy"><b>Activité GitHub</b><span>Progression sur les 14 derniers jours</span></div><div class="pulse-bars">${days.map(n=>`<i style="height:${18+Math.round((n/max)*70)}%"></i>`).join('')}</div><strong>+${total}</strong><small>commits</small></section>`;
 }
-
+function allProjectsPanel(projects,buckets){
+  const mode=(id,label)=>`<button class="view-chip ${projectView===id?'active':''}" data-project-view="${id}">${label}</button>`;
+  return `<section class="all-projects-panel"><div class="all-projects-head"><div><span class="projects-head-icon">▦</span><h3>Tous les projets</h3><small>${projects.length} projets dans votre écosystème</small></div><div class="all-projects-tools"><div class="project-search"><span>⌕</span><input id="search" placeholder="Rechercher un projet…" value="${esc(query)}"></div><select id="statusFilter" class="select compact-filter">${['ALL','ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','EMPTY','UNSYNCED'].map(x=>`<option ${statusFilter===x?'selected':''}>${x}</option>`).join('')}</select><div class="view-chips">${mode('board','Colonnes')}${mode('list','Liste')}</div></div></div>${projectView==='board'?projectBoard(buckets):projectListV3(projects)}</section>`;
+}
 function radarView(s){
   const projects=visibleProjects();
   const buckets={attention:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='attention'),active:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='active'),stable:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='stable'),other:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='other')};
-  const attentionCount=s.blocked+s.test;
-  const modeButton=(id,label)=>`<button class="mode-btn ${radarMode===id?'active':''}" data-radar-mode="${id}">${label}</button>`;
-  return `<div class="topbar hub-topbar"><div class="hub-title"><span class="eyebrow">SHINO // CONTROL</span><h2>Project Hub</h2><p>Vue d’ensemble, reprise rapide et signaux utiles.</p></div><div class="dashboard-tools"><div class="command-search"><span>⌕</span><input id="search" placeholder="Rechercher un projet, un état, une source…" value="${esc(query)}"></div><select id="statusFilter" class="select command-filter">${['ALL','ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','EMPTY','UNSYNCED'].map(x=>`<option ${statusFilter===x?'selected':''}>${x}</option>`).join('')}</select><div class="mode-switch">${modeButton('overview','◫ Overview')}${modeButton('board','▦ Board')}${modeButton('list','☷ List')}</div><button class="btn gold sync-command" id="syncBtn">↻ Sync</button></div></div>
-  ${radarMode==='overview'?heroPanel(projects):''}
-  <section class="overview-grid">${overviewCard('Projects',state.projects.length,'Tous les projets suivis','overview-total','ALL')}${overviewCard('Active',s.active,'Travail en cours','overview-active','ACTIVE')}${overviewCard('Attention',attentionCount,`${s.blocked} blocked · ${s.test} needs test`,'overview-attention',attentionCount?'NEEDS TEST':'ALL')}${overviewCard('Stable',s.stable,'État confirmé','overview-stable','STABLE')}</section>
-  ${radarMode==='overview'?overviewWorkspace(projects):fullProjectsWorkspace(projects,buckets)}`;
+  const attentionCount=s.blocked+s.test, priorities=priorityProjects(projects,4);
+  return `<div class="premium-dashboard"><div class="premium-top"><section class="premium-main">${heroPanel(projects)}</section>${environmentPanel(projects)}</div><div class="premium-body"><section class="premium-main"><section class="overview-grid">${overviewCard('Projects',state.projects.length,'Tous les projets suivis','overview-total','ALL')}${overviewCard('Active',s.active,'Travail en cours','overview-active','ACTIVE')}${overviewCard('Attention',attentionCount,'Nécessitent un suivi','overview-attention',attentionCount?'NEEDS TEST':'ALL')}${overviewCard('Stable',s.stable,'État confirmé','overview-stable','STABLE')}</section><section class="priority-panel"><div class="premium-section-head"><div><span>★</span><h3>Projets prioritaires</h3><p>Les projets à suivre en priorité pour un avancement maximal.</p></div><button data-project-view="list">Voir tous →</button></div><div class="priority-row">${priorities.map(premiumPriorityCard).join('')}</div></section>${allProjectsPanel(projects,buckets)}${githubPulse()}</section>${premiumRail()}</div></div>`;
 }
 
 function sectionHeading(title, subtitle, cls=''){return `<div class="section-head ${cls}"><div><h3>${esc(title)}</h3><p>${esc(subtitle)}</p></div></div>`}
@@ -311,8 +297,8 @@ function bind(){
   document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;render()});
   $('#search')?.addEventListener('input',e=>{query=e.target.value;render()});
   $('#statusFilter')?.addEventListener('change',e=>{statusFilter=e.target.value;render()});
-  document.querySelectorAll('[data-radar-mode]').forEach(b=>b.addEventListener('click',()=>{radarMode=b.dataset.radarMode;localStorage.setItem('controlRadarModeV5',radarMode);render()}));
   document.querySelectorAll('[data-status-pick]').forEach(b=>b.addEventListener('click',()=>{statusFilter=b.dataset.statusPick||'ALL';render()}));
+  document.querySelectorAll('[data-project-view]').forEach(b=>b.addEventListener('click',()=>{projectView=b.dataset.projectView||'board';localStorage.setItem('controlProjectView',projectView);render()}));
   $('#syncBtn')?.addEventListener('click',()=>{view='sources';render();setTimeout(()=>$('#ghToken')?.focus(),0)});
   $('#syncBtn2')?.addEventListener('click',syncGithub);
   document.querySelectorAll('[data-open-project]').forEach(el=>el.onclick=e=>{if(e.target.closest('[data-stop],[data-why]'))return;modalProject=el.dataset.openProject;render()});
