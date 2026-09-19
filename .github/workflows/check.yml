@@ -44,6 +44,7 @@ jobs:
           node --check scripts-ui-v6-check.mjs
           node --check scripts-ui-v61-check.mjs
           node --check scripts-ui-v62-check.mjs
+          node --check scripts-ui-v7-check.mjs
           node --check scripts-runtime-state-check.mjs
           node --check scripts-tray-check.mjs
           node --check scripts/repair-state.mjs
@@ -88,7 +89,7 @@ jobs:
         run: |
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.9.34' public/build-info.js
+          grep -q '0.9.35' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
           grep -q '"version": "0.2.7"' extension/control-collector/manifest.json
@@ -172,6 +173,8 @@ jobs:
           grep -q 'CONTROL UI v6' public/ui-v6.css
           grep -q 'screenshot-calibrated proportions' public/ui-v6.css
           grep -q 'restore missing structural hero rules' public/ui-v6.css
+          grep -q 'generic dashboard header + full-screen central project pages' public/ui-v6.css
+          grep -q 'function projectPage' public/app.js
           grep -q 'premiumProjectBoard' public/app.js
           grep -q 'ui-v6.css' public/index.html
           ! grep -q 'ui-v5.css' public/index.html
@@ -215,7 +218,7 @@ jobs:
           test -s dist/ui-v6.css
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.9.34"' dist/state.json
+          grep -q '"version": "0.9.35"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'lastChatgptCatchup' dist/state.json; then
             echo 'Private ChatGPT catch-up diagnostics leaked into public snapshot'
