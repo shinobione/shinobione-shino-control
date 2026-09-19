@@ -37,6 +37,7 @@ jobs:
           node --check scripts-chatgpt-tail-state-check.mjs
           node --check scripts-focus-now-check.mjs
           node --check scripts-sync-health-check.mjs
+          node --check scripts-ui-v2-check.mjs
           node --check scripts-tray-check.mjs
           node --check scripts/repair-state.mjs
           node --check scripts/generate-build-info.mjs
@@ -80,7 +81,7 @@ jobs:
         run: |
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.9.26' public/build-info.js
+          grep -q '0.9.27' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
           grep -q '"version": "0.2.7"' extension/control-collector/manifest.json
@@ -154,6 +155,9 @@ jobs:
           test -s public/sync-health.js
           test -s public/sync-health.css
           test -s public/radar-copy-cleaner.js
+          test -s public/ui-v2.css
+          grep -q 'CONTROL UI v2' public/ui-v2.css
+          grep -q 'view-${view}' public/app.js
           grep -q 'FOCUS NOW' public/focus-now.js
           grep -q 'CHATGPT SYNC HEALTH' public/sync-health.js
           grep -q 'Transient failed' public/sync-health.js
@@ -187,9 +191,10 @@ jobs:
           test -s dist/sync-health.js
           test -s dist/sync-health.css
           test -s dist/radar-copy-cleaner.js
+          test -s dist/ui-v2.css
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.9.26"' dist/state.json
+          grep -q '"version": "0.9.27"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'lastChatgptCatchup' dist/state.json; then
             echo 'Private ChatGPT catch-up diagnostics leaked into public snapshot'
