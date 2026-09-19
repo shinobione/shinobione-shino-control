@@ -220,14 +220,22 @@ function premiumPriorityCard(p){
   const e=evidenceFor(p.id)[0], c=ctAs(p), badges=sourceBadges(p.id), resume=displayResume(p,d,e), summary=displaySummary(p,d,e);
   return `<article class="priority-tile ${statusClass(d.status)} ${projectAccent(p)}" data-open-project="${p.id}"><div class="priority-tile-top"><div class="priority-symbol">${projectGlyph(p)}</div><div class="priority-name"><h4>${esc(p.name)}</h4><p>${esc(summary)}</p></div><span class="status-tag">${esc(boardLabel(d.status))}</span></div><div class="signal-track"><i></i></div><div class="priority-tile-foot"><div class="tile-tags">${[esc(p.universe||'PROJECT'),...badges.slice(0,1).map(g=>esc(g.label))].map(x=>`<span>${x}</span>`).join('')}</div><div class="tile-time"><span>${e?`${esc(rel(e.timestamp))} ago`:'—'}</span>${c.chat?`<a href="${esc(c.chat.url)}" target="_blank" data-stop>↗</a>`:''}</div></div><div class="tile-next" title="${esc(resume)}">${esc(resume)}</div></article>`;
 }
-function environmentPanel(){
+function systemStatusPanel(){
   const m=state.settings?.lastChatgptCatchup;
-  const failed=Number(m?.failedCount||0)+Number(m?.deferredCount||0), healthy=failed===0;
-  return `<section class="environment-panel"><div class="environment-landscape"><div class="stars"></div><div class="mountain m1"></div><div class="mountain m2"></div></div><div class="environment-card"><span class="env-icon">◆</span><div><small>Environnement</small><b><i class="env-dot ${healthy?'ok':'warn'}"></i>${healthy?'Opérationnel':'À surveiller'}</b></div></div><div class="focus-card"><span>◎</span><div><small>Focus</small><b>Project Command</b></div></div></section>`;
+  const failed=Number(m?.failedCount||0)+Number(m?.deferredCount||0);
+  const healthy=failed===0;
+  const hasGithub=state.sources.some(s=>String(s.type||'').startsWith('github_'));
+  const hasChat=state.sources.some(s=>s.type==='chatgpt_thread');
+  const row=(icon,label,value,ok=true)=>\`<div class="v8-system-row"><span class="v8-system-icon">\${icon}</span><div><small>\${label}</small><b><i class="\${ok?'ok':'warn'}"></i>\${value}</b></div></div>\`;
+  return \`<section class="v8-system-panel"><div class="v8-system-head"><span>SYSTEM</span><b>\${healthy?'Tout OK':'À surveiller'}</b></div>\${row('◆','Environnement',healthy?'Opérationnel':'À surveiller',healthy)}\${row('GH','GitHub',hasGithub?'Connecté':'Non détecté',hasGithub)}\${row('AI','ChatGPT',hasChat?'Connecté':'Non détecté',hasChat)}\${row('▣','Environnement local','Opérationnel',true)}</section>\`;
 }
 function premiumRail(){
   const rows=latestEvidenceRows(6), discovered=state.discovered?.length||0;
-  return `<aside class="premium-rail"><section class="rail-panel activity-panel"><div class="rail-head"><div><span class="rail-title-icon">☷</span><h3>Activité récente</h3></div><button class="rail-link">Voir tout →</button></div><div class="activity-list timeline-feed">${rows.length?rows.map(activityItem).join(''):'<div class="rail-empty">Aucune activité récente.</div>'}</div></section>${syncMiniPanel()}<section class="rail-panel sort-panel"><div class="rail-head"><div><span class="rail-title-icon">◆</span><h3>À trier</h3></div><span class="rail-count">${discovered}</span></div><div class="sort-body"><div class="sort-icon">▣</div><div><b>${discovered}</b><span>élément${discovered===1?'':'s'} à organiser</span></div><button data-view="discovered">Ouvrir dans Discover →</button></div></section></aside>`;
+  return \`<aside class="v8-rail">\${systemStatusPanel()}
+    <section class="v8-rail-card"><div class="v8-rail-head"><h3>Activité récente</h3><button>Voir tout →</button></div><div class="v8-activity">\${rows.length?rows.map(activityItem).join(''):'<div class="rail-empty">Aucune activité récente.</div>'}</div></section>
+    \${syncMiniPanel()}
+    <section class="v8-rail-card v8-sort"><div class="v8-rail-head"><h3>À trier</h3><span>\${discovered}</span></div><div class="v8-sort-body"><div class="v8-sort-icon">▣</div><div><b>\${discovered}</b><small>élément\${discovered===1?'':'s'} à organiser</small></div><button data-view="discovered">Ouvrir dans Discover →</button></div></section>
+  </aside>\`;
 }
 function githubPulse(){
   const now=Date.now(), days=Array.from({length:14},(_,i)=>{const dayStart=new Date();dayStart.setHours(0,0,0,0);dayStart.setDate(dayStart.getDate()-(13-i));const start=dayStart.getTime(),end=start+86400000;const count=state.evidence.filter(e=>e.sourceType==='github_commit'&&Date.parse(e.timestamp)>=start&&Date.parse(e.timestamp)<end).length;return count;});
@@ -246,9 +254,8 @@ function radarView(s){
   const projects=visibleProjects();
   const buckets={attention:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='attention'),active:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='active'),stable:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='stable'),other:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='other')};
   const attentionCount=s.blocked+s.test, priorities=priorityProjects(projects,4);
-  return `<div class="premium-dashboard"><div class="premium-top"><section class="premium-main">${dashboardHero()}</section>${environmentPanel()}</div><div class="premium-body"><section class="premium-main"><section class="overview-grid">${overviewCard('Projects',state.projects.length,'Tous les projets suivis','overview-total','ALL')}${overviewCard('Active',s.active,'Travail en cours','overview-active','ACTIVE')}${overviewCard('Attention',attentionCount,'Nécessitent un suivi','overview-attention',attentionCount?'NEEDS TEST':'ALL')}${overviewCard('Stable',s.stable,'État confirmé','overview-stable','STABLE')}</section><section class="priority-panel"><div class="premium-section-head"><div><span>★</span><h3>Projets prioritaires</h3><p>Les projets à suivre en priorité pour un avancement maximal.</p></div><button data-project-view="list">Voir tous →</button></div><div class="priority-row">${priorities.map(premiumPriorityCard).join('')}</div></section>${allProjectsPanel(projects,buckets)}${githubPulse()}</section>${premiumRail()}</div></div>`;
+  return \`<div class="v8-dashboard"><section class="v8-dashboard-main">\${dashboardHero()}<section class="overview-grid">\${overviewCard('Projects',state.projects.length,'Tous les projets suivis','overview-total','ALL')}\${overviewCard('Active',s.active,'En développement','overview-active','ACTIVE')}\${overviewCard('Attention',attentionCount,'Nécessitent un suivi','overview-attention',attentionCount?'NEEDS TEST':'ALL')}\${overviewCard('Stable',s.stable,'À jour et OK','overview-stable','STABLE')}</section><section class="priority-panel"><div class="premium-section-head"><div><span>★</span><h3>Projets prioritaires</h3><p>Les projets à suivre en priorité pour un avancement maximal.</p></div><button data-scroll-projects>Voir tous les projets →</button></div><div class="priority-row">\${priorities.map(premiumPriorityCard).join('')}</div></section>\${allProjectsPanel(projects,buckets)}\${githubPulse()}</section>\${premiumRail()}</div>\`;
 }
-
 function projectPage(id){
   const p=projectById(id), d=projectState(id); if(!p||!d)return radarView(stats());
   const ev=evidenceFor(id), src=sourcesFor(id), cta=ctAs(p), e=ev[0], badges=sourceBadges(id);
