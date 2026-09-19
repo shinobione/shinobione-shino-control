@@ -148,7 +148,7 @@ function render(){
       <button class="sidebar-sync" data-view="sources"><span class="live-dot"></span><div><b>Sync GitHub</b><small>Connecté</small></div><span>↻</span></button>
       <div class="sidebar-facts"><span>Dernière sync</span><b>${esc(rel(state.settings?.lastGithubSync?.at || state.settings?.lastChatgptCatchup?.at || state.derivedAt))} ago</b></div>
       <div class="side-status"><span class="live-dot"></span><div><b>${state.projects.length} projets</b><small>${overallFresh()} source picture</small></div></div>
-      <div class="side-foot">SHINO // CONTROL<br><span>BUILD ${esc(window.CONTROL_BUILD?.version || '')}</span></div>
+      <div class="side-foot">SHINO // CONTROL<br><span>BUILD ${esc(window.SHINO_CONTROL_BUILD?.version || '')}</span></div>
     </aside>
     <main class="main"><div class="main-inner"><div class="mobile-menu actions"><button class="btn" data-view="radar">Dashboard</button><button class="btn" data-view="discovered">Découvrir</button><button class="btn" data-view="sources">Sources</button></div>${view==='radar'?radarView(s):view==='discovered'?discoveredView():sourcesView()}</div></main>
   </div>${modalProject?projectModal(modalProject):''}`;
