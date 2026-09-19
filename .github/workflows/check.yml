@@ -46,6 +46,7 @@ jobs:
           node --check scripts-ui-v62-check.mjs
           node --check scripts-ui-v7-check.mjs
           node --check scripts-ui-v8-check.mjs
+          node --check scripts-ui-v81-check.mjs
           node --check scripts-runtime-state-check.mjs
           node --check scripts-tray-check.mjs
           node --check scripts/repair-state.mjs
@@ -90,7 +91,7 @@ jobs:
         run: |
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.9.36' public/build-info.js
+          grep -q '0.9.37' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
           grep -q '"version": "0.2.7"' extension/control-collector/manifest.json
@@ -176,6 +177,7 @@ jobs:
           grep -q 'restore missing structural hero rules' public/ui-v6.css
           test -s public/ui-v8.css
           grep -q 'CONTROL UI v8' public/ui-v8.css
+          grep -q 'readability rescue' public/ui-v8.css
           grep -q 'ui-v8.css' public/index.html
           ! grep -q 'ui-v6.css' public/index.html
           grep -q 'function projectPage' public/app.js
@@ -222,7 +224,7 @@ jobs:
           test -s dist/ui-v8.css
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.9.36"' dist/state.json
+          grep -q '"version": "0.9.37"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'lastChatgptCatchup' dist/state.json; then
             echo 'Private ChatGPT catch-up diagnostics leaked into public snapshot'
