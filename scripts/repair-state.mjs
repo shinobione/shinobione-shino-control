@@ -1,12 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runtimeStatePath } from '../lib/state-store.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.dirname(__dirname);
-const STATE = path.join(ROOT, 'data', 'state.json');
+const STATE = runtimeStatePath();
 
-if (!fs.existsSync(STATE)) throw new Error(`state.json not found: ${STATE}`);
+if (!fs.existsSync(STATE)) throw new Error(`runtime state not found: ${STATE}`);
 
 const CP1252_REVERSE = new Map([
   [0x20AC,0x80],[0x201A,0x82],[0x0192,0x83],[0x201E,0x84],[0x2026,0x85],[0x2020,0x86],[0x2021,0x87],[0x02C6,0x88],[0x2030,0x89],[0x0160,0x8A],[0x2039,0x8B],[0x0152,0x8C],[0x017D,0x8E],
