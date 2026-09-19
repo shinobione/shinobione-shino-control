@@ -460,3 +460,207 @@ body:before{
   .priority-row,.project-board{grid-template-columns:repeat(2,minmax(0,1fr))}
   .all-projects-head{align-items:flex-start;flex-direction:column}
 }
+
+
+/* v6.2 — restore missing structural hero rules and push the premium depth closer to the target. */
+/* v4/v5 used to carry these layout primitives. v6 now owns them explicitly. */
+.command-hero{
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+  display:grid;
+  grid-template-columns:minmax(0,1.45fr) minmax(420px,.72fr);
+  align-items:stretch;
+}
+.command-hero:before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+}
+.command-hero:after{
+  content:"";
+  position:absolute;
+  inset:-35% -8% -38% 34%;
+  z-index:0;
+  pointer-events:none;
+  opacity:.9;
+  background:
+    linear-gradient(126deg,transparent 0 31%,rgba(37,138,255,.10) 31.5% 32.5%,transparent 33% 45%,rgba(128,72,255,.11) 45.5% 46.5%,transparent 47%),
+    radial-gradient(ellipse at 58% 46%,rgba(52,126,255,.18),transparent 48%),
+    radial-gradient(ellipse at 81% 42%,rgba(133,67,255,.17),transparent 43%);
+  transform:rotate(-3deg);
+}
+.hero-copy{
+  position:relative;
+  z-index:3;
+  min-width:0;
+}
+.hero-visual{
+  position:relative;
+  z-index:2;
+  min-width:0;
+  height:100%;
+  overflow:hidden;
+  border-left:1px solid rgba(76,134,224,.20);
+}
+.hero-visual:before{
+  content:"";
+  position:absolute;
+  width:520px;
+  height:210px;
+  right:-22px;
+  top:42px;
+  border-radius:52% 48% 58% 42%;
+  background:
+    linear-gradient(120deg,rgba(29,88,230,.12),rgba(86,75,255,.26) 44%,rgba(207,58,220,.14) 70%,transparent 82%);
+  filter:blur(8px);
+  transform:rotate(-17deg);
+}
+.hero-visual:after{
+  content:"";
+  position:absolute;
+  width:420px;
+  height:160px;
+  right:30px;
+  top:78px;
+  border:1px solid rgba(90,153,255,.16);
+  border-radius:50%;
+  transform:rotate(-17deg);
+  box-shadow:
+    0 0 0 30px rgba(74,123,255,.025),
+    0 0 0 64px rgba(135,82,255,.018);
+}
+.hero-orbit,
+.hero-shape,
+.hero-monogram,
+.hero-status{position:absolute}
+.hero-orbit{
+  border:1px solid rgba(112,164,255,.25);
+  border-radius:50%;
+  transform:rotate(-18deg);
+  pointer-events:none;
+}
+.hero-shape{transform:rotate(-16deg)}
+.hero-monogram{
+  z-index:5;
+  font-weight:950;
+  letter-spacing:-.075em;
+  color:#f8fbff;
+  text-shadow:0 10px 34px rgba(0,0,0,.42),0 0 24px rgba(105,163,255,.22);
+}
+.hero-status{z-index:6;backdrop-filter:blur(10px)}
+.shape-a,.shape-b{z-index:3}
+.orbit-a,.orbit-b{z-index:1}
+
+/* Add a visual separator / brand treatment inside the hero art. */
+.hero-visual .shape-a:after{
+  content:"";
+  position:absolute;
+  inset:8px;
+  border-radius:inherit;
+  border:1px solid rgba(255,255,255,.15);
+  pointer-events:none;
+}
+.hero-visual .shape-b:after{
+  content:"";
+  position:absolute;
+  inset:6px;
+  border-radius:inherit;
+  border:1px solid rgba(255,255,255,.11);
+  pointer-events:none;
+}
+
+/* Column identity should read before the text, like the reference. */
+.board-column{
+  position:relative;
+  overflow:hidden;
+  box-shadow:0 10px 28px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.025);
+}
+.board-column:before{
+  content:"";
+  position:absolute;
+  left:0;right:0;top:0;
+  height:58px;
+  pointer-events:none;
+  opacity:.72;
+}
+.board-attention{border-color:#713746}
+.board-attention:before{background:linear-gradient(180deg,rgba(255,87,110,.12),transparent)}
+.board-active{border-color:#225c9b}
+.board-active:before{background:linear-gradient(180deg,rgba(47,140,255,.12),transparent)}
+.board-stable{border-color:#1d6b59}
+.board-stable:before{background:linear-gradient(180deg,rgba(36,212,160,.11),transparent)}
+.board-other{border-color:#5c418f}
+.board-other:before{background:linear-gradient(180deg,rgba(135,83,235,.11),transparent)}
+.board-column>header{position:relative;z-index:2}
+.board-attention>header h4{color:#ff9aa7}
+.board-active>header h4{color:#80baff}
+.board-stable>header h4{color:#75e4be}
+.board-other>header h4{color:#b89cff}
+.board-attention>header h4 span{background:#3a1720;color:#ff9baa}
+.board-active>header h4 span{background:#102c4c;color:#83bcff}
+.board-stable>header h4 span{background:#0f322a;color:#78e3bf}
+.board-other>header h4 span{background:#261a40;color:#bca2ff}
+
+/* Cards get a raised inner surface rather than reading as table rows. */
+.board-card{
+  box-shadow:
+    0 8px 18px rgba(0,0,0,.24),
+    inset 0 1px 0 rgba(255,255,255,.035);
+}
+.board-card:hover{
+  transform:translateY(-2px);
+  box-shadow:
+    0 14px 28px rgba(0,0,0,.30),
+    0 0 22px color-mix(in srgb,var(--accent) 8%,transparent),
+    inset 0 1px 0 rgba(255,255,255,.05);
+}
+
+/* Give the stats their own light pool so they stop reading as four identical boxes. */
+.overview-card:after{
+  content:"";
+  position:absolute;
+  width:170px;height:100px;
+  right:-28px;bottom:-36px;
+  border-radius:50%;
+  pointer-events:none;
+  filter:blur(4px);
+  opacity:.62;
+}
+.overview-total:after{background:radial-gradient(circle,rgba(112,78,255,.25),transparent 68%)}
+.overview-active:after{background:radial-gradient(circle,rgba(35,137,255,.23),transparent 68%)}
+.overview-attention:after{background:radial-gradient(circle,rgba(242,170,47,.22),transparent 68%)}
+.overview-stable:after{background:radial-gradient(circle,rgba(31,212,164,.20),transparent 68%)}
+.overview-card>*{position:relative;z-index:2}
+
+/* Priority tiles: stronger edge light and less flat center. */
+.priority-tile:before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:
+    linear-gradient(120deg,rgba(255,255,255,.045),transparent 22% 72%,rgba(255,255,255,.018)),
+    radial-gradient(180px 100px at 0 100%,color-mix(in srgb,var(--accent) 12%,transparent),transparent 70%);
+}
+.priority-tile>*{position:relative;z-index:2}
+
+/* Right rail: a little more visual rhythm and separation. */
+.activity-panel .activity-item:nth-child(odd){background:linear-gradient(90deg,rgba(42,88,145,.055),transparent)}
+.timeline-feed .activity-item{border-radius:7px}
+.sort-panel{
+  background:
+    radial-gradient(170px 90px at 0 100%,rgba(212,139,48,.08),transparent 70%),
+    linear-gradient(155deg,#0b1c37,#07152b);
+}
+
+/* Ensure the brand graphic still scales down cleanly on narrower desktops. */
+@media(max-width:1900px){
+  .command-hero{grid-template-columns:minmax(0,1.38fr) minmax(330px,.62fr)}
+}
+@media(max-width:1350px){
+  .command-hero{grid-template-columns:1fr}
+  .hero-visual{display:none}
+}
