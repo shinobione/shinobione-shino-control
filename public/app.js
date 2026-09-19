@@ -173,16 +173,22 @@ function priorityProjectCard(p){
   </article>`;
 }
 function dashboardHero(){
-  return `<section class="command-hero dashboard-hero">
-    <div class="hero-copy">
-      <span class="eyebrow">SHINO // CONTROL</span>
-      <h2>Project Command Center</h2>
-      <p class="hero-summary">Pilote tes projets, retrouve instantanément le bon contexte et reprends chaque chantier exactement là où il en est.</p>
-      <div class="hero-next"><span>CONTROL</span><strong>Un seul cockpit pour ChatGPT, GitHub, états, reprises et signaux de synchronisation.</strong></div>
-      <div class="hero-actions"><button class="btn hero-primary" data-scroll-projects>Explorer les projets</button><button class="btn hero-secondary" data-view="sources">Sources / Sync</button></div>
+  const build=window.SHINO_CONTROL_BUILD?.version||'';
+  return \`<section class="v8-hero">
+    <div class="v8-hero-copy">
+      <span class="v8-welcome">Bon retour. ☀</span>
+      <h1>SHINO <em>//</em> CONTROL</h1>
+      <p>Interface centrale pour piloter tes projets, dépôts GitHub, tâches ChatGPT et tout ton travail en cours.</p>
+      <div class="v8-hero-search"><span>⌕</span><input data-search placeholder="Rechercher un projet, un dépôt, une tâche… (Ctrl + K)" value="\${esc(query)}"><kbd>CTRL</kbd><kbd>K</kbd></div>
+      <div class="v8-hero-actions"><button class="v8-primary" data-scroll-projects>Explorer les projets →</button><button class="v8-secondary" data-view="sources">Sources / Sync</button></div>
     </div>
-    <div class="hero-visual" aria-hidden="true"><div class="hero-orbit orbit-a"></div><div class="hero-orbit orbit-b"></div><div class="hero-shape shape-a"></div><div class="hero-shape shape-b"></div><div class="hero-monogram">S<span>//</span></div><div class="hero-brand-copy"><small>IDEAS</small><small>CODE</small><small>PROJECTS</small><b>IMPACT RÉEL.</b></div></div>
-  </section>`;
+    <div class="v8-hero-art" aria-hidden="true">
+      <span class="v8-build">BUILD v\${esc(build)}</span>
+      <div class="v8-ribbon r1"></div><div class="v8-ribbon r2"></div><div class="v8-ribbon r3"></div>
+      <div class="v8-logo-stack"><span>S<small>//</small></span></div>
+      <div class="v8-art-copy"><small>BUILD</small><small>ORGANIZE</small><small>AUTOMATE</small><b>PROGRESS</b></div>
+    </div>
+  </section>\`;
 }
 function syncMiniPanel(){
   const m=state.settings?.lastChatgptCatchup;
