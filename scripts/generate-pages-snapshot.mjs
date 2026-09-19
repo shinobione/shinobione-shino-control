@@ -3,10 +3,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deriveAll } from '../lib/derive.mjs';
 import { buildPublicSnapshot } from '../lib/public-snapshot.mjs';
+import { runtimeStatePath } from '../lib/state-store.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const LIVE_DATA = path.join(ROOT, 'data', 'state.json');
+const LIVE_DATA = runtimeStatePath();
 const PAGES_DATA = path.join(ROOT, 'data', 'state.pages.json');
 const PACKAGE = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 
