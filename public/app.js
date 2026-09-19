@@ -287,7 +287,7 @@ function workflowSteps(status){
 function projectPage(id){
   const p=projectById(id), d=projectState(id); if(!p||!d)return radarView(stats());
   const ev=evidenceFor(id), src=sourcesFor(id), cta=ctAs(p), e=ev[0], files=extractProjectFiles(id);
-  const summary=displaySummary(p,d,e), resume=displayResume(p,d,e), recent=ev.slice(0,8);
+  const summary=displaySummary(p,d,e), resume=displayResume(p,d,e), recent=ev.slice(0,5);
   const progress=projectProgress(d.status), issueCount=projectIssueCount(id), build=window.SHINO_CONTROL_BUILD?.version||'';
   const actionLinks=[
     cta.pr?`<a class="v8-action primary" href="${esc(cta.pr.url)}" target="_blank">Ouvrir PR ↗</a>`:'',
