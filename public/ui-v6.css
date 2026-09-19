@@ -315,3 +315,148 @@ body:before{
 
 /* Legacy injected Focus/Sync cards are replaced by native v6 modules on the dashboard. */
 .view-radar .focus-now,.view-radar .sync-health{display:none!important}
+
+
+/* v6.1 — screenshot-calibrated proportions.
+   The previous pass matched the target structure but rendered at roughly half its visual scale
+   on a 3440×1440 desktop. These values restore the intended hierarchy/readability. */
+.app{grid-template-columns:280px minmax(0,1fr)}
+.premium-sidebar{padding:28px 16px 20px}
+.brand{padding:4px 8px 30px}
+.brand-lockup{gap:12px}
+.brand-mark{width:46px;height:46px;border-radius:13px;font-size:24px}
+.brand h1{font-size:14px;letter-spacing:.075em}
+.brand p{font-size:8px;margin-top:4px}
+.nav{gap:8px}
+.nav button{padding:15px 13px;font-size:14px;border-radius:11px}
+.nav-icon{width:22px;font-size:17px}
+.sidebar-sync{grid-template-columns:14px 1fr auto;gap:10px;padding:13px 12px;border-radius:12px}
+.sidebar-sync b{font-size:12px}.sidebar-sync small{font-size:9px}.sidebar-sync>span:last-child{font-size:18px}
+.sidebar-facts{padding:10px 4px 12px;font-size:9px}
+.side-status{padding:11px;margin-bottom:12px}.side-status b{font-size:11px}.side-status small{font-size:8px}
+.side-foot{font-size:9px;line-height:1.65}
+
+.main{padding:16px 18px 32px}
+.premium-top,.premium-body{grid-template-columns:minmax(0,1fr) 480px;gap:14px}
+.premium-body{margin-top:14px}
+
+/* hero */
+.command-hero{height:300px;min-height:300px;border-radius:18px}
+.hero-copy{padding:27px 32px}
+.hero-copy .eyebrow{font-size:9px;margin-bottom:5px}
+.hero-copy h2{font-size:44px;margin:2px 0 8px}
+.hero-summary{max-width:1100px;font-size:14px;line-height:1.45}
+.hero-next{max-width:1320px;margin-top:17px;padding:12px 15px;border-radius:10px}
+.hero-next span{font-size:9px}.hero-next strong{font-size:14px}
+.hero-actions{margin-top:15px;gap:10px}.hero-actions .btn{padding:11px 16px;font-size:12px;border-radius:9px}
+.hero-visual{min-height:300px}
+.orbit-a{width:410px;height:214px;right:20px;top:14px}
+.orbit-b{width:326px;height:162px;right:64px;top:42px}
+.shape-a{width:240px;height:110px;right:82px;top:68px;border-radius:25px}
+.shape-b{width:168px;height:72px;right:220px;top:126px;border-radius:21px}
+.hero-monogram{right:120px;top:76px;font-size:70px}.hero-monogram span{font-size:27px}
+.hero-status{right:18px;bottom:14px;min-width:145px;padding:10px 11px;border-radius:10px}
+.hero-status small{font-size:7px}.hero-status b{font-size:12px}.hero-status span{font-size:8px}
+
+/* environment */
+.environment-panel{height:300px;border-radius:18px}
+.m1{width:390px;height:176px;right:-36px}.m2{width:320px;height:130px;right:128px;bottom:-30px}
+.environment-card,.focus-card{left:20px;right:20px;padding:14px 15px;gap:13px;border-radius:12px}
+.environment-card{top:20px}.focus-card{bottom:20px}
+.env-icon,.focus-card>span{width:44px;height:44px;border-radius:11px;font-size:17px}
+.environment-card small,.focus-card small{font-size:10px}
+.environment-card b,.focus-card b{font-size:14px;margin-top:3px}.env-dot{width:9px;height:9px}
+
+/* metrics */
+.overview-grid{gap:12px;margin-bottom:14px}
+.overview-card{height:128px;min-height:128px;padding:14px 16px;border-radius:14px;grid-template-columns:56px 1fr 132px}
+.overview-icon{width:56px;height:56px;border-radius:14px;font-size:23px}
+.overview-copy small{font-size:11px}.overview-copy strong{font-size:32px;margin-top:1px}.overview-copy p{font-size:10px;margin-top:3px}
+.metric-bars{height:70px;gap:5px}.metric-bars i{width:8px;border-radius:3px 3px 0 0}
+
+/* priority */
+.priority-panel{margin-bottom:14px;padding:13px;border-radius:14px}
+.premium-section-head{margin-bottom:11px}
+.premium-section-head>div{gap:12px}.premium-section-head>div>span{font-size:20px}
+.premium-section-head h3{font-size:17px}.premium-section-head p{font-size:10px}.premium-section-head>button{font-size:10px}
+.priority-row{gap:11px}
+.priority-tile{height:190px;padding:14px;border-radius:12px}
+.priority-tile-top{grid-template-columns:42px 1fr auto;gap:11px}
+.priority-symbol{width:42px;height:42px;border-radius:10px;font-size:13px}
+.priority-name h4{font-size:14px}.priority-name p{font-size:9px;margin-top:3px}
+.priority-tile .status-tag{font-size:8px;padding:4px 7px}
+.signal-track{height:6px;margin:13px 0 11px}
+.tile-tags{gap:6px}.tile-tags span{max-width:116px;padding:4px 8px;border-radius:7px;font-size:8px}
+.tile-time{gap:8px}.tile-time span{font-size:9px}.tile-time a{font-size:14px}
+.tile-next{margin-top:10px;font-size:10px;line-height:1.35}
+
+/* all projects */
+.all-projects-panel{padding:13px;border-radius:14px}
+.all-projects-head{gap:14px;margin-bottom:11px}
+.all-projects-head>div:first-child{gap:10px}.projects-head-icon{font-size:20px}
+.all-projects-head h3{font-size:17px}.all-projects-head small{font-size:9px}
+.all-projects-tools{gap:8px}
+.project-search{width:410px;height:42px;padding:0 12px;border-radius:9px}
+.project-search span{font-size:16px}.project-search input{font-size:11px}
+.compact-filter{height:42px;padding:0 11px;font-size:9px}
+.view-chips{gap:5px}.view-chip{height:42px;padding:0 11px;border-radius:8px;font-size:9px}
+.project-board{gap:10px}
+.board-column{padding:10px;border-radius:11px;min-height:380px}
+.board-column>header{padding:3px 4px 10px}.board-column>header h4{font-size:12px}.board-column>header h4 span{min-width:22px;height:22px;font-size:8px}
+.board-column>header p{font-size:8px}
+.board-stack{gap:9px}
+.board-card{min-height:91px;padding:10px;border-radius:9px}
+.board-card:before{width:3px}
+.project-type{font-size:7px}.board-card .status-tag{font-size:7px;padding:3px 5px}
+.board-card h4{font-size:12px;margin:7px 0 4px}
+.board-resume{min-height:28px;font-size:9px;line-height:1.35;-webkit-line-clamp:2}
+.board-meta{margin-top:6px;font-size:7px}.board-footer{margin-top:6px;padding-top:6px}
+.mini-sources span{font-size:7px;padding:3px 5px}.quick-open{width:27px;height:27px;border-radius:7px;font-size:11px}
+.board-empty{padding:28px 10px;font-size:9px}
+.board-more{width:100%;padding:8px;border:1px dashed #285887;border-radius:8px;background:#091b33;color:#79a9df;font-size:9px;cursor:pointer}
+.board-more:hover{background:#0e294b;color:#cce4ff}
+
+/* right rail */
+.premium-rail{gap:12px}
+.rail-panel{border-radius:14px;padding:13px}
+.rail-head{margin-bottom:9px}.rail-head>div{gap:9px}.rail-title-icon{font-size:16px}.rail-head h3{font-size:14px}
+.rail-link{font-size:9px}.rail-count{min-width:25px;height:25px;border-radius:7px;font-size:8px}
+.timeline-feed .activity-item{grid-template-columns:38px 1fr;padding:10px 2px 10px 14px;gap:11px}
+.timeline-feed .activity-item:before{left:4px}.timeline-feed .activity-item:after{left:0;top:24px;width:9px;height:9px}
+.timeline-feed .activity-icon{width:38px;height:38px;border-radius:9px;font-size:8px}
+.timeline-feed .activity-item strong{font-size:11px}.timeline-feed .activity-item p{font-size:9px}.timeline-feed .activity-item small{font-size:8px}
+.sync-mini-grid{gap:7px}.sync-mini-grid>div{padding:10px 6px;border-radius:9px}.sync-mini-grid b{font-size:18px}.sync-mini-grid span{font-size:7px}
+.sync-mini>p{font-size:8px;margin-top:8px}.health-pill{font-size:7px;padding:4px 7px}
+.sort-panel{min-height:120px}.sort-body{grid-template-columns:44px 1fr auto;gap:11px;padding-top:8px}
+.sort-icon{width:44px;height:44px;border-radius:10px}.sort-body b{font-size:17px}.sort-body span{font-size:9px}
+.sort-body button{padding:10px 12px;border-radius:8px;font-size:9px}
+
+/* activity strip */
+.github-pulse{grid-template-columns:44px 230px minmax(0,1fr) auto auto;gap:12px;height:62px;margin-top:11px;padding:8px 12px;border-radius:11px}
+.pulse-icon{width:42px;height:42px;border-radius:10px;font-size:18px}
+.pulse-copy b{font-size:11px}.pulse-copy span{font-size:8px;margin-top:2px}
+.pulse-bars{height:38px;gap:6px}.pulse-bars i{max-width:14px;min-width:5px}.github-pulse>strong{font-size:14px}.github-pulse>small{font-size:8px}
+
+/* list mode */
+.project-list-v3{gap:9px}
+.list-project{min-height:74px;padding:12px 14px;grid-template-columns:minmax(230px,.8fr) auto minmax(360px,1.7fr) 120px auto}
+.list-project h4{font-size:13px}.list-project small{font-size:8px}.list-project>p{font-size:10px}.list-project-age{font-size:8px}.list-project-age b{font-size:8px}
+
+/* sensible fallback below desktop-ultrawide sizes */
+@media(max-width:1900px){
+  .app{grid-template-columns:220px minmax(0,1fr)}
+  .premium-sidebar{padding:22px 13px 16px}
+  .premium-top,.premium-body{grid-template-columns:minmax(0,1fr) 360px}
+  .command-hero,.environment-panel{height:235px;min-height:235px}
+  .hero-copy h2{font-size:34px}.hero-visual{min-height:235px}
+  .overview-card{height:100px;min-height:100px;grid-template-columns:46px 1fr 96px}.overview-icon{width:46px;height:46px}
+  .priority-tile{height:155px}.priority-row{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .board-column{min-height:320px}
+}
+@media(max-width:1350px){
+  .premium-top,.premium-body{grid-template-columns:1fr}
+  .environment-panel{display:none}
+  .premium-rail{grid-template-columns:repeat(3,1fr)}
+  .priority-row,.project-board{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .all-projects-head{align-items:flex-start;flex-direction:column}
+}
