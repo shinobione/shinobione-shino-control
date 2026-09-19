@@ -272,7 +272,7 @@ function extractProjectFiles(id){
   const found=new Set();
   for(const e of evidenceFor(id)){
     const txt=`${e.title||''} ${e.summary||''}`;
-    for(const m of txt.matchAll(/\\b(?:src|lib|public|docs|tests|scripts|app|packages)\\/[A-Za-z0-9_.\\/-]+\\.(?:js|mjs|ts|tsx|jsx|json|md|css|html|py|ps1|cs)\\b/g)) found.add(m[0]);
+    for(const m of txt.matchAll(new RegExp('\\b(?:src|lib|public|docs|tests|scripts|app|packages)/[A-Za-z0-9_./-]+\\.(?:js|mjs|ts|tsx|jsx|json|md|css|html|py|ps1|cs)\\b','g'))) found.add(m[0]);
     if(found.size>=5) break;
   }
   return [...found].slice(0,5);
