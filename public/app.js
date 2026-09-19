@@ -148,7 +148,7 @@ function render(){
       <button class="sidebar-sync" data-view="sources"><span class="live-dot"></span><div><b>Sync GitHub</b><small>Connecté</small></div><span>↻</span></button>
       <div class="sidebar-facts"><span>Dernière sync</span><b>${esc(rel(state.settings?.lastGithubSync?.at || state.settings?.lastChatgptCatchup?.at || state.derivedAt))} ago</b></div>
       <div class="side-status"><span class="live-dot"></span><div><b>${state.projects.length} projets</b><small>${overallFresh()} source picture</small></div></div>
-      <div class="side-foot">SHINO // CONTROL<br><span>BUILD ${esc(window.SHINO_CONTROL_BUILD?.version || '')}</span></div>
+      <div class="side-foot">SHINO // CONTROL<br><span>PROJECT COMMAND</span></div>
     </aside>
     <main class="main"><div class="main-inner"><div class="mobile-menu actions"><button class="btn" data-view="radar">Dashboard</button><button class="btn" data-view="discovered">Découvrir</button><button class="btn" data-view="sources">Sources</button></div>${view==='radar'?(modalProject?projectPage(modalProject):radarView(s)):view==='discovered'?discoveredView():sourcesView()}</div></main>
   </div>`;
@@ -234,7 +234,7 @@ function premiumProjectBoard(buckets){
 }
 function allProjectsPanel(projects,buckets){
   const mode=(id,label)=>`<button class="view-chip ${projectView===id?'active':''}" data-project-view="${id}">${label}</button>`;
-  return `<section class="all-projects-panel"><div class="all-projects-head"><div><span class="projects-head-icon">▦</span><h3>Tous les projets</h3><small>${projects.length} projets dans votre écosystème</small></div><div class="all-projects-tools"><div class="project-search"><span>⌕</span><input id="search" placeholder="Rechercher un projet…" value="${esc(query)}"></div><select id="statusFilter" class="select compact-filter">${['ALL','ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','EMPTY','UNSYNCED'].map(x=>`<option ${statusFilter===x?'selected':''}>${x}</option>`).join('')}</select><div class="view-chips">${mode('board','Colonnes')}${mode('list','Liste')}</div></div></div>${projectView==='board'?premiumProjectBoard(buckets):projectListV3(projects)}</section>`;
+  return `<section class="all-projects-panel"><div class="all-projects-head"><div><span class="projects-head-icon">▦</span><h3>Tous les projets</h3><small>${projects.length} projets dans votre écosystème</small></div><div class="all-projects-tools"><div class="project-search"><span>⌕</span><input data-search placeholder="Rechercher un projet…" value="${esc(query)}"></div><select id="statusFilter" class="select compact-filter">${['ALL','ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','EMPTY','UNSYNCED'].map(x=>`<option ${statusFilter===x?'selected':''}>${x}</option>`).join('')}</select><div class="view-chips">${mode('board','Colonnes')}${mode('list','Liste')}</div></div></div>${projectView==='board'?premiumProjectBoard(buckets):projectListV3(projects)}</section>`;
 }
 function radarView(s){
   const projects=visibleProjects();
@@ -336,7 +336,7 @@ function projectModal(id){
 async function syncGithub(){const input=$('#ghToken');const token=input?.value||'';toast('GitHub sync started…');try{const out=await api('/api/sync/github',{method:'POST',body:JSON.stringify({token})});state=out.state;toast('GitHub sync complete');render();}catch(e){toast(`Sync failed: ${e.message}`)}}
 function bind(){
   document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;modalProject=null;render()});
-  $('#search')?.addEventListener('input',e=>{query=e.target.value;render()});
+  document.querySelectorAll('[data-search]').forEach(el=>el.addEventListener('input',e=>{query=e.target.value;render()}));
   $('#statusFilter')?.addEventListener('change',e=>{statusFilter=e.target.value;render()});
   document.querySelectorAll('[data-status-pick]').forEach(b=>b.addEventListener('click',()=>{statusFilter=b.dataset.statusPick||'ALL';render()}));
   document.querySelectorAll('[data-scroll-projects]').forEach(b=>b.addEventListener('click',()=>document.querySelector('.all-projects-panel')?.scrollIntoView({behavior:'smooth',block:'start'})));
