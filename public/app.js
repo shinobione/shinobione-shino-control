@@ -142,12 +142,62 @@ function render(){
   bind();
 }
 
+function priorityProjects(projects, limit=4){
+  return [...projects].filter(p=>!['EMPTY','UNSYNCED'].includes(projectState(p.id)?.status)).sort((a,b)=>priorityScore(b)-priorityScore(a)).slice(0,limit);
+}
+function heroProject(projects){
+  return priorityProjects(projects,1)[0] || projects[0] || null;
+}
+function priorityProjectCard(p){
+  const d=projectState(p.id); if(!d)return '';
+  const e=evidenceFor(p.id)[0], c=ctAs(p);
+  const summary=displaySummary(p,d,e), resume=displayResume(p,d,e);
+  return `<article class="priority-card ${statusClass(d.status)}" data-open-project="${p.id}">
+    <div class="priority-card-head"><div><span class="project-type">${esc(p.universe||'PROJECT')}</span><h4>${esc(p.name)}</h4></div><span class="status-tag">${esc(boardLabel(d.status))}</span></div>
+    <p class="priority-summary">${esc(summary)}</p>
+    <div class="priority-next"><span>Next</span><p>${esc(resume)}</p></div>
+    <div class="priority-footer"><div><b class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</b><small>${e?`${esc(rel(e.timestamp))} ago`:'No evidence'}</small></div>${c.chat?`<a class="priority-open" href="${esc(c.chat.url)}" target="_blank" data-stop>Continue ↗</a>`:c.pr?`<a class="priority-open" href="${esc(c.pr.url)}" target="_blank" data-stop>Open PR ↗</a>`:''}</div>
+  </article>`;
+}
+function heroPanel(projects){
+  const p=heroProject(projects);
+  if(!p)return '';
+  const d=projectState(p.id), e=evidenceFor(p.id)[0], c=ctAs(p);
+  const summary=displaySummary(p,d,e), resume=displayResume(p,d,e);
+  return `<section class="command-hero ${statusClass(d.status)}">
+    <div class="hero-copy"><span class="eyebrow">FOCUS NOW</span><h2>${esc(p.name)}</h2><p class="hero-summary">${esc(summary)}</p><div class="hero-next"><span>Do this next</span><strong>${esc(resume)}</strong></div><div class="hero-actions">${c.chat?`<a class="btn hero-primary" href="${esc(c.chat.url)}" target="_blank">Continue in ChatGPT</a>`:''}<button class="btn hero-secondary" data-open-project="${p.id}">Open project</button></div></div>
+    <div class="hero-visual"><div class="hero-orbit orbit-a"></div><div class="hero-orbit orbit-b"></div><div class="hero-shape shape-a"></div><div class="hero-shape shape-b"></div><div class="hero-monogram">S<span>//</span></div><div class="hero-status"><small>STATUS</small><b>${esc(boardLabel(d.status))}</b><span>${esc(d.freshness||'')}</span></div></div>
+  </section>`;
+}
+function syncMiniPanel(){
+  const m=state.settings?.lastChatgptCatchup;
+  if(!m?.at)return '';
+  const failed=Number(m.failedCount||0), deferred=Number(m.deferredCount||0), quarantined=Number(m.quarantinedCount||0);
+  const health=failed||deferred?'PARTIAL':'LIVE';
+  return `<section class="rail-panel sync-mini"><div class="rail-head"><div><span class="eyebrow">SYSTEM</span><h3>Sync health</h3></div><span class="health-pill health-${health.toLowerCase()}">${health}</span></div><div class="sync-mini-grid"><div><b>${Number(m.inventoryCount||0)}</b><span>Known</span></div><div><b>${Number(m.refreshedCount||0)}</b><span>Refreshed</span></div><div><b>${quarantined}</b><span>Quarantine</span></div></div><p>Last catch-up ${esc(rel(m.at))} ago</p></section>`;
+}
+function activityRailV4(){
+  const rows=latestEvidenceRows(6), discovered=state.discovered?.length||0;
+  return `<aside class="activity-rail">
+    <section class="rail-panel"><div class="rail-head"><div><span class="eyebrow">LIVE FEED</span><h3>Recent activity</h3></div><span class="rail-count">${rows.length}</span></div><div class="activity-list">${rows.length?rows.map(activityItem).join(''):'<div class="rail-empty">Aucune activité récente.</div>'}</div></section>
+    ${syncMiniPanel()}
+    <section class="rail-panel quick-panel"><div class="rail-head"><div><span class="eyebrow">INBOX</span><h3>Needs sorting</h3></div><span class="rail-count">${discovered}</span></div><p>${discovered?`${discovered} source${discovered===1?'':'s'} attend${discovered===1?'':'ent'} un rattachement.`:'Tout est correctement rattaché.'}</p><button class="rail-action" data-view="discovered">${discovered?'Open Discovered':'View inbox'}</button></section>
+  </aside>`;
+}
 function radarView(s){
   const projects=visibleProjects();
-  const buckets={attention:projects.filter(p=>boardBucket(projectState(p.id)?.status)==="attention"),active:projects.filter(p=>boardBucket(projectState(p.id)?.status)==="active"),stable:projects.filter(p=>boardBucket(projectState(p.id)?.status)==="stable"),other:projects.filter(p=>boardBucket(projectState(p.id)?.status)==="other")};
+  const buckets={attention:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='attention'),active:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='active'),stable:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='stable'),other:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='other')};
   const attentionCount=s.blocked+s.test;
-  const modeButton=(id,label)=>`<button class="mode-btn ${radarMode===id?"active":""}" data-radar-mode="${id}">${label}</button>`;
-  return `<div class="topbar dashboard-topbar"><div class="dashboard-heading"><span class="eyebrow">SHINO // CONTROL</span><h2>Project Command Center</h2><p>Reprends le bon projet, au bon endroit, sans chercher dans vingt conversations.</p></div><div class="dashboard-tools"><div class="command-search"><span>⌕</span><input id="search" placeholder="Rechercher un projet, un état, une source…" value="${esc(query)}"></div><select id="statusFilter" class="select command-filter">${["ALL","ACTIVE","NEEDS TEST","BLOCKED","STABLE","WAITING","DONE","EMPTY","UNSYNCED"].map(x=>`<option ${statusFilter===x?"selected":""}>${x}</option>`).join("")}</select><div class="mode-switch">${modeButton("board","▦ Board")}${modeButton("list","☷ List")}</div><button class="btn gold sync-command" id="syncBtn">↻ Sync</button></div></div><section class="overview-grid">${overviewCard("Projects",state.projects.length,"Tous les projets suivis","overview-total","ALL")}${overviewCard("Active",s.active,"Travail en cours","overview-active","ACTIVE")}${overviewCard("Attention",attentionCount,`${s.blocked} blocked · ${s.test} needs test`,"overview-attention",attentionCount?"NEEDS TEST":"ALL")}${overviewCard("Stable",s.stable,"État confirmé","overview-stable","STABLE")}</section><div class="dashboard-layout"><section class="dashboard-workspace"><div class="workspace-head"><div><h3>${radarMode==="board"?"Project board":"All projects"}</h3><p>${projects.length} projet${projects.length===1?"":"s"} dans la vue actuelle</p></div><span class="workspace-hint">Clique une carte pour ouvrir le détail</span></div>${radarMode==="board"?projectBoard(buckets):projectListV3(projects)}</section>${activityRail()}</div>`;
+  const modeButton=(id,label)=>`<button class="mode-btn ${radarMode===id?'active':''}" data-radar-mode="${id}">${label}</button>`;
+  const priorities=priorityProjects(projects,4);
+  return `<div class="topbar hub-topbar"><div class="hub-title"><span class="eyebrow">SHINO // CONTROL</span><h2>Dashboard</h2></div><div class="dashboard-tools"><div class="command-search"><span>⌕</span><input id="search" placeholder="Rechercher un projet, un état, une source…" value="${esc(query)}"></div><select id="statusFilter" class="select command-filter">${['ALL','ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','EMPTY','UNSYNCED'].map(x=>`<option ${statusFilter===x?'selected':''}>${x}</option>`).join('')}</select><div class="mode-switch">${modeButton('board','▦ Board')}${modeButton('list','☷ List')}</div><button class="btn gold sync-command" id="syncBtn">↻ Sync</button></div></div>
+  ${heroPanel(projects)}
+  <section class="overview-grid">${overviewCard('Projects',state.projects.length,'Tous les projets suivis','overview-total','ALL')}${overviewCard('Active',s.active,'Travail en cours','overview-active','ACTIVE')}${overviewCard('Attention',attentionCount,`${s.blocked} blocked · ${s.test} needs test`,'overview-attention',attentionCount?'NEEDS TEST':'ALL')}${overviewCard('Stable',s.stable,'État confirmé','overview-stable','STABLE')}</section>
+  <div class="dashboard-layout hub-layout"><section class="hub-main">
+    <div class="workspace-head priority-head"><div><h3>Priority projects</h3><p>Les projets à garder sous la main maintenant</p></div><span class="workspace-hint">Top ${priorities.length}</span></div>
+    <div class="priority-grid">${priorities.map(priorityProjectCard).join('')}</div>
+    <section class="dashboard-workspace board-workspace"><div class="workspace-head"><div><h3>${radarMode==='board'?'All projects':'Project list'}</h3><p>${projects.length} projet${projects.length===1?'':'s'} dans la vue actuelle</p></div><span class="workspace-hint">Clique une carte pour ouvrir le détail</span></div>${radarMode==='board'?projectBoard(buckets):projectListV3(projects)}</section>
+  </section>${activityRailV4()}</div>`;
 }
 
 function sectionHeading(title, subtitle, cls=''){return `<div class="section-head ${cls}"><div><h3>${esc(title)}</h3><p>${esc(subtitle)}</p></div></div>`}
