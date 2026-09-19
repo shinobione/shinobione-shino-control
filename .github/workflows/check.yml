@@ -55,6 +55,7 @@ jobs:
           node --check scripts-ui-v11-check.mjs
           node --check scripts-ui-v12-check.mjs
           node --check scripts-ui-v13-check.mjs
+          node --check scripts-ui-premium-check.mjs
           node --check scripts-runtime-state-check.mjs
           node --check scripts-tray-check.mjs
           node --check scripts/repair-state.mjs
@@ -99,7 +100,7 @@ jobs:
         run: |
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.9.45' public/build-info.js
+          grep -q '0.9.46' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
           grep -q '"version": "0.2.7"' extension/control-collector/manifest.json
@@ -199,9 +200,12 @@ jobs:
           grep -q 'ASSET REVEAL' public/ui-v12.css
           test -s public/ui-v13.css
           grep -q 'VISUAL COHERENCE' public/ui-v13.css
-          grep -q 'ui-v13.css' public/index.html
-          grep -q 'ui-v12.css' public/index.html
-          grep -q 'ui-v11.css' public/index.html
+          test -s public/ui-premium.css
+          grep -q 'Premium Presentation Layer v1' public/ui-premium.css
+          grep -q 'ui-premium.css' public/index.html
+          ! grep -q 'ui-v13.css' public/index.html
+          ! grep -q 'ui-v12.css' public/index.html
+          ! grep -q 'ui-v11.css' public/index.html
           test -s public/assets/ui/backgrounds/dashboard-hero-master.avif
           test -s public/assets/ui/backgrounds/project-hero-master.avif
           test -s public/assets/ui/brand/brand-emblem.avif
@@ -264,6 +268,7 @@ jobs:
           test -s dist/ui-v11.css
           test -s dist/ui-v12.css
           test -s dist/ui-v13.css
+          test -s dist/ui-premium.css
           test -s dist/assets/ui/backgrounds/dashboard-hero-master.avif
           test -s dist/assets/ui/backgrounds/project-hero-master.avif
           test -s dist/assets/ui/brand/brand-emblem.avif
@@ -275,7 +280,7 @@ jobs:
           test -s dist/assets/project-workflow-art.svg
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.9.45"' dist/state.json
+          grep -q '"version": "0.9.46"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'lastChatgptCatchup' dist/state.json; then
             echo 'Private ChatGPT catch-up diagnostics leaked into public snapshot'

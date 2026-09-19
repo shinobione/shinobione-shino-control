@@ -98,8 +98,23 @@ function noisyStateText(value=''){
     || text.length>900;
 }
 function displaySummary(p,d,e){
-  if(e?.sourceType==='chatgpt_thread' && noisyStateText(d.summary)) return `Dernière activité ChatGPT : ${e.title || p.name}.`;
+  if(noisyStateText(d.summary)){
+    return e?.sourceType==='chatgpt_thread'
+      ? `Dernière activité ChatGPT : ${e.title || p.name}.`
+      : (e?.title || 'État courant reconstruit depuis les sources.');
+  }
   return d.summary || (e ? e.title : 'État non résumé.');
+}
+function displayEvidenceSummary(item){
+  const raw=String(item?.summary||'').trim();
+  if(!raw || noisyStateText(raw)){
+    if(item?.sourceType==='chatgpt_thread') return 'Conversation mise à jour — ouvrir pour retrouver le contexte utile.';
+    if(item?.sourceType==='github_pr') return 'Pull request mise à jour.';
+    if(item?.sourceType==='github_issue') return 'Issue mise à jour.';
+    if(item?.sourceType==='github_commit') return 'Nouveau mouvement GitHub.';
+    return item?.title || 'Mise à jour du projet.';
+  }
+  return raw;
 }
 function displayResume(p,d,e){
   const raw=String(d.nextAction||'');
@@ -397,8 +412,8 @@ function projectPage(id){
           <article class="stage"><span>▱</span><div><small>Étape actuelle</small><b>${esc(projectStage(p,d,e))}</b><p>${src.length} source${src.length===1?'':'s'} connectée${src.length===1?'':'s'}</p></div><div class="v8-mini-bars">${[38,62,50,74,86,71].map(h=>`<i style="height:${h}%"></i>`).join('')}</div></article>
           <article class="issues"><span>▤</span><div><small>Issues ouvertes</small><b>${issueCount}</b><p>${issueCount?'À examiner':'Aucune issue ouverte détectée'}</p></div><div class="v8-mini-bars">${[20,32,48,62,55,76].map(h=>`<i style="height:${h}%"></i>`).join('')}</div></article>
         </section>
-        <div class="v84-action-row"><section class="v8-next-action"><div class="v8-next-copy"><span class="v8-section-icon">◎</span><div><small>PROCHAINE ACTION</small><h2>${esc(resume)}</h2><p>${e?esc(e.summary||e.title):'Ouvrir la source la plus récente et reprendre le contexte.'}</p><div class="v8-project-actions">${actionLinks}</div></div></div><aside><div><small>Statut</small><b>${esc(boardLabel(d.status))}</b></div><div><small>Dernier mouvement</small><b>${e?esc(rel(e.timestamp))+' ago':'—'}</b></div><div><small>Sources</small><b>${src.length}</b></div></aside></section>${projectPipelinePanel(d,progress)}</div>
-        <section class="v8-activity-panel" data-activity-section><div class="v8-section-head"><div><span class="v8-section-icon">⌘</span><h2>Activité du projet</h2></div><div class="v8-tabs"><button class="active">Toutes</button><button>Commits</button><button>Pull requests</button><button>Issues</button></div></div><div class="v8-activity-list">${recent.length?recent.map(item=>{const meta=projectEventMeta(item);return `<article class="event-${meta.cls}"><span class="event-icon">${meta.glyph}</span><div><time>${esc(rel(item.timestamp))} ago · ${esc(item.sourceType)}</time><h3>${esc(item.title)}</h3><p>${esc(item.summary)}</p></div>${item.url?`<a href="${esc(item.url)}" target="_blank">Voir →</a>`:''}</article>`}).join(''):'<div class="project-empty">Aucune activité courante.</div>'}</div></section>
+        <div class="v84-action-row"><section class="v8-next-action"><div class="v8-next-copy"><span class="v8-section-icon">◎</span><div><small>PROCHAINE ACTION</small><h2>${esc(resume)}</h2><p>${e?esc(displayEvidenceSummary(e)):'Ouvrir la source la plus récente et reprendre le contexte.'}</p><div class="v8-project-actions">${actionLinks}</div></div></div><aside><div><small>Statut</small><b>${esc(boardLabel(d.status))}</b></div><div><small>Dernier mouvement</small><b>${e?esc(rel(e.timestamp))+' ago':'—'}</b></div><div><small>Sources</small><b>${src.length}</b></div></aside></section>${projectPipelinePanel(d,progress)}</div>
+        <section class="v8-activity-panel" data-activity-section><div class="v8-section-head"><div><span class="v8-section-icon">⌘</span><h2>Activité du projet</h2></div><div class="v8-tabs"><button class="active">Toutes</button><button>Commits</button><button>Pull requests</button><button>Issues</button></div></div><div class="v8-activity-list">${recent.length?recent.map(item=>{const meta=projectEventMeta(item);return `<article class="event-${meta.cls}"><span class="event-icon">${meta.glyph}</span><div><time>${esc(rel(item.timestamp))} ago · ${esc(item.sourceType)}</time><h3>${esc(item.title)}</h3><p>${esc(displayEvidenceSummary(item))}</p></div>${item.url?`<a href="${esc(item.url)}" target="_blank">Voir →</a>`:''}</article>`}).join(''):'<div class="project-empty">Aucune activité courante.</div>'}</div></section>
       </main>
       <aside class="v8-project-side v9-project-side">
         <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">↗</span><h2>Connexions</h2></div><span class="v8-good">Connecté</span></div>${['GitHub','ChatGPT','Environnement local'].map(label=>{const ok=label==='GitHub'?src.some(s=>String(s.type||'').startsWith('github_')):label==='ChatGPT'?src.some(s=>s.type==='chatgpt_thread'):true;return `<div class="v8-connection"><b>${label}</b><span><i class="${ok?'ok':'warn'}"></i>${ok?'Connecté':'Non détecté'}</span></div>`}).join('')}</section>
