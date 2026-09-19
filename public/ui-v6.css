@@ -312,3 +312,6 @@ body:before{
   .command-hero{height:auto;min-height:0}.hero-visual{display:none}.hero-copy{padding:16px}.hero-summary,.hero-next strong{white-space:normal}
   .overview-card{height:72px}.metric-bars{display:none}
 }
+
+/* Legacy injected Focus/Sync cards are replaced by native v6 modules on the dashboard. */
+.view-radar .focus-now,.view-radar .sync-health{display:none!important}
