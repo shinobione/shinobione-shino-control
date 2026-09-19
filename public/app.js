@@ -12,7 +12,7 @@ const rel = ts => {
 const statusClass = status => `status-${String(status||'UNKNOWN').replace(/[^A-Z0-9]+/gi,'-').replace(/^-|-$/g,'')}`;
 const sourceClass = type => type==='github_repo'?'source-github':type==='chatgpt_thread'?'source-chatgpt':type==='github_component'?'source-component':'source-other';
 const sourceLabel = s => s.type==='github_repo'?'GitHub':s.type==='chatgpt_thread'?'ChatGPT':s.type==='chatgpt_archived'?'ChatGPT archive':s.type==='github_component'?(s.title||'Component'):s.type;
-let state = null, view='radar', query='', statusFilter='ALL', modalProject=null;
+let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, radarMode=localStorage.getItem('controlRadarMode') || 'board';
 
 async function api(path, options={}) {
   const r = await fetch(path, {headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
@@ -90,47 +90,66 @@ function displayResume(p,d,e){
   return raw || 'Ouvrir la source la plus récente.';
 }
 
+
+function boardBucket(status="") {
+  if (["BLOCKED","NEEDS TEST"].includes(status)) return "attention";
+  if (status === "ACTIVE") return "active";
+  if (["STABLE","DONE"].includes(status)) return "stable";
+  return "other";
+}
+function boardLabel(status="") {
+  return ({BLOCKED:"Blocked","NEEDS TEST":"Needs test",ACTIVE:"Active",STABLE:"Stable",DONE:"Done",WAITING:"Waiting",EMPTY:"Empty",UNSYNCED:"Unsynced"})[status] || status || "Unknown";
+}
+function visibleProjects(){
+  return state.projects.filter(matchesFilter).sort((a,b)=>priorityScore(b)-priorityScore(a) || a.name.localeCompare(b.name));
+}
+function latestEvidenceRows(limit=8){
+  return [...state.evidence].filter(e=>e.inventoryCurrent!==false && e.timestamp).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,limit);
+}
+function overviewCard(label,value,subtitle,cls,filter){
+  return `<button class="overview-card ${cls}" data-status-pick="${esc(filter)}"><span class="overview-icon"></span><div><small>${esc(label)}</small><strong>${esc(value)}</strong><p>${esc(subtitle)}</p></div></button>`;
+}
+function projectBoard(buckets){
+  const columns=[["attention","Attention","Blocages & validations"],["active","In progress","Projets actifs"],["stable","Stable","État confirmé"],["other","Other","Waiting / empty / unsynced"]];
+  return `<div class="project-board">${columns.map(([key,title,subtitle])=>`<section class="board-column board-${key}"><header><div><h4>${esc(title)} <span>${buckets[key].length}</span></h4><p>${esc(subtitle)}</p></div><i></i></header><div class="board-stack">${buckets[key].length?buckets[key].map(boardProjectCard).join(""):`<div class="board-empty">Rien ici pour le moment.</div>`}</div></section>`).join("")}</div>`;
+}
+function boardProjectCard(p){
+  const d=projectState(p.id); if(!d)return "";
+  const e=evidenceFor(p.id)[0], c=ctAs(p), badges=sourceBadges(p.id), resume=displayResume(p,d,e);
+  return `<article class="board-card ${statusClass(d.status)}" data-open-project="${p.id}"><div class="board-card-top"><span class="project-type">${esc(p.universe||"PROJECT")}</span><span class="status-tag">${esc(boardLabel(d.status))}</span></div><h4>${esc(p.name)}</h4><p class="board-resume">${esc(resume)}</p><div class="board-meta"><span class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</span><span>${e?`${esc(rel(e.timestamp))} ago`:"No evidence"}</span></div><div class="board-footer"><div class="mini-sources">${badges.slice(0,2).map(g=>`<span class="${sourceClass(g.type)}">${esc(g.label)}${g.count>1?` ×${g.count}`:""}</span>`).join("")}</div>${c.chat?`<a class="quick-open" href="${esc(c.chat.url)}" target="_blank" data-stop title="Continue in ChatGPT">↗</a>`:c.pr?`<a class="quick-open" href="${esc(c.pr.url)}" target="_blank" data-stop title="Open PR">↗</a>`:""}</div></article>`;
+}
+function projectListV3(projects){
+  return `<div class="project-list-v3">${projects.length?projects.map(listProjectCardV3).join(""):`<div class="empty compact-empty">Aucun projet dans ce filtre.</div>`}</div>`;
+}
+function listProjectCardV3(p){
+  const d=projectState(p.id); if(!d)return "";
+  const e=evidenceFor(p.id)[0], c=ctAs(p), resume=displayResume(p,d,e);
+  return `<article class="list-project ${statusClass(d.status)}" data-open-project="${p.id}"><div class="list-project-main"><span class="status-dot"></span><div><h4>${esc(p.name)}</h4><small>${esc(p.universe||"PROJECT")}</small></div></div><span class="status-tag">${esc(boardLabel(d.status))}</span><p>${esc(resume)}</p><div class="list-project-age"><b class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</b><span>${e?`${esc(rel(e.timestamp))} ago`:"—"}</span></div>${c.chat?`<a class="btn small gold" href="${esc(c.chat.url)}" target="_blank" data-stop>Continue</a>`:c.pr?`<a class="btn small" href="${esc(c.pr.url)}" target="_blank" data-stop>Open PR</a>`:"<span></span>"}</article>`;
+}
+function activityRail(){
+  const rows=latestEvidenceRows(7), discovered=state.discovered?.length||0;
+  return `<aside class="activity-rail"><section class="rail-panel"><div class="rail-head"><div><span class="eyebrow">LIVE FEED</span><h3>Recent activity</h3></div><span class="rail-count">${rows.length}</span></div><div class="activity-list">${rows.length?rows.map(activityItem).join(""):"<div class=\"rail-empty\">Aucune activité récente.</div>"}</div></section><section class="rail-panel quick-panel"><div class="rail-head"><div><span class="eyebrow">INBOX</span><h3>Needs sorting</h3></div><span class="rail-count">${discovered}</span></div><p>${discovered?`${discovered} source${discovered===1?"":"s"} attend${discovered===1?"":"ent"} un rattachement.`:"Tout est correctement rattaché."}</p><button class="rail-action" data-view="discovered">${discovered?"Open Discovered":"View inbox"}</button></section></aside>`;
+}
+function activityItem(item){
+  const p=projectById(item.projectId), kind=item.sourceType?.startsWith("github_")?"GH":item.sourceType==="chatgpt_thread"?"AI":"•";
+  const type=item.sourceType==="chatgpt_thread"?"chatgpt_thread":item.sourceType?.startsWith("github_")?"github_repo":"other";
+  return `<div class="activity-item"><span class="activity-icon ${sourceClass(type)}">${kind}</span><div><strong>${esc(p?.name||item.title||"Activity")}</strong><p>${esc(item.title||item.summary||"Update")}</p><small>${esc(rel(item.timestamp))} ago</small></div></div>`;
+}
+
 function render(){
   const s=stats();
-  $('#app').innerHTML=`<div class="app view-${view}">
-    <aside class="sidebar">
-      <div class="brand"><h1>SHINO <span>//</span> CONTROL</h1><p>SOURCE-DERIVED PROJECT RADAR</p></div>
-      <nav class="nav">${navBtn('radar','◉  Radar')}${navBtn('discovered','⌁  Discovered')}${navBtn('sources','⇄  Sources / Sync')}</nav>
-      <div class="side-foot">Derived ${esc(rel(state.derivedAt))} ago<br><span class="fresh-${overallFresh()}">${overallFresh()}</span> source picture</div>
-    </aside>
-    <main class="main"><div class="main-inner">
-      <div class="mobile-menu actions"><button class="btn" data-view="radar">Radar</button><button class="btn" data-view="discovered">Discovered</button><button class="btn" data-view="sources">Sources</button></div>
-      ${view==='radar'?radarView(s):view==='discovered'?discoveredView():sourcesView()}
-    </div></main>
-  </div>${modalProject?projectModal(modalProject):''}`;
+  $("#app").innerHTML=`<div class="app view-${view}"><aside class="sidebar"><div class="brand"><div class="brand-lockup"><div class="brand-mark">S<span>//</span></div><div><h1>CONTROL</h1><p>PROJECT COMMAND</p></div></div></div><nav class="nav">${navBtn("radar","<span class=\"nav-icon\">⌂</span><span>Dashboard</span>")}${navBtn("discovered","<span class=\"nav-icon\">◇</span><span>Discovered</span>")}${navBtn("sources","<span class=\"nav-icon\">⇄</span><span>Sources / Sync</span>")}</nav><div class="side-spacer"></div><div class="side-status"><span class="live-dot"></span><div><b>${state.projects.length} projects</b><small>${overallFresh()} source picture</small></div></div><div class="side-foot">Derived ${esc(rel(state.derivedAt))} ago</div></aside><main class="main"><div class="main-inner"><div class="mobile-menu actions"><button class="btn" data-view="radar">Dashboard</button><button class="btn" data-view="discovered">Discovered</button><button class="btn" data-view="sources">Sources</button></div>${view==="radar"?radarView(s):view==="discovered"?discoveredView():sourcesView()}</div></main></div>${modalProject?projectModal(modalProject):""}`;
   bind();
 }
 
 function radarView(s){
-  const synced=syncedProjects();
-  const attention=synced.filter(isAttention);
-  const regular=synced.filter(p=>!isAttention(p));
-  const empty=emptyProjects();
-  const unsynced=unsyncedProjects();
-  return `<div class="topbar">
-    <div class="titleblock"><h2>Project Radar</h2><p>Les blocages et tests d’abord. Les projets vides restent visibles sans être signalés comme cassés.</p></div>
-    <div class="actions"><button class="btn gold" id="syncBtn">↻ Sync GitHub</button></div>
-  </div>
-  <section class="stats">
-    <div class="stat stat-active"><span>Active</span><b>${s.active}</b></div>
-    <div class="stat stat-test"><span>Needs test</span><b>${s.test}</b></div>
-    <div class="stat stat-blocked"><span>Blocked</span><b>${s.blocked}</b></div>
-    <div class="stat stat-stable"><span>Stable</span><b>${s.stable}</b></div>
-    <div class="stat stat-unsynced"><span>Empty</span><b>${s.empty}</b></div>
-  </section>
-  <div class="toolbar"><input id="search" class="search" placeholder="Search project, evidence, repo…" value="${esc(query)}"><select id="statusFilter" class="select">${['ALL','ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','EMPTY','UNSYNCED'].map(x=>`<option ${statusFilter===x?'selected':''}>${x}</option>`).join('')}</select></div>
-  ${sectionHeading('Needs attention', `${attention.length} projet${attention.length===1?'':'s'} avec blocage ou test explicite`, 'attention-title')}
-  ${attention.length?`<section class="grid attention-grid">${attention.map(projectCard).join('')}</section>`:'<div class="empty compact-empty">Aucun blocage ni test explicite dans le filtre actuel.</div>'}
-  ${sectionHeading('Synced projects', `${regular.length} projet${regular.length===1?'':'s'} avec état reconstruit`, '')}
-  ${regular.length?`<section class="grid">${regular.map(projectCard).join('')}</section>`:'<div class="empty compact-empty">Aucun autre projet synchronisé dans ce filtre.</div>'}
-  ${empty.length?`${sectionHeading('Empty projects', `${empty.length} projet${empty.length===1?'':'s'} mappé${empty.length===1?'':'s'} mais sans conversation`, 'muted-title')}<section class="unsynced-grid">${empty.map(emptyCard).join('')}</section>`:''}
-  ${unsynced.length?`${sectionHeading('Not synced yet', `${unsynced.length} projet${unsynced.length===1?'':'s'} sans preuve exploitable`, 'muted-title')}<section class="unsynced-grid">${unsynced.map(unsyncedCard).join('')}</section>`:''}`;
+  const projects=visibleProjects();
+  const buckets={attention:projects.filter(p=>boardBucket(projectState(p.id)?.status)==="attention"),active:projects.filter(p=>boardBucket(projectState(p.id)?.status)==="active"),stable:projects.filter(p=>boardBucket(projectState(p.id)?.status)==="stable"),other:projects.filter(p=>boardBucket(projectState(p.id)?.status)==="other")};
+  const attentionCount=s.blocked+s.test;
+  const modeButton=(id,label)=>`<button class="mode-btn ${radarMode===id?"active":""}" data-radar-mode="${id}">${label}</button>`;
+  return `<div class="topbar dashboard-topbar"><div class="dashboard-heading"><span class="eyebrow">SHINO // CONTROL</span><h2>Project Command Center</h2><p>Reprends le bon projet, au bon endroit, sans chercher dans vingt conversations.</p></div><div class="dashboard-tools"><div class="command-search"><span>⌕</span><input id="search" placeholder="Rechercher un projet, un état, une source…" value="${esc(query)}"></div><select id="statusFilter" class="select command-filter">${["ALL","ACTIVE","NEEDS TEST","BLOCKED","STABLE","WAITING","DONE","EMPTY","UNSYNCED"].map(x=>`<option ${statusFilter===x?"selected":""}>${x}</option>`).join("")}</select><div class="mode-switch">${modeButton("board","▦ Board")}${modeButton("list","☷ List")}</div><button class="btn gold sync-command" id="syncBtn">↻ Sync</button></div></div><section class="overview-grid">${overviewCard("Projects",state.projects.length,"Tous les projets suivis","overview-total","ALL")}${overviewCard("Active",s.active,"Travail en cours","overview-active","ACTIVE")}${overviewCard("Attention",attentionCount,`${s.blocked} blocked · ${s.test} needs test`,"overview-attention",attentionCount?"NEEDS TEST":"ALL")}${overviewCard("Stable",s.stable,"État confirmé","overview-stable","STABLE")}</section><div class="dashboard-layout"><section class="dashboard-workspace"><div class="workspace-head"><div><h3>${radarMode==="board"?"Project board":"All projects"}</h3><p>${projects.length} projet${projects.length===1?"":"s"} dans la vue actuelle</p></div><span class="workspace-hint">Clique une carte pour ouvrir le détail</span></div>${radarMode==="board"?projectBoard(buckets):projectListV3(projects)}</section>${activityRail()}</div>`;
 }
+
 function sectionHeading(title, subtitle, cls=''){return `<div class="section-head ${cls}"><div><h3>${esc(title)}</h3><p>${esc(subtitle)}</p></div></div>`}
 function projectCard(p){
   const d=projectState(p.id); if(!d)return '';
@@ -191,6 +210,8 @@ function bind(){
   document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;render()});
   $('#search')?.addEventListener('input',e=>{query=e.target.value;render()});
   $('#statusFilter')?.addEventListener('change',e=>{statusFilter=e.target.value;render()});
+  document.querySelectorAll('[data-radar-mode]').forEach(b=>b.addEventListener('click',()=>{radarMode=b.dataset.radarMode;localStorage.setItem('controlRadarMode',radarMode);render()}));
+  document.querySelectorAll('[data-status-pick]').forEach(b=>b.addEventListener('click',()=>{statusFilter=b.dataset.statusPick||'ALL';render()}));
   $('#syncBtn')?.addEventListener('click',()=>{view='sources';render();setTimeout(()=>$('#ghToken')?.focus(),0)});
   $('#syncBtn2')?.addEventListener('click',syncGithub);
   document.querySelectorAll('[data-open-project]').forEach(el=>el.onclick=e=>{if(e.target.closest('[data-stop],[data-why]'))return;modalProject=el.dataset.openProject;render()});
