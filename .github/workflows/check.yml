@@ -51,6 +51,7 @@ jobs:
           node --check scripts-ui-v83-check.mjs
           node --check scripts-ui-v84-check.mjs
           node --check scripts-ui-v9-check.mjs
+          node --check scripts-ui-v10-check.mjs
           node --check scripts-runtime-state-check.mjs
           node --check scripts-tray-check.mjs
           node --check scripts/repair-state.mjs
@@ -95,7 +96,7 @@ jobs:
         run: |
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.9.41' public/build-info.js
+          grep -q '0.9.42' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
           grep -q '"version": "0.2.7"' extension/control-collector/manifest.json
@@ -187,7 +188,12 @@ jobs:
           grep -q 'art/detail pass' public/ui-v8.css
           test -s public/ui-v9.css
           grep -q 'reference fidelity pass' public/ui-v9.css
-          grep -q 'ui-v9.css' public/index.html
+          test -s public/ui-v10.css
+          grep -q 'PREMIUM FEEL PASS' public/ui-v10.css
+          grep -q 'ui-v10.css' public/index.html
+          ! grep -q 'ui-v9.css' public/index.html
+          test -s public/assets/dashboard-premium.webp
+          test -s public/assets/project-premium.webp
           ! grep -q 'ui-v8.css' public/index.html
           test -s public/assets/control-hero-v9.svg
           test -s public/assets/project-hero-v9.svg
@@ -237,13 +243,16 @@ jobs:
           test -s dist/ui-v6.css
           test -s dist/ui-v8.css
           test -s dist/ui-v9.css
+          test -s dist/ui-v10.css
+          test -s dist/assets/dashboard-premium.webp
+          test -s dist/assets/project-premium.webp
           test -s dist/assets/control-hero-v9.svg
           test -s dist/assets/project-hero-v9.svg
           test -s dist/assets/control-mountains.svg
           test -s dist/assets/project-workflow-art.svg
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.9.41"' dist/state.json
+          grep -q '"version": "0.9.42"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'lastChatgptCatchup' dist/state.json; then
             echo 'Private ChatGPT catch-up diagnostics leaked into public snapshot'

@@ -56,6 +56,22 @@ function stats(){
   };
 }
 function overallFresh(){const fs=state.derived.map(d=>d.freshness);return fs.includes('STALE')?'AGING':fs.includes('AGING')?'AGING':'RECENT'}
+function premiumIcon(name,cls=''){
+  const paths={
+    dashboard:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9 20v-6h6v6"/>',
+    discover:'<circle cx="12" cy="12" r="8"/><path d="m14.8 9.2-2.1 5.6-5.5 2.1 2.1-5.6 5.5-2.1Z"/>',
+    sync:'<path d="M20 7h-6V1"/><path d="M20 7a8 8 0 0 0-13.7-2.7L4 6.5"/><path d="M4 17h6v6"/><path d="M4 17a8 8 0 0 0 13.7 2.7l2.3-2.2"/>',
+    projects:'<path d="M3 7h7l2 2h9v10H3z"/><path d="M3 7V5h7l2 2"/>',
+    active:'<path d="m8 9-4 3 4 3"/><path d="m16 9 4 3-4 3"/><path d="m14 5-4 14"/>',
+    attention:'<path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5"/><path d="M12 17h.01"/>',
+    stable:'<path d="M20 6 9 17l-5-5"/>',
+    github:'<path d="M12 3a9 9 0 0 0-2.8 17.5c.45.08.62-.2.62-.44v-1.7c-2.52.55-3.05-1.08-3.05-1.08-.41-1.05-1-1.33-1-1.33-.82-.56.06-.55.06-.55.91.06 1.39.94 1.39.94.8 1.38 2.11.98 2.63.75.08-.59.31-.98.57-1.2-2.01-.23-4.13-1-4.13-4.48 0-.99.35-1.8.94-2.44-.1-.23-.41-1.16.09-2.41 0 0 .77-.25 2.52.93A8.7 8.7 0 0 1 12 8.17a8.7 8.7 0 0 1 2.3.31c1.75-1.18 2.52-.93 2.52-.93.5 1.25.19 2.18.09 2.41.59.64.94 1.45.94 2.44 0 3.49-2.13 4.24-4.15 4.47.32.28.61.83.61 1.68v2.5c0 .25.17.53.63.44A9 9 0 0 0 12 3Z"/>',
+    chatgpt:'<circle cx="12" cy="12" r="7"/><path d="M9.5 8.5h5a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H12l-3 2v-2h-.5a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h1"/>',
+    local:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
+    file:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5"/>'
+  };
+  return `<svg class="premium-svg ${cls}" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${paths[name]||paths.projects}</svg>`;
+}
 function navBtn(id,label){return `<button class="${view===id?'active':''}" data-view="${id}">${label}</button>`}
 function matchesFilter(p){
   const d=projectState(p.id); if(!d)return false;
@@ -108,9 +124,9 @@ function latestEvidenceRows(limit=8){
   return [...state.evidence].filter(e=>e.inventoryCurrent!==false && e.timestamp).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,limit);
 }
 function overviewCard(label,value,subtitle,cls,filter){
-  const icon={Projects:'▱',Active:'</>',Attention:'!',Stable:'✓'}[label]||'•';
+  const icon={Projects:'projects',Active:'active',Attention:'attention',Stable:'stable'}[label]||'projects';
   const bars=[28,42,36,54,67,48,76,62,88,73];
-  return `<button class="overview-card ${cls}" data-status-pick="${esc(filter)}"><span class="overview-icon">${icon}</span><div class="overview-copy"><small>${esc(label)}</small><strong>${esc(value)}</strong><p>${esc(subtitle)}</p></div><div class="metric-bars" aria-hidden="true">${bars.map((h,i)=>`<i style="height:${Math.max(16,Math.min(96,h+(Number(value||0)%5)*2-(i%3)*3))}%"></i>`).join('')}</div></button>`;
+  return `<button class="overview-card ${cls}" data-status-pick="${esc(filter)}"><span class="overview-icon">${premiumIcon(icon)}</span><div class="overview-copy"><small>${esc(label)}</small><strong>${esc(value)}</strong><p>${esc(subtitle)}</p></div><div class="metric-bars" aria-hidden="true">${bars.map((h,i)=>`<i style="height:${Math.max(16,Math.min(96,h+(Number(value||0)%5)*2-(i%3)*3))}%"></i>`).join('')}</div></button>`;
 }
 function projectBoard(buckets){
   const columns=[["attention","Attention","Blocages & validations"],["active","In progress","Projets actifs"],["stable","Stable","État confirmé"],["other","Other","Waiting / empty / unsynced"]];
@@ -144,9 +160,9 @@ function render(){
   $('#app').innerHTML=`<div class="app view-${view}">
     <aside class="sidebar premium-sidebar">
       <div class="brand"><div class="brand-lockup"><div class="brand-mark">S</div><div><h1>SHINO // CONTROL</h1><p>PROJECT COMMAND</p></div></div></div>
-      <nav class="nav">${navBtn('radar','<span class="nav-icon">⌂</span><span>Tableau de bord</span>')}${navBtn('discovered','<span class="nav-icon">◉</span><span>Découvrir</span>')}${navBtn('sources','<span class="nav-icon">↔</span><span>Sources / Sync</span>')}</nav>
+      <nav class="nav">${navBtn('radar',`<span class="nav-icon">${premiumIcon('dashboard')}</span><span>Tableau de bord</span>`)}${navBtn('discovered',`<span class="nav-icon">${premiumIcon('discover')}</span><span>Découvrir</span>`)}${navBtn('sources',`<span class="nav-icon">${premiumIcon('sync')}</span><span>Sources / Sync</span>`)}</nav>
       <div class="side-spacer"></div>
-      <button class="sidebar-sync" data-view="sources"><span class="live-dot"></span><div><b>Sync GitHub</b><small>Connecté</small></div><span>↻</span></button>
+      <button class="sidebar-sync" data-view="sources"><span class="sidebar-sync-icon">${premiumIcon('github')}</span><div><b>Sync GitHub</b><small>Connecté</small></div><span class="sync-arrow">${premiumIcon('sync')}</span></button>
       <div class="sidebar-facts"><span>Dernière sync</span><b>${esc(rel(state.settings?.lastGithubSync?.at || state.settings?.lastChatgptCatchup?.at || state.derivedAt))} ago</b></div>
       <div class="side-status"><span class="live-dot"></span><div><b>${state.projects.length} projets</b><small>${overallFresh()} source picture</small></div></div>
       <div class="side-foot">SHINO // CONTROL<br><span>PROJECT COMMAND</span></div>
@@ -266,8 +282,8 @@ function systemStatusPanel(){
   const healthy=failed===0;
   const hasGithub=state.sources.some(s=>String(s.type||'').startsWith('github_'));
   const hasChat=state.sources.some(s=>s.type==='chatgpt_thread');
-  const row=(icon,label,value,ok=true)=>`<div class="v8-system-row"><span class="v8-system-icon">${icon}</span><div><small>${label}</small><b><i class="${ok?'ok':'warn'}"></i>${value}</b></div></div>`;
-  return `<section class="v8-system-panel"><div class="v8-system-head"><span>SYSTEM</span><b>${healthy?'Tout OK':'À surveiller'}</b></div>${row('◆','Environnement',healthy?'Opérationnel':'À surveiller',healthy)}${row('GH','GitHub',hasGithub?'Connecté':'Non détecté',hasGithub)}${row('AI','ChatGPT',hasChat?'Connecté':'Non détecté',hasChat)}${row('▣','Environnement local','Opérationnel',true)}</section>`;
+  const row=(icon,label,value,ok=true)=>`<div class="v8-system-row"><span class="v8-system-icon">${premiumIcon(icon)}</span><div><small>${label}</small><b><i class="${ok?'ok':'warn'}"></i>${value}</b></div></div>`;
+  return `<section class="v8-system-panel"><div class="v8-system-head"><span>SYSTEM</span><b>${healthy?'Tout OK':'À surveiller'}</b></div>${row('stable','Environnement',healthy?'Opérationnel':'À surveiller',healthy)}${row('github','GitHub',hasGithub?'Connecté':'Non détecté',hasGithub)}${row('chatgpt','ChatGPT',hasChat?'Connecté':'Non détecté',hasChat)}${row('local','Environnement local','Opérationnel',true)}</section>`;
 }
 function premiumRail(){
   const rows=latestEvidenceRows(6), discovered=state.discovered?.length||0;
