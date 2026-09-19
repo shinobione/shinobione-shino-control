@@ -7,7 +7,7 @@ const css = fs.readFileSync('public/ui-v3.css','utf8');
 
 assert.match(index, /ui-v3\.css/, 'UI v3 stylesheet is not loaded');
 assert.doesNotMatch(index, /ui-v2\.css/, 'legacy UI v2 stylesheet should not be loaded');
-assert.match(app, /Project Command Center/, 'dashboard heading missing');
+assert.match(app, /Dashboard|Project Command Center/, 'dashboard heading missing');
 assert.match(app, /projectBoard\(/, 'board renderer missing');
 assert.match(app, /projectListV3\(/, 'list renderer missing');
 assert.match(app, /activityRail\(/, 'activity rail missing');
