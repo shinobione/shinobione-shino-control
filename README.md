@@ -28,7 +28,7 @@ Local ingest endpoint:
 POST /api/ingest/chatgpt-delta
 ```
 
-An unchanged fingerprint is a true no-op: CONTROL does not rewrite `state.json` and does not rederive a project.
+An unchanged fingerprint is a true no-op: CONTROL does not rewrite the local runtime state and does not rederive a project.
 
 The previous SHINO Sync extension and ChatGPT inventory/backfill pipeline were retired after live validation of mapped delta ingestion and no-op behavior. Historical inventory coverage metadata may remain in state as provenance; it is not an active crawler.
 
@@ -132,6 +132,16 @@ Resume Engine prioritizes explicit actionable conversation state and filters cod
 ## Data
 
 Local mutable state is stored in:
+
+```text
+data/state.local.json
+```
+
+That file is intentionally ignored by Git. On first start, CONTROL seeds it from the tracked `data/state.json` baseline. Git pulls, branch switches and stashes therefore do not replace the live CONTROL database.
+
+To override the runtime state path explicitly, set `SHINO_CONTROL_STATE`.
+
+The tracked seed remains:
 
 ```text
 data/state.json

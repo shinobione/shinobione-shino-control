@@ -7,3 +7,5 @@ dist/
 public/favicon-32.png
 public/build-info.js
 extension/shino-sync/icons/*.png
+data/state.local.json
+data/state.local.json.*

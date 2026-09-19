@@ -2,10 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveProjectDetailed } from '../lib/resolver.mjs';
+import { runtimeStatePath } from '../lib/state-store.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const DATA = path.join(ROOT, 'data', 'state.json');
+const DATA = runtimeStatePath();
 const APPLY = process.argv.includes('--apply');
 
 const norm = value => String(value || '')

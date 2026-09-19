@@ -3,10 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deriveAll } from './lib/derive.mjs';
+import { runtimeStatePath } from './lib/state-store.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
-const DATA = path.join(__dirname, 'data', 'state.json');
+const DATA = runtimeStatePath();
 const PORT = Number(process.env.PORT || 4177);
 
 function readState() {

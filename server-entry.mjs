@@ -7,9 +7,10 @@ import { planChatgptCatchup } from './lib/chatgpt-catchup-plan.mjs';
 import { repairChatgptProjectOwnership } from './lib/chatgpt-project-ownership.mjs';
 import { deriveAll } from './lib/derive.mjs';
 import { syncGithubIncremental } from './lib/github-incremental-sync.mjs';
+import { runtimeStatePath } from './lib/state-store.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA = path.join(__dirname, 'data', 'state.json');
+const DATA = runtimeStatePath();
 const originalCreateServer = http.createServer.bind(http);
 const TIMEOUT_RETRY_DELAYS_MS = [30 * 60 * 1000, 2 * 60 * 60 * 1000, 6 * 60 * 60 * 1000, 24 * 60 * 60 * 1000];
 const COLLECTOR_COMPONENT = {
