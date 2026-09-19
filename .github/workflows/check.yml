@@ -194,7 +194,6 @@ jobs:
           ! grep -q 'ui-v9.css' public/index.html
           test -s public/assets/dashboard-premium.webp
           test -s public/assets/project-premium.webp
-          grep -q 'ui-v9.css' public/index.html
           ! grep -q 'ui-v8.css' public/index.html
           test -s public/assets/control-hero-v9.svg
           test -s public/assets/project-hero-v9.svg
