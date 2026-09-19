@@ -135,7 +135,7 @@ function projectBoard(buckets){
 function boardProjectCard(p){
   const d=projectState(p.id); if(!d)return "";
   const e=evidenceFor(p.id)[0], c=ctAs(p), badges=sourceBadges(p.id), resume=displayResume(p,d,e);
-  return `<article class="board-card ${statusClass(d.status)}" data-open-project="${p.id}"><div class="board-card-top"><span class="project-type">${esc(p.universe||"PROJECT")}</span><span class="status-tag">${esc(boardLabel(d.status))}</span></div><h4>${esc(p.name)}</h4><p class="board-resume">${esc(resume)}</p><div class="board-meta"><span class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</span><span>${e?`${esc(rel(e.timestamp))} ago`:"No evidence"}</span></div><div class="board-footer"><div class="mini-sources">${badges.slice(0,2).map(g=>`<span class="${sourceClass(g.type)}">${esc(g.label)}${g.count>1?` ×${g.count}`:""}</span>`).join("")}</div>${c.chat?`<a class="quick-open" href="${esc(c.chat.url)}" target="_blank" data-stop title="Continue in ChatGPT">↗</a>`:c.pr?`<a class="quick-open" href="${esc(c.pr.url)}" target="_blank" data-stop title="Open PR">↗</a>`:""}</div></article>`;
+  return `<article class="board-card ${statusClass(d.status)} ${projectVisualClass(p)}" style="${projectVisualVars(p)}" data-open-project="${p.id}"><div class="board-card-top"><span class="project-type">${esc(p.universe||"PROJECT")}</span><span class="status-tag">${esc(boardLabel(d.status))}</span></div><h4>${esc(p.name)}</h4><p class="board-resume">${esc(resume)}</p><div class="board-meta"><span class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</span><span>${e?`${esc(rel(e.timestamp))} ago`:"No evidence"}</span></div><div class="board-footer"><div class="mini-sources">${badges.slice(0,2).map(g=>`<span class="${sourceClass(g.type)}">${esc(g.label)}${g.count>1?` ×${g.count}`:""}</span>`).join("")}</div>${c.chat?`<a class="quick-open" href="${esc(c.chat.url)}" target="_blank" data-stop title="Continue in ChatGPT">↗</a>`:c.pr?`<a class="quick-open" href="${esc(c.pr.url)}" target="_blank" data-stop title="Open PR">↗</a>`:""}</div></article>`;
 }
 function projectListV3(projects){
   return `<div class="project-list-v3">${projects.length?projects.map(listProjectCardV3).join(""):`<div class="empty compact-empty">Aucun projet dans ce filtre.</div>`}</div>`;
@@ -202,7 +202,7 @@ function dashboardHero(){
     </div>
     <div class="v8-hero-art" aria-hidden="true">
       <span class="v8-build">BUILD v${esc(build)}</span>
-      <div class="v8-logo-stack"><span>S<small>//</small></span></div>
+      <img class="v11-brand-emblem" src="./assets/ui/brand/brand-emblem.avif" alt="" loading="eager" decoding="async"><div class="v8-logo-stack"><span>S<small>//</small></span></div>
       <div class="v8-art-copy"><small>BUILD</small><small>IDEAS</small><small>AUTOMATE</small><small>CREATE</small><b>FURTHER</b></div>
     </div>
   </section>`;
@@ -227,6 +227,24 @@ function projectAccent(p){
   for(let i=0;i<value.length;i++) hash=((hash<<5)-hash)+value.charCodeAt(i);
   return `accent-${Math.abs(hash)%6}`;
 }
+const PROJECT_VISUAL_FAMILIES=[
+  {family:'audio',motif:'wave',accent:'#815dff',accent2:'#35d8ff',glow:'rgba(120,83,255,.34)',match:['suno bridge','shinobiwan music','studio','lrc maker','analyse ia de musique','canva spotify gem','track-to-market']},
+  {family:'system',motif:'nodes',accent:'#2d8cff',accent2:'#43e2ff',glow:'rgba(45,140,255,.32)',match:['shino-os','shino // control','shino codes','web app','control']},
+  {family:'hardware',motif:'telemetry',accent:'#f0a93b',accent2:'#40d7df',glow:'rgba(239,169,59,.28)',match:['touch+ revival','risotools','shinoastea','matos informatique']},
+  {family:'product',motif:'panels',accent:'#35cfc0',accent2:'#8f63ff',glow:'rgba(53,207,192,.28)',match:['trân closet','tran closet','french tranquille','naughty share','launchpad']},
+  {family:'personal',motif:'data',accent:'#d9aa55',accent2:'#5ea8ff',glow:'rgba(217,170,85,.25)',match:['personnel','nicehash']}
+];
+function visualProjectKey(p){
+  return String(`${p?.id||''} ${p?.name||''}`).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'');
+}
+function projectVisualProfile(p){
+  const key=visualProjectKey(p);
+  const spec=PROJECT_VISUAL_FAMILIES.find(item=>item.match.some(token=>key.includes(token.normalize('NFKD').replace(/[\u0300-\u036f]/g,'')))) ||
+    {family:'generic',motif:'layers',accent:'#647cff',accent2:'#bb5cff',glow:'rgba(100,124,255,.28)'};
+  return {...spec,code:projectGlyph(p)};
+}
+function projectVisualClass(p){const v=projectVisualProfile(p);return `family-${v.family} motif-${v.motif}`;}
+function projectVisualVars(p){const v=projectVisualProfile(p);return `--accent:${v.accent};--accent2:${v.accent2};--family-glow:${v.glow};`;}
 function projectGlyph(p){
   const words=String(p?.name||'P').replace(/[^A-Za-z0-9À-ÿ]+/g,' ').trim().split(/\s+/).filter(Boolean);
   if(words.length>1) return esc((words[0][0]+words[1][0]).toUpperCase());
@@ -235,13 +253,13 @@ function projectGlyph(p){
 function premiumPriorityCard(p){
   const d=projectState(p.id); if(!d)return '';
   const e=evidenceFor(p.id)[0], c=ctAs(p), badges=sourceBadges(p.id), resume=displayResume(p,d,e), summary=displaySummary(p,d,e);
-  return `<article class="priority-tile ${statusClass(d.status)} ${projectAccent(p)}" data-open-project="${p.id}"><div class="priority-tile-top"><div class="priority-symbol">${projectGlyph(p)}</div><div class="priority-name"><h4>${esc(p.name)}</h4><p>${esc(summary)}</p></div><span class="status-tag">${esc(boardLabel(d.status))}</span></div><div class="signal-track"><i></i></div><div class="priority-tile-foot"><div class="tile-tags">${[esc(p.universe||'PROJECT'),...badges.slice(0,1).map(g=>esc(g.label))].map(x=>`<span>${x}</span>`).join('')}</div><div class="tile-time"><span>${e?`${esc(rel(e.timestamp))} ago`:'—'}</span>${c.chat?`<a href="${esc(c.chat.url)}" target="_blank" data-stop>↗</a>`:''}</div></div><div class="tile-next" title="${esc(resume)}">${esc(resume)}</div></article>`;
+  return `<article class="priority-tile ${statusClass(d.status)} ${projectAccent(p)} ${projectVisualClass(p)}" style="${projectVisualVars(p)}" data-open-project="${p.id}"><div class="priority-tile-top"><div class="priority-symbol">${projectGlyph(p)}</div><div class="priority-name"><h4>${esc(p.name)}</h4><p>${esc(summary)}</p></div><span class="status-tag">${esc(boardLabel(d.status))}</span></div><div class="signal-track"><i></i></div><div class="priority-tile-foot"><div class="tile-tags">${[esc(p.universe||'PROJECT'),...badges.slice(0,1).map(g=>esc(g.label))].map(x=>`<span>${x}</span>`).join('')}</div><div class="tile-time"><span>${e?`${esc(rel(e.timestamp))} ago`:'—'}</span>${c.chat?`<a href="${esc(c.chat.url)}" target="_blank" data-stop>↗</a>`:''}</div></div><div class="tile-next" title="${esc(resume)}">${esc(resume)}</div></article>`;
 }
 
 function v84PriorityMiniCard(p){
   const d=projectState(p.id); if(!d)return '';
   const e=evidenceFor(p.id)[0], badges=sourceBadges(p.id), progress=projectProgress(d.status);
-  return `<article class="v84-priority-mini ${statusClass(d.status)} ${projectAccent(p)}" data-open-project="${p.id}">
+  return `<article class="v84-priority-mini ${statusClass(d.status)} ${projectAccent(p)} ${projectVisualClass(p)}" style="${projectVisualVars(p)}" data-open-project="${p.id}">
     <div class="v84-mini-head"><span class="v84-mini-glyph">${projectGlyph(p)}</span><div><h4>${esc(p.name)}</h4><p>${esc(displaySummary(p,d,e))}</p></div><span class="v84-mini-star">★</span></div>
     <div class="v84-mini-progress"><i style="width:${progress}%"></i><b>${progress}%</b></div>
     <div class="v84-mini-tags">${[esc(p.universe||'PROJECT'),...badges.slice(0,2).map(g=>esc(g.label))].slice(0,3).map(x=>`<span>${x}</span>`).join('')}</div>
@@ -257,7 +275,8 @@ function focusTodayPanel(projects){
   const action=focus?.action || displayResume(p,d,e);
   const summary=cleanFocusSummary(displaySummary(p,d,e),220);
   const progress=projectProgress(d.status);
-  return `<section class="v84-focus-panel ${projectAccent(p)}" data-open-project="${p.id}">
+  const visual=projectVisualProfile(p);
+  return `<section class="v84-focus-panel ${projectAccent(p)} ${projectVisualClass(p)}" style="${projectVisualVars(p)}" data-open-project="${p.id}">
     <div class="v84-focus-copy">
       <div class="v84-focus-kicker"><span>FOCUS AUJOURD'HUI</span><b>${esc(boardLabel(d.status))}</b></div>
       <div class="v84-focus-title"><span class="v84-focus-glyph">${projectGlyph(p)}</span><div><small>PROJET PRINCIPAL</small><h3>${esc(p.name)}</h3></div></div>
@@ -266,7 +285,7 @@ function focusTodayPanel(projects){
       <div class="v84-focus-next"><span>→</span><div><small>Prochaine étape</small><strong>${esc(action)}</strong></div></div>
       <div class="v84-focus-actions"><button class="v8-primary" data-open-project="${p.id}">Ouvrir le projet →</button>${cta.chat?`<a class="v8-secondary" href="${esc(cta.chat.url)}" target="_blank" data-stop>Continuer dans ChatGPT</a>`:''}</div>
     </div>
-    <div class="v84-focus-art" aria-hidden="true"><span class="v84-art-glyph">${projectGlyph(p)}</span><em>Ideas<br>into<br>motion</em></div>
+    <div class="v84-focus-art" aria-hidden="true"><div class="v11-family-motif"><span>${projectGlyph(p)}</span><i></i><b>${esc(visual.family)}</b></div><em>Ideas<br>into<br>motion</em></div>
   </section>`;
 }
 function projectPipelinePanel(d, progress){
@@ -361,13 +380,14 @@ function projectPage(id){
     cta.repo?`<a class="v8-action" href="${esc(cta.repo)}" target="_blank">GitHub</a>`:''
   ].join('');
   const sourcePanel=src.slice(0,5).map(s=>`<div class="v9-source-row"><span class="v9-source-icon ${sourceClass(s.type)}">${s.type==='chatgpt_thread'?'AI':String(s.type||'').startsWith('github_')?'GH':'•'}</span><div><b>${esc(sourceLabel(s))}</b><small>${esc(s.title||s.state||'Source enregistrée')}</small></div><time>${esc(rel(s.conversationUpdatedAt||s.lastObservedAt))} ago</time></div>`).join('');
-  return `<div class="v8-project ${statusClass(d.status)} ${projectAccent(p)}">
+  const visual=projectVisualProfile(p);
+  return `<div class="v8-project ${statusClass(d.status)} ${projectAccent(p)} ${projectVisualClass(p)}" style="${projectVisualVars(p)}">
     <header class="v8-project-top"><div class="v8-breadcrumb"><button id="closeModal">←</button><span>Projets</span><i>›</i><b>${esc(p.name)}</b></div><div class="v8-project-search"><span>⌕</span><input data-global-project-search placeholder="Rechercher un projet, un fichier, une commande…"><kbd>CTRL K</kbd></div><span class="v8-project-build">BUILD v${esc(build)}</span></header>
     <div class="v9-project-shell">
       <main class="v9-project-core">
         <section class="v8-project-hero">
           <div class="v8-project-identity"><div class="v8-project-heading"><span class="project-emblem large">${projectGlyph(p)}</span><div><div class="v8-project-chips"><span>Projet</span><span>${esc(p.universe||'CONTROL')}</span><span class="status-tag">${esc(boardLabel(d.status))}</span></div><h1>${esc(p.name)}</h1><p class="v8-project-subtitle">${esc(projectStage(p,d,e))}</p></div></div><p class="v8-project-summary">${esc(summary)}</p><div class="v8-project-actions">${actionLinks}<button class="v8-action" data-scroll-activity>Voir l’activité</button></div></div>
-          <div class="v8-project-art v84-project-art" aria-hidden="true"><div class="v84-project-art-copy"><small>WORKFLOW</small><small>VOICE PREP</small><small>AI AUDIO</small><b>BETTER TOGETHER</b></div><div class="v8-pj-words"><span>BUILD</span><span>TEST</span><span>SHIP</span><strong>PROGRESS</strong></div></div>
+          <div class="v8-project-art v84-project-art" aria-hidden="true"><div class="v11-project-visual"><div class="v11-family-motif project-motif"><span>${projectGlyph(p)}</span><i></i><b>${esc(visual.family)}</b></div><div class="v11-visual-copy"><small>${esc(visual.family.toUpperCase())}</small><strong>${esc(projectStage(p,d,e))}</strong><span>SHINO // CONTROL</span></div></div><div class="v8-pj-words"><span>BUILD</span><span>TEST</span><span>SHIP</span><strong>PROGRESS</strong></div></div>
         </section>
         <section class="v8-project-metrics">
           <article class="state"><span>◌</span><div><small>État</small><b>${esc(boardLabel(d.status))}</b><p>${esc(d.freshness)}</p></div><div class="v8-mini-bars">${[35,52,64,48,78,90].map(h=>`<i style="height:${h}%"></i>`).join('')}</div></article>
