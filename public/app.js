@@ -12,7 +12,7 @@ const rel = ts => {
 const statusClass = status => `status-${String(status||'UNKNOWN').replace(/[^A-Z0-9]+/gi,'-').replace(/^-|-$/g,'')}`;
 const sourceClass = type => type==='github_repo'?'source-github':type==='chatgpt_thread'?'source-chatgpt':type==='github_component'?'source-component':'source-other';
 const sourceLabel = s => s.type==='github_repo'?'GitHub':s.type==='chatgpt_thread'?'ChatGPT':s.type==='chatgpt_archived'?'ChatGPT archive':s.type==='github_component'?(s.title||'Component'):s.type;
-let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, radarMode=localStorage.getItem('controlRadarModeV5') || 'overview';
+let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, projectView=localStorage.getItem('controlProjectView') || 'board';
 
 async function api(path, options={}) {
   const r = await fetch(path, {headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
@@ -138,7 +138,18 @@ function activityItem(item){
 
 function render(){
   const s=stats();
-  $("#app").innerHTML=`<div class="app view-${view}"><aside class="sidebar"><div class="brand"><div class="brand-lockup"><div class="brand-mark">S<span>//</span></div><div><h1>CONTROL</h1><p>PROJECT COMMAND</p></div></div></div><nav class="nav">${navBtn("radar","<span class=\"nav-icon\">⌂</span><span>Dashboard</span>")}${navBtn("discovered","<span class=\"nav-icon\">◇</span><span>Discovered</span>")}${navBtn("sources","<span class=\"nav-icon\">⇄</span><span>Sources / Sync</span>")}</nav><div class="side-spacer"></div><div class="side-status"><span class="live-dot"></span><div><b>${state.projects.length} projects</b><small>${overallFresh()} source picture</small></div></div><div class="side-foot">Derived ${esc(rel(state.derivedAt))} ago</div></aside><main class="main"><div class="main-inner"><div class="mobile-menu actions"><button class="btn" data-view="radar">Dashboard</button><button class="btn" data-view="discovered">Discovered</button><button class="btn" data-view="sources">Sources</button></div>${view==="radar"?radarView(s):view==="discovered"?discoveredView():sourcesView()}</div></main></div>${modalProject?projectModal(modalProject):""}`;
+  $('#app').innerHTML=`<div class="app view-${view}">
+    <aside class="sidebar premium-sidebar">
+      <div class="brand"><div class="brand-lockup"><div class="brand-mark">S</div><div><h1>SHINO // CONTROL</h1><p>PROJECT COMMAND</p></div></div></div>
+      <nav class="nav">${navBtn('radar','<span class="nav-icon">⌂</span><span>Tableau de bord</span>')}${navBtn('discovered','<span class="nav-icon">◉</span><span>Découvrir</span>')}${navBtn('sources','<span class="nav-icon">↔</span><span>Sources / Sync</span>')}</nav>
+      <div class="side-spacer"></div>
+      <button class="sidebar-sync" data-view="sources"><span class="live-dot"></span><div><b>Sync GitHub</b><small>Connecté</small></div><span>↻</span></button>
+      <div class="sidebar-facts"><span>Dernière sync</span><b>${esc(rel(state.settings?.lastGithubSync?.at || state.settings?.lastChatgptCatchup?.at || state.derivedAt))} ago</b></div>
+      <div class="side-status"><span class="live-dot"></span><div><b>${state.projects.length} projets</b><small>${overallFresh()} source picture</small></div></div>
+      <div class="side-foot">SHINO // CONTROL<br><span>BUILD ${esc(window.CONTROL_BUILD?.version || '')}</span></div>
+    </aside>
+    <main class="main"><div class="main-inner"><div class="mobile-menu actions"><button class="btn" data-view="radar">Dashboard</button><button class="btn" data-view="discovered">Découvrir</button><button class="btn" data-view="sources">Sources</button></div>${view==='radar'?radarView(s):view==='discovered'?discoveredView():sourcesView()}</div></main>
+  </div>${modalProject?projectModal(modalProject):''}`;
   bind();
 }
 
