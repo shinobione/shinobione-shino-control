@@ -92,8 +92,10 @@ function syncedProjects(){return state.projects.filter(p=>!['UNSYNCED','EMPTY'].
 function emptyProjects(){return state.projects.filter(p=>projectState(p.id)?.status==='EMPTY'&&matchesFilter(p)).sort((a,b)=>a.name.localeCompare(b.name))}
 function unsyncedProjects(){return state.projects.filter(p=>projectState(p.id)?.status==='UNSYNCED'&&matchesFilter(p)).sort((a,b)=>a.name.localeCompare(b.name))}
 function noisyStateText(value=''){
-  const text=String(value||'');
-  return /\b(USER|ASSISTANT):|powershell|ExecutionPolicy|PROJECT API COUNT|ACTIVE-TAB|NO_API_INVENTORY_RESULT|PS [A-Z]:\\|```|\bSet-[A-Z]|\bGet-[A-Z]/i.test(text) || text.length>900;
+  const text=String(value||'').trim();
+  return /\b(USER|ASSISTANT):|powershell|ExecutionPolicy|PROJECT API COUNT|ACTIVE-TAB|NO_API_INVENTORY_RESULT|PS [A-Z]:\\|```|\bSet-[A-Z]|\bGet-[A-Z]|BEGIN:VEVENT|DTSTART:|RRULE:|\"timing_mode\"\s*:|\"prompt\"\s*:|\"title\"\s*:/i.test(text)
+    || (/^[{[]/.test(text) && /[\"'}]\s*:/.test(text))
+    || text.length>900;
 }
 function displaySummary(p,d,e){
   if(e?.sourceType==='chatgpt_thread' && noisyStateText(d.summary)) return `Dernière activité ChatGPT : ${e.title || p.name}.`;
