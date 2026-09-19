@@ -92,7 +92,7 @@ function displayResume(p,d,e){
 
 function render(){
   const s=stats();
-  $('#app').innerHTML=`<div class="app">
+  $('#app').innerHTML=`<div class="app view-${view}">
     <aside class="sidebar">
       <div class="brand"><h1>SHINO <span>//</span> CONTROL</h1><p>SOURCE-DERIVED PROJECT RADAR</p></div>
       <nav class="nav">${navBtn('radar','◉  Radar')}${navBtn('discovered','⌁  Discovered')}${navBtn('sources','⇄  Sources / Sync')}</nav>
