@@ -128,8 +128,7 @@ function radarView(s){
   ${attention.length?`<section class="grid attention-grid">${attention.map(projectCard).join('')}</section>`:'<div class="empty compact-empty">Aucun blocage ni test explicite dans le filtre actuel.</div>'}
   ${sectionHeading('Synced projects', `${regular.length} projet${regular.length===1?'':'s'} avec état reconstruit`, '')}
   ${regular.length?`<section class="grid">${regular.map(projectCard).join('')}</section>`:'<div class="empty compact-empty">Aucun autre projet synchronisé dans ce filtre.</div>'}
-  ${sectionHeading('Empty projects', `${empty.length} projet${empty.length===1?'':'s'} mappé${empty.length===1?'':'s'} mais sans conversation`, 'muted-title')}
-  ${empty.length?`<section class="unsynced-grid">${empty.map(emptyCard).join('')}</section>`:'<div class="empty compact-empty">Aucun projet vide dans le filtre actuel.</div>'}
+  ${empty.length?`${sectionHeading('Empty projects', `${empty.length} projet${empty.length===1?'':'s'} mappé${empty.length===1?'':'s'} mais sans conversation`, 'muted-title')}<section class="unsynced-grid">${empty.map(emptyCard).join('')}</section>`:''}
   ${unsynced.length?`${sectionHeading('Not synced yet', `${unsynced.length} projet${unsynced.length===1?'':'s'} sans preuve exploitable`, 'muted-title')}<section class="unsynced-grid">${unsynced.map(unsyncedCard).join('')}</section>`:''}`;
 }
 function sectionHeading(title, subtitle, cls=''){return `<div class="section-head ${cls}"><div><h3>${esc(title)}</h3><p>${esc(subtitle)}</p></div></div>`}
