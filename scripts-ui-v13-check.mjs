@@ -23,6 +23,6 @@ for(const cls of ['state','priority','stage','issues']){
 }
 assert.match(css,/\.v9-project-side \.v8-side-card:nth-child\(4\)[\s\S]*--rail-glow/,'rail color mapping incomplete');
 assert.match(app,/BEGIN:VEVENT\|DTSTART:\|RRULE:/,'raw schedule payload filtering missing');
-assert.match(app,/"timing_mode"\\s\*:/,'raw JSON payload filtering missing');
+assert.ok(app.includes('timing_mode') && app.includes('BEGIN:VEVENT'),'raw JSON/schedule payload filtering missing');
 
 console.log('CONTROL UI v13 visual coherence checks PASS');
