@@ -478,11 +478,66 @@ function sourcesView(){
   const archives=state.sources.filter(s=>s.type==='chatgpt_archived');
   const mappedProjectKeys=Object.keys(state.settings?.chatgptProjectMappings||{}).length;
   const inv=state.settings?.lastChatgptInventory;
-  return `<div class="topbar"><div class="titleblock"><h2>Sources / Sync</h2><p>GitHub + ChatGPT alimentent le radar. Les sources archivées restent conservées mais n'influencent plus l'état courant.</p></div></div>
-  <div class="panel panel-github" style="margin-bottom:14px"><h3>GitHub sync</h3><p class="note">Public repos sync without a token. For private repos, set <code>GITHUB_TOKEN</code> before starting the server, or paste a fine-grained token here for this sync only.</p><div class="config-row"><input id="ghToken" type="password" placeholder="Fine-grained GitHub token (optional)"><button class="btn gold" id="syncBtn2">Sync configured repos</button></div></div>
-  <div class="panel panel-chatgpt" style="margin-bottom:14px"><h3>ChatGPT sync</h3><p class="note"><b>${mappedProjectKeys} project routes remembered.</b>${inv?` Latest API inventory: <b>${esc(inv.conversationCount)} conversations / ${esc(inv.projectCount)} projects</b>, ${esc(rel(inv.observedAt))} ago.`:''} Archived legacy/out-of-inventory chats: <b>${archives.length}</b>.</p></div>
-  <div class="panel"><h3>Registered current sources</h3><div class="source-list">${[...gh,...comps,...chats].map(sourceItem).join('')}</div></div>
-  ${archives.length?`<div class="panel" style="margin-top:14px"><h3>Archived ChatGPT sources</h3><p class="note">Kept for history; excluded from Radar derivation and current source counts.</p><div class="source-list">${archives.map(sourceItem).join('')}</div></div>`:''}`;
+  const catchup=state.settings?.lastChatgptCatchup;
+  const currentCount=current.length;
+  const githubCount=gh.length+comps.length;
+  const chatCount=chats.length;
+  const syncState=(catchup?.failedCount||catchup?.deferredCount||String(catchup?.status||'').toUpperCase()==='PARTIAL')?'PARTIAL':'HEALTHY';
+  return `<div class="topbar sources-topbar">
+    <div class="titleblock">
+      <span class="sources-kicker">SYSTEM / INTEGRATIONS</span>
+      <h2>Sources / Sync</h2>
+      <p>GitHub et ChatGPT alimentent CONTROL. Les archives restent conservées sans influencer l’état courant.</p>
+    </div>
+    <div class="sources-top-status">
+      <span class="sources-live-dot"></span>
+      <div><small>ÉTAT DES FLUX</small><b>${esc(syncState)}</b></div>
+    </div>
+  </div>
+
+  <section class="sources-summary-grid">
+    <article class="sources-summary-card sources-total"><span>◎</span><div><small>Sources courantes</small><b>${currentCount}</b><p>Sources actives utilisées par CONTROL</p></div></article>
+    <article class="sources-summary-card sources-github"><span>GH</span><div><small>GitHub</small><b>${githubCount}</b><p>${gh.length} dépôt${gh.length===1?'':'s'} · ${comps.length} composant${comps.length===1?'':'s'}</p></div></article>
+    <article class="sources-summary-card sources-chatgpt"><span>AI</span><div><small>ChatGPT</small><b>${chatCount}</b><p>${mappedProjectKeys} route${mappedProjectKeys===1?'':'s'} projet mémorisée${mappedProjectKeys===1?'':'s'}</p></div></article>
+    <article class="sources-summary-card sources-archive"><span>◫</span><div><small>Archives</small><b>${archives.length}</b><p>Conservées hors dérivation courante</p></div></article>
+  </section>
+
+  <div class="sources-layout">
+    <main class="sources-main">
+      <section class="panel panel-github sources-card sources-config-card">
+        <div class="sources-card-head"><div><span class="sources-card-icon">GH</span><div><small>CONNECTEUR</small><h3>GitHub sync</h3></div></div><span class="sources-connector-state">Configuré</span></div>
+        <p class="note">Les dépôts publics se synchronisent sans token. Pour les dépôts privés, utilise un token GitHub fine-grained uniquement pour cette synchronisation.</p>
+        <div class="config-row"><input id="ghToken" type="password" placeholder="Fine-grained GitHub token (optional)"><button class="btn gold" id="syncBtn2">Synchroniser les dépôts</button></div>
+      </section>
+
+      <section class="panel panel-chatgpt sources-card">
+        <div class="sources-card-head"><div><span class="sources-card-icon">AI</span><div><small>CONNECTEUR</small><h3>ChatGPT sync</h3></div></div><span class="sources-connector-state">${inv?'Inventaire actif':'En attente'}</span></div>
+        <p class="note"><b>${mappedProjectKeys} routes projet mémorisées.</b>${inv?` Dernier inventaire API : <b>${esc(inv.conversationCount)} conversations / ${esc(inv.projectCount)} projets</b>, ${esc(rel(inv.observedAt))} ago.`:''} Archives legacy / hors inventaire : <b>${archives.length}</b>.</p>
+      </section>
+
+      <section class="panel sources-card sources-current-card">
+        <div class="sources-card-head"><div><span class="sources-card-icon">◎</span><div><small>REGISTRY</small><h3>Sources courantes enregistrées</h3></div></div><span class="sources-count-pill">${currentCount}</span></div>
+        <div class="source-list sources-source-grid">${[...gh,...comps,...chats].map(sourceItem).join('')}</div>
+      </section>
+
+      ${archives.length?`<details class="panel sources-card sources-archive-card"><summary><span>Archives ChatGPT</span><b>${archives.length}</b></summary><p class="note">Conservées pour l’historique. Elles sont exclues du Radar et des compteurs de sources courantes.</p><div class="source-list sources-source-grid">${archives.map(sourceItem).join('')}</div></details>`:''}
+    </main>
+
+    <aside class="sources-side">
+      <section class="sources-side-card">
+        <span class="sources-side-kicker">CONTROL</span>
+        <h3>État des sources</h3>
+        <div class="sources-side-metric"><span>Sources actives</span><b>${currentCount}</b></div>
+        <div class="sources-side-metric"><span>Routes ChatGPT</span><b>${mappedProjectKeys}</b></div>
+        <div class="sources-side-metric"><span>Dernier inventaire</span><b>${inv?esc(rel(inv.observedAt))+' ago':'—'}</b></div>
+      </section>
+      <section class="sources-side-card">
+        <span class="sources-side-kicker">HYGIÈNE</span>
+        <h3>Ce qui influence le Radar</h3>
+        <p>Uniquement les sources courantes et accessibles. Les archives et conversations hors inventaire restent visibles ici mais ne modifient pas l’état projet.</p>
+      </section>
+    </aside>
+  </div>`;
 }
 function sourceItem(s){const p=projectById(s.projectId);return `<div class="source-item ${sourceClass(s.type)}"><div><strong>${esc(s.title||s.type)}</strong><p>${esc(p?.name||'Unmapped')} · ${esc(s.type)} · observed ${esc(rel(s.lastObservedAt||s.inventoryObservedAt))} ago ${s.state?`· ${esc(s.state)}`:''}</p>${s.url?`<a class="link" href="${esc(s.url)}" target="_blank">${esc(s.url)}</a>`:''}</div><span class="chip ${sourceClass(s.type)}">${s.type==='chatgpt_archived'?'ARCHIVED':s.lastObservedAt?'REGISTERED':'NEEDS SYNC'}</span></div>`}
 function projectModal(id){
