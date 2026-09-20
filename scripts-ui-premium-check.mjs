@@ -21,7 +21,13 @@ for(const cls of ['state','priority','stage','issues']){
   assert.match(css,new RegExp('\\.v8-project-metrics \\.'+cls+'\\{--metric:'),'metric color token missing for '+cls);
 }
 assert.match(css,/font-size:48px!important/,'dashboard readability scale missing');
-assert.match(css,/\.board-card h4\{font-size:8px!important/,'board readability scale missing');
+assert.match(css,/NATIVE 3440 READABILITY CONTRACT/,'native readability contract missing');
+assert.match(css,/\.board-card h4\{font-size:10px!important/,'board readable title floor missing');
+assert.match(css,/\.v8-project-heading h1\{font-size:42px!important/,'project title readable floor missing');
+assert.match(css,/\.v11-family-motif>i,[\s\S]*display:none!important/,'legacy motif internals are still visible');
+assert.match(css,/@media\(min-width:2200px\)/,'ultrawide readability calibration missing');
+assert.match(css,/\.v8-hero h1\{font-size:58px!important/,'ultrawide hero scale missing');
+assert.match(css,/\.v8-activity-list p\{font-size:10px!important/,'activity body scale missing');
 assert.match(app,/function displayEvidenceSummary\(/,'evidence hygiene helper missing');
 assert.match(app,/displayEvidenceSummary\(item\)/,'activity hygiene is not applied');
 assert.match(app,/displayEvidenceSummary\(e\)/,'next-action evidence hygiene is not applied');
