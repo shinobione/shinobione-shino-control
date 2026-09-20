@@ -385,6 +385,76 @@ function allProjectsPanel(projects,buckets){
   const body=projectView==='board'?premiumProjectBoard(buckets):projectView==='groups'?groupedProjectsPanel(projects):projectListV3(projects);
   return `<section class="all-projects-panel"><div class="all-projects-head"><div><span class="projects-head-icon">▦</span><h3>Tous les projets</h3><small>${projects.length} actifs · ${archivedCount} archivé${archivedCount===1?'':'s'}</small></div><div class="all-projects-tools"><button class="project-manage-main" data-manage-all="${esc(projects[0]?.id||'__new__')}">⚙ Gérer les projets</button><div class="project-search"><span>⌕</span><input data-search placeholder="Rechercher un projet…" value="${esc(query)}"></div><select id="statusFilter" class="select compact-filter">${['ALL','ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','EMPTY','UNSYNCED'].map(x=>`<option ${statusFilter===x?'selected':''}>${x}</option>`).join('')}</select><div class="view-chips">${mode('board','Colonnes')}${mode('groups','Groupes')}${mode('list','Liste')}</div></div></div>${body}</section>`;
 }
+function projectManagerModal(targetId){
+  const isNew=targetId==='__new__';
+  const project=isNew?null:projectById(targetId);
+  const selected=project || {id:'__new__',name:'',universe:'PROJECT',repo:'',description:'',control:{statusOverride:'ACTIVE',group:'',note:'',tags:[],pinned:false,archived:false}};
+  const control=projectControl(selected);
+  const derived=project?projectState(project.id):null;
+  const autoStatus=derived?.autoStatus || derived?.status || '—';
+  const statusValue=isNew?(control.statusOverride||'ACTIVE'):(control.statusOverride||'AUTO');
+  const statuses=['AUTO','ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','EMPTY','UNSYNCED'];
+  const groups=[...new Set(state.projects.map(projectGroup).filter(group=>group&&group!=='Sans groupe'))].sort((a,b)=>a.localeCompare(b,'fr'));
+  const ordered=[...state.projects].sort((a,b)=>{
+    const aa=projectArchived(a), ba=projectArchived(b);
+    if(aa!==ba) return aa?1:-1;
+    return projectGroup(a).localeCompare(projectGroup(b),'fr') || a.name.localeCompare(b.name,'fr');
+  });
+  return `<div class="project-manager-overlay" data-manager-overlay>
+    <section class="project-manager" role="dialog" aria-modal="true" aria-label="Gestion des projets">
+      <aside class="project-manager-list">
+        <header><div><span>PROJECT CONTROL</span><h2>Gérer les projets</h2></div><button id="projectManagerClose" aria-label="Fermer">×</button></header>
+        <button class="manager-new ${isNew?'active':''}" id="newManagedProject">＋ Nouveau projet</button>
+        <div class="manager-project-scroll">${ordered.map(p=>{const d=projectState(p.id),ctl=projectControl(p);return `<button class="manager-project-row ${p.id===targetId?'active':''} ${projectArchived(p)?'archived':''}" data-manager-select="${esc(p.id)}"><span class="project-emblem tiny">${projectGlyph(p)}</span><div><b>${ctl.pinned?'★ ':''}${esc(p.name)}</b><small>${esc(projectGroup(p))} · ${esc(boardLabel(d?.status))}</small></div>${projectArchived(p)?'<em>ARCHIVE</em>':''}</button>`}).join('')}</div>
+      </aside>
+      <main class="project-manager-editor">
+        <div class="manager-editor-head"><div><span>${isNew?'NOUVEAU PROJET':'ÉDITION DU PROJET'}</span><h2>${isNew?'Créer un projet':esc(selected.name)}</h2><p>${isNew?'Projet local CONTROL, prêt à recevoir des sources plus tard.':'Les réglages manuels restent prioritaires sans effacer les données source.'}</p></div>${project&&!isNew?`<button class="manager-open-project" data-open-managed-project="${esc(project.id)}">Ouvrir ↗</button>`:''}</div>
+        <form id="projectManagerForm" data-project-id="${esc(selected.id)}">
+          <div class="manager-form-grid">
+            <label class="wide"><span>Nom</span><input name="name" required maxlength="120" value="${esc(selected.name||'')}" placeholder="Nom du projet"></label>
+            <label><span>Univers / type</span><input name="universe" maxlength="80" value="${esc(selected.universe||'PROJECT')}" placeholder="DEV, MUSIC, PERSONAL…"></label>
+            <label><span>Groupe</span><input name="group" maxlength="80" list="projectGroups" value="${esc(control.group||'')}" placeholder="Ex. SHINO, Musique, Perso…"><datalist id="projectGroups">${groups.map(group=>`<option value="${esc(group)}"></option>`).join('')}</datalist></label>
+            <label><span>État</span><select name="statusOverride">${statuses.map(status=>`<option value="${status}" ${status===statusValue?'selected':''}>${status==='AUTO'?'Auto — état dérivé':boardLabel(status)}</option>`).join('')}</select><small>État source actuel : ${esc(boardLabel(autoStatus))}</small></label>
+            <label><span>Dépôt GitHub</span><input name="repo" maxlength="180" value="${esc(selected.repo||'')}" placeholder="owner/repository"></label>
+            <label class="wide"><span>Tags</span><input name="tags" maxlength="420" value="${esc(projectTags(selected).join(', '))}" placeholder="frontend, urgent, audio, client…"></label>
+            <label class="wide"><span>Description</span><textarea name="description" maxlength="2400" rows="3" placeholder="À quoi sert ce projet ?">${esc(selected.description||'')}</textarea></label>
+            <label class="wide"><span>Note personnelle</span><textarea name="note" maxlength="4000" rows="5" placeholder="Décisions, contexte, rappel, contrainte, prochaine intention…">${esc(control.note||'')}</textarea></label>
+          </div>
+          <div class="manager-flags">
+            <label><input type="checkbox" name="pinned" ${control.pinned?'checked':''}><span>★ Épingler / prioritaire</span></label>
+            <label class="archive-flag"><input type="checkbox" name="archived" ${control.archived?'checked':''}><span>Archiver ce projet</span></label>
+          </div>
+          <div class="manager-info-strip"><div><span>STATUT CONTROL</span><b>${esc(statusValue==='AUTO'?boardLabel(autoStatus):boardLabel(statusValue))}</b></div><div><span>GROUPE</span><b>${esc(control.group||'Sans groupe')}</b></div><div><span>SOURCES</span><b>${project?sourcesFor(project.id).length:0}</b></div><div><span>MODE</span><b>${isNew?'MANUEL':derived?.manualStatusOverride?'MANUEL + SOURCES':'SOURCES + CONTROL'}</b></div></div>
+          <footer><button type="button" class="manager-cancel" id="projectManagerCancel">Annuler</button><button type="submit" class="manager-save">${isNew?'Créer le projet':'Enregistrer les changements'}</button></footer>
+        </form>
+      </main>
+    </section>
+  </div>`;
+}
+async function saveManagedProject(form){
+  const data=new FormData(form);
+  const id=form.dataset.projectId;
+  const payload={
+    name:data.get('name'),
+    universe:data.get('universe'),
+    group:data.get('group'),
+    statusOverride:data.get('statusOverride')==='AUTO'?null:data.get('statusOverride'),
+    repo:data.get('repo'),
+    tags:data.get('tags'),
+    description:data.get('description'),
+    note:data.get('note'),
+    pinned:data.get('pinned')==='on',
+    archived:data.get('archived')==='on'
+  };
+  const creating=id==='__new__';
+  const out=await api(creating?'/api/projects/create':'/api/projects/update',{method:'POST',body:JSON.stringify(creating?payload:{...payload,projectId:id})});
+  state=out.state;
+  manageProjectId=out.project.id;
+  if(projectArchived(out.project) && modalProject===out.project.id) modalProject=null;
+  render();
+  toast(creating?'Projet créé':'Projet mis à jour');
+}
+
 function radarView(s){
   const projects=visibleProjects();
   const buckets={attention:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='attention'),active:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='active'),stable:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='stable'),other:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='other')};
@@ -437,7 +507,8 @@ function projectPage(id){
   const actionLinks=[
     cta.pr?`<a class="v8-action primary" href="${esc(cta.pr.url)}" target="_blank">Ouvrir PR ↗</a>`:'',
     cta.chat?`<a class="v8-action violet" href="${esc(cta.chat.url)}" target="_blank">Continuer</a>`:'',
-    cta.repo?`<a class="v8-action" href="${esc(cta.repo)}" target="_blank">GitHub</a>`:''
+    cta.repo?`<a class="v8-action" href="${esc(cta.repo)}" target="_blank">GitHub</a>`:'',
+    `<button class="v8-action manage-project-action" data-manage-project="${esc(p.id)}" data-stop>⚙ Gérer</button>`
   ].join('');
   const sourcePanel=src.slice(0,5).map(s=>`<div class="v9-source-row"><span class="v9-source-icon ${sourceClass(s.type)}">${s.type==='chatgpt_thread'?'AI':String(s.type||'').startsWith('github_')?'GH':'•'}</span><div><b>${esc(sourceLabel(s))}</b><small>${esc(s.title||s.state||'Source enregistrée')}</small></div><time>${esc(rel(s.conversationUpdatedAt||s.lastObservedAt))} ago</time></div>`).join('');
   const visual=projectVisualProfile(p);
@@ -461,6 +532,7 @@ function projectPage(id){
       <aside class="v8-project-side v9-project-side">
         <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">↗</span><h2>Connexions</h2></div><span class="v8-good">Connecté</span></div>${['GitHub','ChatGPT','Environnement local'].map(label=>{const ok=label==='GitHub'?src.some(s=>String(s.type||'').startsWith('github_')):label==='ChatGPT'?src.some(s=>s.type==='chatgpt_thread'):true;return `<div class="v8-connection"><b>${label}</b><span><i class="${ok?'ok':'warn'}"></i>${ok?'Connecté':'Non détecté'}</span></div>`}).join('')}</section>
         <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">?</span><h2>Pourquoi cet état ?</h2></div></div><p class="v8-why">${d.status==='EMPTY'?'CONTROL connaît le projet mais aucune conversation courante n’est rattachée.':`CONTROL dérive cet état depuis ${d.evidenceIds.length} élément${d.evidenceIds.length===1?'':'s'} récent${d.evidenceIds.length===1?'':'s'}.`}</p><ul class="v8-why-list">${d.evidenceIds.slice(0,5).map(eid=>{const item=state.evidence.find(x=>x.id===eid&&x.inventoryCurrent!==false);return item?`<li>${esc(item.title)}</li>`:''}).join('')}</ul></section>
+        <section class="v8-side-card project-organization-card"><div class="v8-section-head"><div><span class="v8-section-icon">✦</span><h2>Organisation</h2></div><button class="v8-side-edit" data-manage-project="${esc(p.id)}" data-stop>Modifier</button></div><div class="project-org-meta"><div><small>Groupe</small><b>${esc(projectGroup(p))}</b></div><div><small>État</small><b>${esc(boardLabel(d.status))}${d.manualStatusOverride?' · manuel':''}</b></div></div>${projectTags(p).length?`<div class="project-org-tags">${projectTags(p).map(tag=>`<span>${esc(tag)}</span>`).join('')}</div>`:''}<p class="project-org-note">${esc(projectControl(p).note||'Aucune note personnelle pour ce projet.')}</p></section>
         <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">▣</span><h2>Fichiers clés</h2></div></div>${files.length?files.map(path=>`<div class="v8-file"><span>‹›</span><b>${esc(path)}</b></div>`).join(''):'<p class="v8-empty-note">Aucun chemin de fichier détecté dans les évidences courantes.</p>'}</section>
         <section class="v8-side-card v9-sources-card"><div class="v8-section-head"><div><span class="v8-section-icon">◎</span><h2>Sources du projet</h2></div><span class="v8-good">${src.length}</span></div>${sourcePanel||'<p class="v8-empty-note">Aucune source courante.</p>'}</section>
       </aside>
