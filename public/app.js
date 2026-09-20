@@ -62,7 +62,7 @@ function stats(){
     unsynced:ds.filter(d=>d.status==='UNSYNCED').length
   };
 }
-function overallFresh(){const fs=state.derived.map(d=>d.freshness);return fs.includes('STALE')?'AGING':fs.includes('AGING')?'AGING':'RECENT'}
+function overallFresh(){const ids=new Set(activeProjects().map(p=>p.id));const fs=state.derived.filter(d=>ids.has(d.projectId)).map(d=>d.freshness);return fs.includes('STALE')?'AGING':fs.includes('AGING')?'AGING':'RECENT'}
 function premiumIcon(name,cls=''){
   const paths={
     dashboard:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9 20v-6h6v6"/>',
@@ -360,7 +360,7 @@ function premiumRail(){
   </aside>`;
 }
 function githubPulse(){
-  const now=Date.now(), days=Array.from({length:14},(_,i)=>{const dayStart=new Date();dayStart.setHours(0,0,0,0);dayStart.setDate(dayStart.getDate()-(13-i));const start=dayStart.getTime(),end=start+86400000;const count=state.evidence.filter(e=>e.sourceType==='github_commit'&&Date.parse(e.timestamp)>=start&&Date.parse(e.timestamp)<end).length;return count;});
+  const now=Date.now(), days=Array.from({length:14},(_,i)=>{const dayStart=new Date();dayStart.setHours(0,0,0,0);dayStart.setDate(dayStart.getDate()-(13-i));const start=dayStart.getTime(),end=start+86400000;const count=state.evidence.filter(e=>e.sourceType==='github_commit'&&!projectArchived(projectById(e.projectId))&&Date.parse(e.timestamp)>=start&&Date.parse(e.timestamp)<end).length;return count;});
   const max=Math.max(1,...days), total=days.reduce((a,b)=>a+b,0);
   return `<section class="github-pulse"><div class="pulse-icon">‹›</div><div class="pulse-copy"><b>Activité GitHub</b><span>Progression sur les 14 derniers jours</span></div><div class="pulse-bars">${days.map(n=>`<i style="height:${18+Math.round((n/max)*70)}%"></i>`).join('')}</div><strong>+${total}</strong><small>commits</small></section>`;
 }
