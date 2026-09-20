@@ -464,3 +464,67 @@
     padding-right:38px;
   }
 }
+
+
+/* v0.10.2 — premium custom status picker */
+.manager-status-field{position:relative;z-index:12}
+.manager-status-picker{position:relative}
+.manager-status-trigger{
+  width:100%;height:39px;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:0 11px;border:1px solid rgba(66,133,204,.36);border-radius:10px;
+  background:linear-gradient(180deg,rgba(5,20,40,.96),rgba(4,15,31,.99));
+  color:#edf7ff;font:inherit;font-size:12px;text-align:left;cursor:pointer;
+  box-shadow:inset 0 1px rgba(255,255,255,.025)
+}
+.manager-status-trigger:hover,
+.manager-status-picker.open .manager-status-trigger{
+  border-color:#3caaff;
+  box-shadow:0 0 0 3px rgba(49,159,255,.09),0 0 22px rgba(49,159,255,.08)
+}
+.manager-status-trigger b{
+  color:#74c8ff;font-size:14px;font-weight:800;transition:transform .16s ease
+}
+.manager-status-picker.open .manager-status-trigger b{transform:rotate(180deg)}
+.manager-status-menu{
+  position:absolute;z-index:140;left:0;right:0;top:calc(100% + 6px);
+  display:none;padding:6px;border:1px solid rgba(74,157,238,.48);border-radius:11px;
+  background:linear-gradient(180deg,rgba(6,24,46,.995),rgba(3,14,29,.995));
+  box-shadow:0 18px 44px rgba(0,0,0,.58),0 0 30px rgba(42,142,255,.10);
+  backdrop-filter:blur(18px)
+}
+.manager-status-picker.open .manager-status-menu{display:grid;gap:3px}
+.manager-status-option{
+  min-height:35px;display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:9px;align-items:center;
+  width:100%;padding:7px 9px;border:1px solid transparent;border-radius:8px;
+  color:#dbeaff;background:transparent;font:inherit;font-size:11px;text-align:left;cursor:pointer
+}
+.manager-status-option:hover{
+  border-color:rgba(71,159,240,.32);
+  background:linear-gradient(90deg,rgba(28,98,184,.34),rgba(72,47,161,.18))
+}
+.manager-status-option.selected{
+  border-color:rgba(67,180,255,.48);
+  background:linear-gradient(90deg,rgba(21,109,205,.48),rgba(84,48,196,.24));
+  box-shadow:inset 2px 0 #55c6ff
+}
+.manager-status-option small{
+  color:#637f9f;font-size:8px;white-space:nowrap
+}
+.manager-status-dot{
+  width:7px;height:7px;border-radius:50%;background:#6f8ca9;
+  box-shadow:0 0 10px currentColor
+}
+.manager-status-dot.status-AUTO{background:#55bfff;color:#55bfff}
+.manager-status-dot.status-ACTIVE{background:#2fd9a5;color:#2fd9a5}
+.manager-status-dot.status-NEEDS-TEST{background:#47a7ff;color:#47a7ff}
+.manager-status-dot.status-BLOCKED{background:#ff5b72;color:#ff5b72}
+.manager-status-dot.status-STABLE{background:#28dfb4;color:#28dfb4}
+.manager-status-dot.status-WAITING{background:#f0a82c;color:#f0a82c}
+.manager-status-dot.status-DONE{background:#5fd66f;color:#5fd66f}
+.manager-status-dot.status-EMPTY{background:#7d8ca3;color:#7d8ca3}
+.manager-status-dot.status-UNSYNCED{background:#a36cff;color:#a36cff}
+
+@media (max-width:820px){
+  .manager-status-trigger{height:44px}
+  .manager-status-option{min-height:40px;font-size:12px}
+}
