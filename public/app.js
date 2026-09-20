@@ -177,16 +177,17 @@ function projectBoard(buckets){
 }
 function boardProjectCard(p){
   const d=projectState(p.id); if(!d)return "";
-  const e=evidenceFor(p.id)[0], c=ctAs(p), badges=sourceBadges(p.id), resume=displayResume(p,d,e);
-  return `<article class="board-card ${statusClass(d.status)} ${projectVisualClass(p)}" style="${projectVisualVars(p)}" data-open-project="${p.id}"><div class="board-card-top"><span class="project-type">${esc(p.universe||"PROJECT")}</span><span class="status-tag">${esc(boardLabel(d.status))}</span></div><h4>${esc(p.name)}</h4><p class="board-resume">${esc(resume)}</p><div class="board-meta"><span class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</span><span>${e?`${esc(rel(e.timestamp))} ago`:"No evidence"}</span></div><div class="board-footer"><div class="mini-sources">${badges.slice(0,2).map(g=>`<span class="${sourceClass(g.type)}">${esc(g.label)}${g.count>1?` ×${g.count}`:""}</span>`).join("")}</div>${c.chat?`<a class="quick-open" href="${esc(c.chat.url)}" target="_blank" data-stop title="Continue in ChatGPT">↗</a>`:c.pr?`<a class="quick-open" href="${esc(c.pr.url)}" target="_blank" data-stop title="Open PR">↗</a>`:""}</div></article>`;
+  const e=evidenceFor(p.id)[0], c=ctAs(p), badges=sourceBadges(p.id), resume=displayResume(p,d,e), control=projectControl(p);
+  const tags=projectTags(p).slice(0,2);
+  return `<article class="board-card ${statusClass(d.status)} ${projectVisualClass(p)}" style="${projectVisualVars(p)}" data-open-project="${p.id}"><div class="board-card-top"><div class="board-card-labels"><span class="project-type">${esc(p.universe||"PROJECT")}</span>${control.group?`<span class="project-group-tag">${esc(control.group)}</span>`:''}</div><div class="board-card-actions"><span class="status-tag">${esc(boardLabel(d.status))}${d.manualStatusOverride?' · M':''}</span><button class="board-manage" data-manage-project="${p.id}" data-stop title="Gérer le projet">•••</button></div></div><h4>${control.pinned?'★ ':''}${esc(p.name)}</h4><p class="board-resume">${esc(control.note || resume)}</p>${tags.length?`<div class="project-tags">${tags.map(tag=>`<span>${esc(tag)}</span>`).join('')}</div>`:''}<div class="board-meta"><span class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</span><span>${e?`${esc(rel(e.timestamp))} ago`:"No evidence"}</span></div><div class="board-footer"><div class="mini-sources">${badges.slice(0,2).map(g=>`<span class="${sourceClass(g.type)}">${esc(g.label)}${g.count>1?` ×${g.count}`:""}</span>`).join("")}</div>${c.chat?`<a class="quick-open" href="${esc(c.chat.url)}" target="_blank" data-stop title="Continue in ChatGPT">↗</a>`:c.pr?`<a class="quick-open" href="${esc(c.pr.url)}" target="_blank" data-stop title="Open PR">↗</a>`:""}</div></article>`;
 }
 function projectListV3(projects){
   return `<div class="project-list-v3">${projects.length?projects.map(listProjectCardV3).join(""):`<div class="empty compact-empty">Aucun projet dans ce filtre.</div>`}</div>`;
 }
 function listProjectCardV3(p){
   const d=projectState(p.id); if(!d)return "";
-  const e=evidenceFor(p.id)[0], c=ctAs(p), resume=displayResume(p,d,e);
-  return `<article class="list-project ${statusClass(d.status)}" data-open-project="${p.id}"><div class="list-project-main"><span class="status-dot"></span><div><h4>${esc(p.name)}</h4><small>${esc(p.universe||"PROJECT")}</small></div></div><span class="status-tag">${esc(boardLabel(d.status))}</span><p>${esc(resume)}</p><div class="list-project-age"><b class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</b><span>${e?`${esc(rel(e.timestamp))} ago`:"—"}</span></div>${c.chat?`<a class="btn small gold" href="${esc(c.chat.url)}" target="_blank" data-stop>Continue</a>`:c.pr?`<a class="btn small" href="${esc(c.pr.url)}" target="_blank" data-stop>Open PR</a>`:"<span></span>"}</article>`;
+  const e=evidenceFor(p.id)[0], c=ctAs(p), resume=displayResume(p,d,e), control=projectControl(p);
+  return `<article class="list-project ${statusClass(d.status)}" data-open-project="${p.id}"><div class="list-project-main"><span class="status-dot"></span><div><h4>${control.pinned?'★ ':''}${esc(p.name)}</h4><small>${esc(p.universe||"PROJECT")}${control.group?` · ${esc(control.group)}`:''}</small></div></div><span class="status-tag">${esc(boardLabel(d.status))}${d.manualStatusOverride?' · M':''}</span><p>${esc(control.note || resume)}</p><div class="list-project-age"><b class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</b><span>${e?`${esc(rel(e.timestamp))} ago`:"—"}</span></div><div class="list-project-actions">${c.chat?`<a class="btn small gold" href="${esc(c.chat.url)}" target="_blank" data-stop>Continue</a>`:c.pr?`<a class="btn small" href="${esc(c.pr.url)}" target="_blank" data-stop>Open PR</a>`:""}<button class="btn small ghost" data-manage-project="${p.id}" data-stop>Gérer</button></div></article>`;
 }
 function activityRail(){
   const rows=latestEvidenceRows(7), discovered=state.discovered?.length||0;
@@ -235,7 +236,8 @@ function priorityProjectCard(p){
 }
 function dashboardHero(){
   const build=window.SHINO_CONTROL_BUILD?.version||'';
-  const focus=selectFocusProject(state)?.project;
+  const selectedFocus=selectFocusProject(state)?.project;
+  const focus=selectedFocus && !projectArchived(selectedFocus) ? selectedFocus : null;
   return `<section class="v8-hero">
     <div class="v8-hero-copy">
       <span class="v8-welcome">BIENVENUE DANS</span>
@@ -311,7 +313,8 @@ function v84PriorityMiniCard(p){
   </article>`;
 }
 function focusTodayPanel(projects){
-  const focus=selectFocusProject(state);
+  const selected=selectFocusProject(state);
+  const focus=selected?.project && !projectArchived(selected.project) ? selected : null;
   const p=focus?.project || priorityProjects(projects,1)[0];
   if(!p)return '';
   const d=projectState(p.id), e=evidenceFor(p.id)[0], cta=ctAs(p);
