@@ -27,7 +27,14 @@ assert.match(css,/\.v8-project-heading h1\{font-size:42px!important/,'project ti
 assert.match(css,/\.v11-family-motif>i,[\s\S]*display:none!important/,'legacy motif internals are still visible');
 assert.match(css,/@media\(min-width:2200px\)/,'ultrawide readability calibration missing');
 assert.match(css,/\.v8-hero h1\{font-size:58px!important/,'ultrawide hero scale missing');
-assert.match(css,/\.v8-activity-list p\{font-size:10px!important/,'activity body scale missing');
+assert.match(css,/READABLE DENSITY PASS/,'readable density pass missing');
+assert.match(css,/\.board-card h4\{font-size:12\.5px!important/,'ultrawide board title scale missing');
+assert.match(css,/\.board-resume\{font-size:11px!important/,'ultrawide board body scale missing');
+assert.match(css,/\.activity-item strong\{font-size:12px!important/,'dashboard rail title scale missing');
+assert.match(css,/\.v8-project-heading h1\{font-size:56px!important/,'project hero title scale missing');
+assert.match(css,/\.v8-project-summary\{font-size:14\.5px!important/,'project summary scale missing');
+assert.match(css,/\.v8-activity-list p\{font-size:11px!important/,'activity body scale missing');
+assert.match(css,/\.v8-why\{font-size:11\.5px!important/,'project rail body scale missing');
 assert.match(app,/function displayEvidenceSummary\(/,'evidence hygiene helper missing');
 assert.match(app,/displayEvidenceSummary\(item\)/,'activity hygiene is not applied');
 assert.match(app,/displayEvidenceSummary\(e\)/,'next-action evidence hygiene is not applied');
