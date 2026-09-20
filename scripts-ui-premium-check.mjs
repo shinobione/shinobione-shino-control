@@ -51,6 +51,10 @@ assert.match(app,/sources-summary-grid/,'Sources Sync summary metrics missing');
 assert.match(app,/sources-layout/,'Sources Sync premium layout missing');
 assert.match(css,/Sources \/ Sync semantic health colors/,'sync health semantic colors missing');
 assert.match(css,/sidebar GitHub sync card layout fix/,'sidebar sync layout fix missing');
+const managerCss=fs.readFileSync('public/project-manager.css','utf8');
+assert.match(managerCss,/Project Management Layer v1/,'project manager styles missing');
+assert.match(app,/function projectManagerModal/,'project manager UI missing');
+assert.match(app,/function groupedProjectsPanel/,'grouped project view missing');
 assert.match(css,/grid-template-columns:34px minmax\(0,1fr\) 30px/,'sidebar sync grid columns missing');
 
 for (const file of [
