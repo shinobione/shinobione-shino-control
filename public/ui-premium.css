@@ -1418,3 +1418,57 @@ body{
 }
 .view-sources .sync-health-ignored-item strong{color:#dce8f7!important}
 .view-sources .sync-health-ignored-item span{color:#93a7c0!important}
+
+
+/* v0.9.54 — sidebar GitHub sync card layout fix */
+.sidebar-sync{
+  display:grid!important;
+  grid-template-columns:34px minmax(0,1fr) 30px!important;
+  column-gap:10px!important;
+  align-items:center!important;
+  width:auto!important;
+  min-height:58px!important;
+  box-sizing:border-box!important;
+  overflow:hidden!important;
+}
+.sidebar-sync>div{
+  min-width:0!important;
+  display:grid!important;
+  align-content:center!important;
+  gap:3px!important;
+}
+.sidebar-sync b{
+  margin:0!important;
+  font-size:12px!important;
+  line-height:1.05!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+.sidebar-sync small{
+  margin:0!important;
+  font-size:10px!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+}
+.sidebar-sync-icon{
+  width:32px!important;
+  height:32px!important;
+  min-width:32px!important;
+  justify-self:start!important;
+}
+.sidebar-sync-icon .premium-svg{
+  width:17px!important;
+  height:17px!important;
+}
+.sidebar-sync .sync-arrow{
+  width:28px!important;
+  height:28px!important;
+  min-width:28px!important;
+  justify-self:end!important;
+  margin:0!important;
+}
+.sidebar-sync .sync-arrow .premium-svg{
+  width:15px!important;
+  height:15px!important;
+}
