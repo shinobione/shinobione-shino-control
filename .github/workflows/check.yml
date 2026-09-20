@@ -100,10 +100,10 @@ jobs:
         run: |
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.9.52' public/build-info.js
+          grep -q '0.9.53' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
-          grep -q '"version": "0.2.7"' extension/control-collector/manifest.json
+          grep -q '"version": "0.2.8"' extension/control-collector/manifest.json
           grep -q '"alarms"' extension/control-collector/manifest.json
           grep -q '"scripting"' extension/control-collector/manifest.json
           test -s extension/control-collector/catchup-main.js
@@ -111,6 +111,9 @@ jobs:
           grep -q 'chatgpt-project-api-metadata-v1' extension/control-collector/catchup-main.js
           grep -q '/backend-api/conversation/' extension/control-collector/catchup-main.js
           grep -q 'DEFAULT_FETCH_TIMEOUT_MS = 30000' extension/control-collector/catchup-main.js
+          grep -q 'SLOW_FETCH_TIMEOUT_MS = 90000' extension/control-collector/catchup-main.js
+          grep -q 'DEEP_SLOW_FETCH_TIMEOUT_MS = 120000' extension/control-collector/catchup-main.js
+          grep -q 'conversationFetchTimeout' extension/control-collector/catchup-main.js
           grep -q 'FETCH_CONCURRENCY = 1' extension/control-collector/catchup-main.js
           grep -q 'FETCH_MAX_ATTEMPTS = 1' extension/control-collector/catchup-main.js
           grep -q 'FETCH_INTER_ITEM_DELAY_MS = 1500' extension/control-collector/catchup-main.js
@@ -118,7 +121,7 @@ jobs:
           grep -q "kind:'inaccessible'" extension/control-collector/catchup-main.js
           grep -q '__SHINO_CONTROL_COLLECTOR_V1__' extension/control-collector/collector.js
           grep -q '__SHINO_CONTROL_CATCHUP_CLIENT_V1__' extension/control-collector/catchup-client.js
-          grep -q "CLIENT_VERSION = '0.2.7'" extension/control-collector/catchup-client.js
+          grep -q "CLIENT_VERSION = '0.2.8'" extension/control-collector/catchup-client.js
           grep -q 'ACTIVE_REQUEST_STALE_MS = 20 \* 60 \* 1000' extension/control-collector/catchup-client.js
           grep -q 'CLIENT_RUNNING_STALE_MS = 20 \* 60 \* 1000' extension/control-collector/catchup-client.js
           grep -q 'CLIENT_PARTIAL_COOLDOWN_MS = 10 \* 60 \* 1000' extension/control-collector/catchup-client.js
@@ -280,7 +283,7 @@ jobs:
           test -s dist/assets/project-workflow-art.svg
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.9.52"' dist/state.json
+          grep -q '"version": "0.9.53"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'lastChatgptCatchup' dist/state.json; then
             echo 'Private ChatGPT catch-up diagnostics leaked into public snapshot'
