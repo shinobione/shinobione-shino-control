@@ -49,6 +49,7 @@ assert.match(css,/\.view-sources \.main-inner\{/,'Sources Sync full-width overri
 assert.match(css,/\.view-sources \.sync-health-metrics\{/,'Sources Sync health layout missing');
 assert.match(app,/sources-summary-grid/,'Sources Sync summary metrics missing');
 assert.match(app,/sources-layout/,'Sources Sync premium layout missing');
+assert.match(css,/Sources \/ Sync semantic health colors/,'sync health semantic colors missing');
 
 for (const file of [
   'public/assets/ui/backgrounds/project-hero-master.avif',

@@ -1388,3 +1388,33 @@ body{
   .view-sources .sources-source-grid{grid-template-columns:1fr!important}
   .view-sources .sync-health-metrics{grid-template-columns:repeat(3,minmax(0,1fr))!important}
 }
+
+
+/* v0.9.52 — Sources / Sync semantic health colors */
+.view-sources .sync-health-metrics .metric-deferred{
+  border-color:rgba(183,145,62,.42)!important;
+  background:linear-gradient(145deg,rgba(48,37,16,.48),rgba(8,18,31,.78))!important;
+}
+.view-sources .sync-health-metrics .metric-deferred b{color:#f1c76f!important}
+.view-sources .sync-health-metrics .metric-ignored{
+  border-color:rgba(96,117,154,.40)!important;
+  background:linear-gradient(145deg,rgba(29,35,52,.48),rgba(8,18,31,.78))!important;
+}
+.view-sources .sync-health-metrics .metric-ignored b{color:#afc1df!important}
+
+.view-sources .sync-health-deferred summary{color:#f0c66f!important}
+.view-sources .sync-health-ignored summary{color:#a9bbd6!important}
+
+.view-sources .sync-health-deferred-item{
+  border-color:rgba(165,128,55,.42)!important;
+  background:rgba(44,34,15,.44)!important;
+}
+.view-sources .sync-health-deferred-item strong{color:#f3d790!important}
+.view-sources .sync-health-deferred-item span{color:#b5aa91!important}
+
+.view-sources .sync-health-ignored-item{
+  border-color:rgba(81,103,139,.40)!important;
+  background:rgba(17,23,35,.58)!important;
+}
+.view-sources .sync-health-ignored-item strong{color:#dce8f7!important}
+.view-sources .sync-health-ignored-item span{color:#93a7c0!important}
