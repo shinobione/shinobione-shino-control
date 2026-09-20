@@ -164,7 +164,7 @@ function visibleProjects(){
   return state.projects.filter(p=>!projectArchived(p)).filter(matchesFilter).sort((a,b)=>priorityScore(b)-priorityScore(a) || a.name.localeCompare(b.name));
 }
 function latestEvidenceRows(limit=8){
-  return [...state.evidence].filter(e=>e.inventoryCurrent!==false && e.timestamp).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,limit);
+  return [...state.evidence].filter(e=>e.inventoryCurrent!==false && e.timestamp && !projectArchived(projectById(e.projectId))).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,limit);
 }
 function overviewCard(label,value,subtitle,cls,filter){
   const icon={Projects:'projects',Active:'active',Attention:'attention',Stable:'stable'}[label]||'projects';
@@ -458,7 +458,7 @@ async function saveManagedProject(form){
 function radarView(s){
   const projects=visibleProjects();
   const buckets={attention:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='attention'),active:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='active'),stable:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='stable'),other:projects.filter(p=>boardBucket(projectState(p.id)?.status)==='other')};
-  const attentionCount=s.blocked+s.test, focus=selectFocusProject(state)?.project || priorityProjects(projects,1)[0];
+  const attentionCount=s.blocked+s.test, selectedFocus=selectFocusProject(state)?.project, focus=(selectedFocus&&!projectArchived(selectedFocus)?selectedFocus:null) || priorityProjects(projects,1)[0];
   const priorities=priorityProjects(projects,5).filter(p=>p.id!==focus?.id).slice(0,3);
   return `<div class="v8-dashboard"><section class="v8-dashboard-main">${dashboardHero()}<section class="overview-grid">${overviewCard('Projects',activeProjects().length,'Projets actifs suivis','overview-total','ALL')}${overviewCard('Active',s.active,'En développement','overview-active','ACTIVE')}${overviewCard('Attention',attentionCount,'Nécessitent un suivi','overview-attention',attentionCount?'NEEDS TEST':'ALL')}${overviewCard('Stable',s.stable,'À jour et OK','overview-stable','STABLE')}</section><section class="v84-workspace-row">${focusTodayPanel(projects)}<section class="v84-priority-panel"><div class="premium-section-head"><div><span>★</span><h3>Projets prioritaires</h3><p>Trois chantiers à garder dans le champ.</p></div><button data-scroll-projects>Voir tous →</button></div><div class="v84-priority-grid">${priorities.map(v84PriorityMiniCard).join('')}</div></section></section>${allProjectsPanel(projects,buckets)}${githubPulse()}</section>${premiumRail()}</div>`;
 }
@@ -502,7 +502,7 @@ function projectEventMeta(item){
 function projectPage(id){
   const p=projectById(id), d=projectState(id); if(!p||!d)return radarView(stats());
   const ev=evidenceFor(id), src=sourcesFor(id), cta=ctAs(p), e=ev[0], files=extractProjectFiles(id);
-  const summary=displaySummary(p,d,e), resume=displayResume(p,d,e), recent=ev.slice(0,5);
+  const summary=p.description || displaySummary(p,d,e), resume=displayResume(p,d,e), recent=ev.slice(0,5);
   const progress=projectProgress(d.status), issueCount=projectIssueCount(id), build=window.SHINO_CONTROL_BUILD?.version||'';
   const actionLinks=[
     cta.pr?`<a class="v8-action primary" href="${esc(cta.pr.url)}" target="_blank">Ouvrir PR ↗</a>`:'',
@@ -567,7 +567,7 @@ function unsyncedCard(p){
     <div class="unsynced-actions">${repo?`<a class="mini-link" href="${esc(repo)}" target="_blank" data-stop>GitHub</a>`:''}<button class="mini-link" data-why="${p.id}">Why?</button></div>
   </article>`;
 }
-function discoveredView(){return `<div class="topbar"><div class="titleblock"><h2>Discovered</h2><p>Sources détectées mais pas encore rattachées à un projet.</p></div></div><div class="panel"><div class="discover-list">${state.discovered.length?state.discovered.map(d=>`<div class="discover-item"><strong>${esc(d.title)}</strong><p>${esc(d.preview||'')}</p><div class="actions"><select class="select" data-map-select="${d.id}">${state.projects.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button class="btn gold small" data-map="${d.id}">Map source</button><button class="btn small ghost" data-ignore="${d.id}">Ignore</button><a class="btn small" href="${esc(d.url)}" target="_blank">Open</a></div></div>`).join(''):'<div class="empty">Nothing unmapped. New ChatGPT threads or repos land here only when CONTROL cannot resolve them confidently.</div>'}</div></div>`}
+function discoveredView(){return `<div class="topbar"><div class="titleblock"><h2>Discovered</h2><p>Sources détectées mais pas encore rattachées à un projet.</p></div></div><div class="panel"><div class="discover-list">${state.discovered.length?state.discovered.map(d=>`<div class="discover-item"><strong>${esc(d.title)}</strong><p>${esc(d.preview||'')}</p><div class="actions"><select class="select" data-map-select="${d.id}">${activeProjects().map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button class="btn gold small" data-map="${d.id}">Map source</button><button class="btn small ghost" data-ignore="${d.id}">Ignore</button><a class="btn small" href="${esc(d.url)}" target="_blank">Open</a></div></div>`).join(''):'<div class="empty">Nothing unmapped. New ChatGPT threads or repos land here only when CONTROL cannot resolve them confidently.</div>'}</div></div>`}
 function sourcesView(){
   const current=state.sources.filter(s=>s.type!=='chatgpt_archived');
   const gh=current.filter(s=>s.type==='github_repo'), comps=current.filter(s=>s.type==='github_component'), chats=current.filter(s=>s.type==='chatgpt_thread');
