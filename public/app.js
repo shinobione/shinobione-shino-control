@@ -13,7 +13,7 @@ const rel = ts => {
 const statusClass = status => `status-${String(status||'UNKNOWN').replace(/[^A-Z0-9]+/gi,'-').replace(/^-|-$/g,'')}`;
 const sourceClass = type => type==='github_repo'?'source-github':type==='chatgpt_thread'?'source-chatgpt':type==='github_component'?'source-component':'source-other';
 const sourceLabel = s => s.type==='github_repo'?'GitHub':s.type==='chatgpt_thread'?'ChatGPT':s.type==='chatgpt_archived'?'ChatGPT archive':s.type==='github_component'?(s.title||'Component'):s.type;
-let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, projectView=localStorage.getItem('controlProjectView') || 'board';
+let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, manageProjectId=null, projectView=localStorage.getItem('controlProjectView') || 'board';
 
 async function api(path, options={}) {
   const r = await fetch(path, {headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
@@ -27,6 +27,12 @@ function projectState(id){return state.derived.find(d=>d.projectId===id)}
 function evidenceFor(id){return state.evidence.filter(e=>e.projectId===id&&e.inventoryCurrent!==false).sort((a,b)=>new Date(b.timestamp||0)-new Date(a.timestamp||0))}
 function sourcesFor(id,{archives=false}={}){return state.sources.filter(s=>s.projectId===id&&(archives?s.type==='chatgpt_archived':s.type!=='chatgpt_archived'))}
 function projectById(id){return state.projects.find(p=>p.id===id)}
+function projectControl(project){return project?.control || {}}
+function projectArchived(project){return projectControl(project).archived === true}
+function activeProjects(){return state.projects.filter(project=>!projectArchived(project))}
+function projectGroup(project){return projectControl(project).group || 'Sans groupe'}
+function projectTags(project){return Array.isArray(projectControl(project).tags) ? projectControl(project).tags : []}
+function manualStatusLabel(d){return d?.manualStatusOverride ? ' · manuel' : ''}
 function latestChatSource(id){return sourcesFor(id).filter(s=>s.type==='chatgpt_thread'&&s.url).sort((a,b)=>new Date(b.conversationUpdatedAt||b.lastObservedAt||0)-new Date(a.conversationUpdatedAt||a.lastObservedAt||0))[0]||null}
 function ctAs(p){
   const ev=evidenceFor(p.id);
@@ -45,7 +51,8 @@ function sourceBadges(id){
   return [...groups.values()];
 }
 function stats(){
-  const ds=state.derived;
+  const visibleIds=new Set(activeProjects().map(p=>p.id));
+  const ds=state.derived.filter(d=>visibleIds.has(d.projectId));
   return {
     active:ds.filter(d=>d.status==='ACTIVE').length,
     test:ds.filter(d=>d.status==='NEEDS TEST').length,
@@ -80,7 +87,7 @@ function matchesFilter(p){
 }
 function priorityScore(p){
   const d=projectState(p.id); if(!d)return -1;
-  const rank={BLOCKED:500,'NEEDS TEST':400,ACTIVE:300,WAITING:200,STABLE:100,EMPTY:-50,UNSYNCED:-100}[d.status]??50;
+  const rank=({BLOCKED:500,'NEEDS TEST':400,ACTIVE:300,WAITING:200,STABLE:100,DONE:80,EMPTY:-50,UNSYNCED:-100}[d.status]??50) + (projectControl(p).pinned ? 1000 : 0);
   const age=d.lastMovementAt?Math.max(0,30-(Date.now()-new Date(d.lastMovementAt))/86400000):0;
   return rank+age;
 }
@@ -154,7 +161,7 @@ function boardLabel(status="") {
   return ({BLOCKED:"Blocked","NEEDS TEST":"Needs test",ACTIVE:"Active",STABLE:"Stable",DONE:"Done",WAITING:"Waiting",EMPTY:"Empty",UNSYNCED:"Unsynced"})[status] || status || "Unknown";
 }
 function visibleProjects(){
-  return state.projects.filter(matchesFilter).sort((a,b)=>priorityScore(b)-priorityScore(a) || a.name.localeCompare(b.name));
+  return state.projects.filter(p=>!projectArchived(p)).filter(matchesFilter).sort((a,b)=>priorityScore(b)-priorityScore(a) || a.name.localeCompare(b.name));
 }
 function latestEvidenceRows(limit=8){
   return [...state.evidence].filter(e=>e.inventoryCurrent!==false && e.timestamp).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,limit);
@@ -200,10 +207,11 @@ function render(){
       <div class="side-spacer"></div>
       <button class="sidebar-sync" data-view="sources"><span class="sidebar-sync-icon">${premiumIcon('github')}</span><div><b>Sync GitHub</b><small>Connecté</small></div><span class="sync-arrow">${premiumIcon('sync')}</span></button>
       <div class="sidebar-facts"><span>Dernière sync</span><b>${esc(rel(state.settings?.lastGithubSync?.at || state.settings?.lastChatgptCatchup?.at || state.derivedAt))} ago</b></div>
-      <div class="side-status"><span class="live-dot"></span><div><b>${state.projects.length} projets</b><small>${overallFresh()} source picture</small></div></div>
+      <div class="side-status"><span class="live-dot"></span><div><b>${activeProjects().length} projets</b><small>${state.projects.filter(projectArchived).length} archivé${state.projects.filter(projectArchived).length===1?'':'s'} · ${overallFresh()} source picture</small></div></div>
       <div class="side-foot">SHINO // CONTROL<br><span>PROJECT COMMAND</span></div>
     </aside>
     <main class="main"><div class="main-inner"><div class="mobile-menu actions"><button class="btn" data-view="radar">Dashboard</button><button class="btn" data-view="discovered">Découvrir</button><button class="btn" data-view="sources">Sources</button></div>${view==='radar'?(modalProject?projectPage(modalProject):radarView(s)):view==='discovered'?discoveredView():sourcesView()}</div></main>
+    ${manageProjectId?projectManagerModal(manageProjectId):''}
   </div>`;
   bind();
 }
