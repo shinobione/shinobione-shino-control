@@ -264,6 +264,92 @@ function readBody(req) {
   });
 }
 
+const MANAGED_PROJECT_STATUSES = new Set(['ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','EMPTY','UNSYNCED']);
+
+function cleanProjectText(value, max = 500) {
+  return String(value ?? '').replace(/\r\n/g, '\n').trim().slice(0, max);
+}
+
+function cleanProjectTags(value) {
+  const raw = Array.isArray(value) ? value : String(value || '').split(',');
+  return [...new Set(raw.map(item => cleanProjectText(item, 32)).filter(Boolean))].slice(0, 12);
+}
+
+function cleanProjectRepo(value) {
+  const repo = cleanProjectText(value, 180).replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/^\/+|\/+$/g, '');
+  return repo && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) ? repo : null;
+}
+
+function projectSlug(value = '') {
+  const slug = String(value || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 42);
+  return slug || 'project';
+}
+
+function normalizedManagedControl(existing = {}, payload = {}, now = new Date().toISOString()) {
+  const rawStatus = cleanProjectText(payload.statusOverride ?? existing.statusOverride ?? '', 32).toUpperCase();
+  const archived = payload.archived === undefined ? existing.archived === true : payload.archived === true;
+  const wasArchived = existing.archived === true;
+  return {
+    ...existing,
+    group:cleanProjectText(payload.group ?? existing.group ?? '', 80) || null,
+    note:cleanProjectText(payload.note ?? existing.note ?? '', 4000) || null,
+    tags:cleanProjectTags(payload.tags ?? existing.tags ?? []),
+    statusOverride:MANAGED_PROJECT_STATUSES.has(rawStatus) ? rawStatus : null,
+    pinned:payload.pinned === undefined ? existing.pinned === true : payload.pinned === true,
+    archived,
+    archivedAt:archived ? (wasArchived && existing.archivedAt ? existing.archivedAt : now) : null,
+    updatedAt:now,
+    updatedBy:'user'
+  };
+}
+
+function updateManagedProject(state, payload = {}) {
+  const projectId = cleanProjectText(payload.projectId, 160);
+  const project = state.projects.find(item => item.id === projectId);
+  if (!project) return null;
+  const now = new Date().toISOString();
+  const name = cleanProjectText(payload.name ?? project.name, 120);
+  if (!name) throw new Error('Project name is required');
+  project.name = name;
+  project.universe = cleanProjectText(payload.universe ?? project.universe ?? 'PROJECT', 80) || 'PROJECT';
+  project.description = cleanProjectText(payload.description ?? project.description ?? '', 2400) || null;
+  if (Object.prototype.hasOwnProperty.call(payload, 'repo')) project.repo = cleanProjectRepo(payload.repo);
+  project.control = normalizedManagedControl(project.control || {}, payload, now);
+  return project;
+}
+
+function createManagedProject(state, payload = {}) {
+  const now = new Date().toISOString();
+  const name = cleanProjectText(payload.name, 120);
+  if (!name) throw new Error('Project name is required');
+  let id = `manual-${projectSlug(name)}`;
+  let n = 2;
+  while (state.projects.some(item => item.id === id)) id = `manual-${projectSlug(name)}-${n++}`;
+  const requestedStatus = cleanProjectText(payload.statusOverride || 'ACTIVE', 32).toUpperCase();
+  const project = {
+    id,
+    name,
+    universe:cleanProjectText(payload.universe || 'PROJECT', 80) || 'PROJECT',
+    kind:'MANUAL_PROJECT',
+    repo:cleanProjectRepo(payload.repo),
+    description:cleanProjectText(payload.description || '', 2400) || null,
+    trackState:true,
+    createdAt:now,
+    control:normalizedManagedControl({}, {
+      ...payload,
+      statusOverride:MANAGED_PROJECT_STATUSES.has(requestedStatus) ? requestedStatus : 'ACTIVE'
+    }, now)
+  };
+  state.projects.push(project);
+  return project;
+}
+
 http.createServer = function wrappedCreateServer(listener) {
   return originalCreateServer(async (req, res) => {
     try {
@@ -271,6 +357,27 @@ http.createServer = function wrappedCreateServer(listener) {
 
       if (req.method === 'GET' && url.pathname === '/api/state') {
         return json(res, 200, readState({ derive:true }));
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/projects/update') {
+        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+        const payload = await readBody(req);
+        const state = readState();
+        const project = updateManagedProject(state, payload);
+        if (!project) return json(res, 404, {error:'Project not found'});
+        deriveAll(state, {dirtyProjectIds:[project.id]});
+        writeState(state);
+        return json(res, 200, {ok:true, project, state});
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/projects/create') {
+        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+        const payload = await readBody(req);
+        const state = readState();
+        const project = createManagedProject(state, payload);
+        deriveAll(state, {dirtyProjectIds:[project.id]});
+        writeState(state);
+        return json(res, 201, {ok:true, project, state});
       }
 
       if (req.method === 'POST' && url.pathname === '/api/control/restart') {
