@@ -765,3 +765,113 @@ body{
   .v8-why{font-size:10.5px!important}
   .v8-why-list{font-size:9.5px!important}
 }
+
+
+/* =====================================================================
+   v0.9.49 — CONTENT HIERARCHY + FINAL MATERIAL POLISH
+   Keep v0.9.48 readability intact; improve scanability and premium feel.
+   ===================================================================== */
+
+/* Better panel separation without adding more neon. */
+.v84-focus-panel,.v84-priority-panel,.all-projects-panel,
+.v8-project-hero,.v8-next-action,.v84-pipeline,.v8-activity-panel,
+.v9-project-side .v8-side-card,.overview-card{
+  position:relative!important;
+}
+.v84-focus-panel:before,.v84-priority-panel:before,.all-projects-panel:before,
+.v8-next-action:before,.v84-pipeline:before,.v8-activity-panel:before,
+.v9-project-side .v8-side-card:before,.overview-card:before{
+  content:""!important;
+  position:absolute!important;
+  left:12px!important;right:12px!important;top:0!important;height:1px!important;
+  background:linear-gradient(90deg,transparent,rgba(164,214,255,.16),transparent)!important;
+  pointer-events:none!important;
+  z-index:2!important;
+}
+
+/* Project cards: stronger title hierarchy, quieter metadata. */
+.board-card{
+  transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease!important;
+}
+.board-card:hover{
+  transform:translateY(-1px)!important;
+  border-color:color-mix(in srgb,var(--accent,#4d8cff) 58%,#4f78a0)!important;
+  box-shadow:
+    0 14px 30px rgba(0,0,0,.28),
+    0 0 15px color-mix(in srgb,var(--family-glow,rgba(70,130,255,.16)) 58%,transparent),
+    inset 0 1px rgba(255,255,255,.05)!important;
+}
+.board-card h4{letter-spacing:.005em!important}
+.board-resume{color:#b9cae0!important}
+.board-meta{color:#7087a4!important}
+
+/* Priority cards read as deliberate premium modules instead of dense mini-panels. */
+.v84-priority-mini{
+  transition:transform .16s ease,box-shadow .16s ease!important;
+}
+.v84-priority-mini:hover{
+  transform:translateY(-2px)!important;
+  box-shadow:
+    0 19px 38px rgba(0,0,0,.31),
+    0 0 20px color-mix(in srgb,var(--family-glow) 58%,transparent),
+    inset 0 1px rgba(255,255,255,.06)!important;
+}
+.v84-mini-head h4{color:#f8fbff!important}
+.v84-mini-head p{color:#aebfd5!important}
+.v84-mini-meta{color:#7187a2!important}
+
+/* Hero copy gets a subtle local reading plate while preserving the scenic art. */
+.v8-hero-copy:after,
+.v8-project-identity:after,
+.v84-focus-copy:after{
+  content:""!important;
+  position:absolute!important;
+  z-index:-1!important;
+  inset:-10px -18px -10px -18px!important;
+  border-radius:18px!important;
+  background:radial-gradient(ellipse at 24% 45%,rgba(3,15,35,.44),rgba(3,15,35,.16) 54%,transparent 78%)!important;
+  pointer-events:none!important;
+}
+.v8-hero-copy,.v8-project-identity,.v84-focus-copy{isolation:isolate!important}
+
+/* Right rail: easier scanning. */
+.v9-project-side .v8-side-card h2,
+.v8-rail-card h3,.v8-system-panel h3{letter-spacing:.005em!important}
+.v8-connection b,.v9-source-row b,.v8-file b{color:#eef6ff!important}
+.v9-source-row small,.v9-source-row time,.v8-why,.v8-why-list{color:#95a9c2!important}
+
+/* Activity gets clearer row boundaries and hover affordance. */
+.v8-activity-list article{
+  border-bottom-color:rgba(67,127,184,.18)!important;
+  transition:background .15s ease!important;
+}
+.v8-activity-list article:hover{
+  background:linear-gradient(90deg,rgba(28,89,153,.08),transparent 72%)!important;
+}
+.v8-activity-list h3{color:#f4f8ff!important}
+.v8-activity-list p{color:#9fb2cb!important}
+
+/* Summary and next action are the two main reading anchors. */
+.v8-project-summary,.v84-focus-copy>p{
+  color:#d3e0f0!important;
+}
+.v8-next-copy h2{
+  color:#fbfdff!important;
+  text-wrap:balance;
+}
+.v8-next-copy p{
+  color:#9fb2c8!important;
+}
+
+/* Slightly calmer decorative asset: text/content stays dominant. */
+.v11-brand-emblem{opacity:.92!important}
+.v84-focus-art .v11-family-motif,
+.v11-project-visual .project-motif{filter:saturate(.94) brightness(.98)!important}
+
+/* Preserve strong readable sizing at the native target. */
+@media(min-width:2200px){
+  .v8-project-summary{max-width:1080px!important}
+  .v8-next-copy h2{max-width:1180px!important}
+  .v8-activity-list article{min-height:64px!important}
+  .v9-project-side .v8-side-card{min-height:unset!important}
+}
