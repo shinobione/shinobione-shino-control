@@ -97,13 +97,32 @@ function noisyStateText(value=''){
     || (/^[{[]/.test(text) && /[\"'}]\s*:/.test(text))
     || text.length>900;
 }
+function conversationalStateText(value=''){
+  const text=String(value||'').trim();
+  if(!text)return false;
+  return /^(et |et ensuite|bon[, ]|ok[, ]|oui[, ]|non[, ]|là[, ]|alors[, ]|franchement|du coup|ensuite[, ])/i.test(text)
+    || /\b(je|j'|tu|t'|on va|on attaque|on passe|on garde|on parle|tu ressens|tu veux|je préfère|je pense)\b/i.test(text)
+    || /[😀-🙏🌀-🫿]/u.test(text);
+}
+function structuredProjectSummary(p,d,e){
+  const action=displayResume(p,d,e);
+  const lead={
+    BLOCKED:'Blocage à lever.',
+    'NEEDS TEST':'Validation en attente.',
+    ACTIVE:'Travail en cours.',
+    WAITING:'En attente.',
+    STABLE:'État stable.',
+    DONE:'Travail terminé.',
+    EMPTY:'Projet sans activité courante.',
+    UNSYNCED:'Projet non synchronisé.'
+  }[d.status] || 'État courant.';
+  if(['STABLE','DONE'].includes(d.status)) return `${lead} ${e?.title?`Dernier mouvement : ${e.title}.`:''}`.trim();
+  return `${lead} Prochaine étape : ${action}`;
+}
 function displaySummary(p,d,e){
-  if(noisyStateText(d.summary)){
-    return e?.sourceType==='chatgpt_thread'
-      ? `Dernière activité ChatGPT : ${e.title || p.name}.`
-      : (e?.title || 'État courant reconstruit depuis les sources.');
-  }
-  return d.summary || (e ? e.title : 'État non résumé.');
+  const raw=String(d.summary||'').trim();
+  if(!raw || noisyStateText(raw) || conversationalStateText(raw)) return structuredProjectSummary(p,d,e);
+  return raw;
 }
 function displayEvidenceSummary(item){
   const raw=String(item?.summary||'').trim();
