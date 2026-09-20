@@ -38,6 +38,9 @@ assert.match(css,/\.v8-why\{font-size:11\.5px!important/,'project rail body scal
 assert.match(app,/function displayEvidenceSummary\(/,'evidence hygiene helper missing');
 assert.match(app,/displayEvidenceSummary\(item\)/,'activity hygiene is not applied');
 assert.match(app,/displayEvidenceSummary\(e\)/,'next-action evidence hygiene is not applied');
+assert.match(app,/function conversationalStateText\(/,'conversational summary filter missing');
+assert.match(app,/function structuredProjectSummary\(/,'structured project summary fallback missing');
+assert.match(css,/CONTENT HIERARCHY \+ FINAL MATERIAL POLISH/,'content hierarchy polish missing');
 
 for (const file of [
   'public/assets/ui/backgrounds/project-hero-master.avif',
