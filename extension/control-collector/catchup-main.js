@@ -2,6 +2,8 @@
   const ORIGIN = location.origin;
   const CHANNEL = 'SHINO_CONTROL_CATCHUP_V1';
   const DEFAULT_FETCH_TIMEOUT_MS = 30000;
+  const SLOW_FETCH_TIMEOUT_MS = 90000;
+  const DEEP_SLOW_FETCH_TIMEOUT_MS = 120000;
   const SESSION_FETCH_TIMEOUT_MS = 10000;
   const FETCH_CONCURRENCY = 1;
   const FETCH_MAX_ATTEMPTS = 1;
@@ -184,11 +186,19 @@
     return 'transient';
   }
 
+  function conversationFetchTimeout(item = {}) {
+    const attempts = Number(item.timeoutAttempts || 0);
+    if (attempts >= 5) return DEEP_SLOW_FETCH_TIMEOUT_MS;
+    if (attempts > 0 || item.slowRetry) return SLOW_FETCH_TIMEOUT_MS;
+    return DEFAULT_FETCH_TIMEOUT_MS;
+  }
+
   async function fetchChangedItem(item, headers) {
     let lastError = null;
+    const timeoutMs = conversationFetchTimeout(item);
     for (let attempt=1; attempt<=FETCH_MAX_ATTEMPTS; attempt++) {
       try {
-        const conversation = await apiJson(`/backend-api/conversation/${encodeURIComponent(item.key)}`, headers);
+        const conversation = await apiJson(`/backend-api/conversation/${encodeURIComponent(item.key)}`, headers, timeoutMs);
         const messages = currentBranchMessages(conversation);
         if (!messages.length) throw new Error('NO_READABLE_MESSAGES');
         const tail = messages.slice(-4).map(message => `${message.role}:${message.text}`).join('\n');
@@ -218,7 +228,8 @@
       title:item.title || '',
       error:lastError || 'Unknown fetch error',
       kind:failureKind(lastError || ''),
-      updatedAt:item.updatedAt || null
+      updatedAt:item.updatedAt || null,
+      timeoutMs
     }};
   }
 
