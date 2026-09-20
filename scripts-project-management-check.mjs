@@ -67,6 +67,9 @@ assert.match(css, /v0\.10\.1 — ultrawide readability/);
 assert.match(css, /width:min\(3000px,calc\(100vw - 24px\)\)/);
 assert.match(css, /overflow:hidden/);
 assert.match(css, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+assert.match(css, /v0\.10\.2 — premium custom status picker/);
+assert.match(app, /data-status-picker/);
+assert.match(app, /statusPickerOutsideBound/);
 assert.match(html, /project-manager\.css/);
 
 console.log('project management checks passed');
