@@ -67,9 +67,13 @@ assert.match(planner,/chatgptTimeoutQuarantine/);
 assert.match(ui,/CHATGPT SYNC HEALTH/);
 assert.match(ui,/Known live/);
 assert.match(ui,/Transient failed/);
-assert.match(ui,/Quarantined/);
-assert.match(ui,/Inaccessible/);
+assert.match(ui,/Slow deferred/);
+assert.match(ui,/Unavailable \/ ignored/);
 assert.match(html,/sync-health\.css/);
 assert.match(html,/sync-health\.js/);
 
 console.log('ChatGPT Sync Health checks passed');
+
+assert.match(ui,/chatgptInaccessible/,'persistent unavailable registry is not used by sync health UI');
+assert.match(ui,/slow thread/,'slow-thread semantics missing');
+assert.match(ui,/tombstone/,'unavailable tombstone semantics missing');
