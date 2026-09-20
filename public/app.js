@@ -659,6 +659,15 @@ function bind(){
   document.querySelectorAll('[data-scroll-activity]').forEach(b=>b.addEventListener('click',()=>document.querySelector('[data-activity-section]')?.scrollIntoView({behavior:'smooth',block:'start'})));
   document.querySelectorAll('[data-global-project-search]').forEach(el=>el.addEventListener('keydown',e=>{if(e.key==='Enter'){query=e.target.value;modalProject=null;view='radar';render();}}));
   document.querySelectorAll('[data-project-view]').forEach(b=>b.addEventListener('click',()=>{projectView=b.dataset.projectView||'board';localStorage.setItem('controlProjectView',projectView);render()}));
+  document.querySelectorAll('[data-manage-project]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();manageProjectId=b.dataset.manageProject;render()}));
+  document.querySelectorAll('[data-manage-all]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();manageProjectId=b.dataset.manageAll||activeProjects()[0]?.id||'__new__';render()}));
+  document.querySelectorAll('[data-manager-select]').forEach(b=>b.addEventListener('click',()=>{manageProjectId=b.dataset.managerSelect;render()}));
+  $('#newManagedProject')?.addEventListener('click',()=>{manageProjectId='__new__';render()});
+  $('#projectManagerClose')?.addEventListener('click',()=>{manageProjectId=null;render()});
+  $('#projectManagerCancel')?.addEventListener('click',()=>{manageProjectId=null;render()});
+  $('[data-manager-overlay]')?.addEventListener('click',e=>{if(e.target===e.currentTarget){manageProjectId=null;render()}});
+  $('[data-open-managed-project]')?.addEventListener('click',e=>{modalProject=e.currentTarget.dataset.openManagedProject;manageProjectId=null;view='radar';render()});
+  $('#projectManagerForm')?.addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget;const save=form.querySelector('.manager-save');if(save){save.disabled=true;save.textContent='Enregistrement…'}try{await saveManagedProject(form)}catch(error){toast(`Impossible d’enregistrer : ${error.message}`);if(save){save.disabled=false;save.textContent=form.dataset.projectId==='__new__'?'Créer le projet':'Enregistrer les changements'}}});
   $('#syncBtn')?.addEventListener('click',()=>{view='sources';render();setTimeout(()=>$('#ghToken')?.focus(),0)});
   $('#syncBtn2')?.addEventListener('click',syncGithub);
   document.querySelectorAll('[data-open-project]').forEach(el=>el.onclick=e=>{if(e.target.closest('[data-stop],[data-why]'))return;modalProject=el.dataset.openProject;render()});
@@ -668,5 +677,5 @@ function bind(){
   document.querySelectorAll('[data-map]').forEach(b=>b.onclick=async()=>{const id=b.dataset.map;const projectId=$(`[data-map-select="${id}"]`).value;await api('/api/remap',{method:'POST',body:JSON.stringify({discoveredId:id,projectId})});await load();toast('Source mapped')});
   document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=async()=>{await api('/api/discovered/ignore',{method:'POST',body:JSON.stringify({id:b.dataset.ignore})});await load();toast('Source ignored')});
 }
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modalProject){modalProject=null;render()}});
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(manageProjectId){manageProjectId=null;render();return}if(modalProject){modalProject=null;render()}});
 load().catch(e=>{$('#app').innerHTML=`<div style="padding:30px;color:white">Failed to load CONTROL: ${esc(e.message)}</div>`});
