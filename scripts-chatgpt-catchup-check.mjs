@@ -99,7 +99,7 @@ const quarantineState = {
     chatgptTimeoutQuarantine:{
       slow:{remoteUpdatedAt:'2026-09-15T19:00:00.000Z',retryAt:'2026-09-15T20:30:00.000Z'},
       remoteChanged:{remoteUpdatedAt:'2026-09-15T19:00:00.000Z',retryAt:'2026-09-15T20:30:00.000Z'},
-      retryDue:{remoteUpdatedAt:'2026-09-15T19:00:00.000Z',retryAt:'2026-09-15T19:59:00.000Z'}
+      retryDue:{remoteUpdatedAt:'2026-09-15T19:00:00.000Z',retryAt:'2026-09-15T19:59:00.000Z',attempts:6}
     }
   },
   sources:[
@@ -118,5 +118,8 @@ assert.equal(quarantineResult.timeoutQuarantinedCount, 1, 'only unchanged conver
 assert.equal(quarantineResult.plan.some(item=>item.key==='slow'), false);
 assert.equal(quarantineResult.plan.some(item=>item.key==='remoteChanged'), true, 'remote updates must bypass timeout quarantine immediately');
 assert.equal(quarantineResult.plan.some(item=>item.key==='retryDue'), true, 'expired quarantine must become retryable');
+assert.equal(quarantineResult.plan.find(item=>item.key==='retryDue').slowRetry, true, 'expired timeout quarantine should carry slow-retry metadata');
+assert.equal(quarantineResult.plan.find(item=>item.key==='retryDue').timeoutAttempts, 6, 'expired timeout quarantine should preserve historical attempt count');
+assert.equal(quarantineResult.plan.find(item=>item.key==='remoteChanged').slowRetry, true, 'remote update bypass should still keep slow-retry metadata');
 
 console.log('ChatGPT targeted catch-up checks passed');
