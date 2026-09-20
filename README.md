@@ -32,6 +32,24 @@ An unchanged fingerprint is a true no-op: CONTROL does not rewrite the local run
 
 The previous SHINO Sync extension and ChatGPT inventory/backfill pipeline were retired after live validation of mapped delta ingestion and no-op behavior. Historical inventory coverage metadata may remain in state as provenance; it is not an active crawler.
 
+## Project management
+
+CONTROL has a user-owned management layer on top of source-derived truth.
+
+From **Gérer les projets**, you can:
+
+- rename projects and edit their description/universe;
+- add a personal note and tags;
+- assign a custom group and use the grouped dashboard view;
+- pin important projects;
+- override the derived state (`ACTIVE`, `NEEDS TEST`, `BLOCKED`, `STABLE`, `WAITING`, `DONE`, `EMPTY`, `UNSYNCED`) or return to automatic derivation at any time;
+- archive and restore projects without deleting their sources or evidence;
+- create local/manual projects that can receive sources later.
+
+Manual state never deletes the source-derived state: CONTROL keeps the automatic state as `autoStatus` whenever a status override is active.
+
+The private project note is intentionally excluded from the GitHub Pages public snapshot.
+
 ## GitHub sync
 
 GitHub sync is incremental. CONTROL stores cursors/ETags for repository feeds so unchanged commits, PRs and workflow feeds are skipped instead of being rebuilt.
