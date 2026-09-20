@@ -100,7 +100,7 @@ jobs:
         run: |
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.9.47' public/build-info.js
+          grep -q '0.9.48' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
           grep -q '"version": "0.2.7"' extension/control-collector/manifest.json
@@ -280,7 +280,7 @@ jobs:
           test -s dist/assets/project-workflow-art.svg
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.9.47"' dist/state.json
+          grep -q '"version": "0.9.48"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'lastChatgptCatchup' dist/state.json; then
             echo 'Private ChatGPT catch-up diagnostics leaked into public snapshot'
