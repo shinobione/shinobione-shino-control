@@ -41,6 +41,9 @@ assert.match(app,/displayEvidenceSummary\(e\)/,'next-action evidence hygiene is 
 assert.match(app,/function conversationalStateText\(/,'conversational summary filter missing');
 assert.match(app,/function structuredProjectSummary\(/,'structured project summary fallback missing');
 assert.match(css,/CONTENT HIERARCHY \+ FINAL MATERIAL POLISH/,'content hierarchy polish missing');
+assert.match(css,/SPACE UTILIZATION \/ PROJECT PULSE/,'project pulse layout pass missing');
+assert.match(css,/\.v950-project-pulse\{/,'project pulse style missing');
+assert.match(app,/v950-project-pulse/,'project pulse markup missing');
 
 for (const file of [
   'public/assets/ui/backgrounds/project-hero-master.avif',

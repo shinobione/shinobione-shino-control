@@ -875,3 +875,108 @@ body{
   .v8-activity-list article{min-height:64px!important}
   .v9-project-side .v8-side-card{min-height:unset!important}
 }
+
+
+/* =====================================================================
+   v0.9.50 — SPACE UTILIZATION / PROJECT PULSE
+   Preserve v0.9.49 readability, but stop wasting half of an opened project
+   hero on decorative empty space.
+   ===================================================================== */
+
+.v950-project-pulse{
+  position:absolute!important;
+  left:34px!important;
+  bottom:30px!important;
+  z-index:6!important;
+  width:min(520px,calc(100% - 210px))!important;
+  padding:15px 16px 14px!important;
+  border-radius:14px!important;
+  border:1px solid color-mix(in srgb,var(--accent) 48%,rgba(128,174,225,.55))!important;
+  background:
+    linear-gradient(145deg,rgba(7,24,51,.86),rgba(5,17,39,.72)),
+    radial-gradient(180px 90px at 100% 0%,var(--family-motif-soft),transparent 76%)!important;
+  box-shadow:
+    0 18px 42px rgba(0,0,0,.30),
+    0 0 22px color-mix(in srgb,var(--family-glow) 54%,transparent),
+    inset 0 1px rgba(255,255,255,.08)!important;
+  backdrop-filter:blur(16px) saturate(1.12)!important;
+}
+.v950-pulse-head{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:16px!important;
+  margin-bottom:10px!important;
+}
+.v950-pulse-head span{
+  font-size:9px!important;
+  letter-spacing:.16em!important;
+  font-weight:800!important;
+  color:#8fa8c8!important;
+}
+.v950-pulse-head b{
+  font-size:14px!important;
+  color:#f8fbff!important;
+}
+.v950-pulse-track{
+  height:5px!important;
+  overflow:hidden!important;
+  border-radius:999px!important;
+  background:rgba(65,96,136,.34)!important;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.32)!important;
+}
+.v950-pulse-track i{
+  display:block!important;
+  height:100%!important;
+  border-radius:inherit!important;
+  background:linear-gradient(90deg,var(--accent),var(--accent2))!important;
+  box-shadow:0 0 14px var(--family-glow)!important;
+}
+.v950-pulse-grid{
+  display:grid!important;
+  grid-template-columns:1fr 1.35fr .55fr!important;
+  gap:10px!important;
+  margin-top:12px!important;
+}
+.v950-pulse-grid>div{
+  min-width:0!important;
+  padding-right:9px!important;
+  border-right:1px solid rgba(104,148,195,.15)!important;
+}
+.v950-pulse-grid>div:last-child{border-right:0!important;padding-right:0!important}
+.v950-pulse-grid small{
+  display:block!important;
+  margin-bottom:4px!important;
+  font-size:7.5px!important;
+  letter-spacing:.12em!important;
+  color:#718ba9!important;
+}
+.v950-pulse-grid strong{
+  display:block!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  font-size:10.5px!important;
+  color:#e8f1fd!important;
+}
+
+/* Opened projects should feel composed, not like a stretched banner. */
+@media(min-width:2200px){
+  .v8-project-hero{min-height:400px!important}
+  .v8-project-identity{padding:34px 42px!important}
+  .v950-project-pulse{
+    left:40px!important;
+    bottom:34px!important;
+    width:min(560px,calc(100% - 230px))!important;
+    padding:17px 18px 16px!important;
+  }
+  .v950-pulse-head span{font-size:10px!important}
+  .v950-pulse-head b{font-size:16px!important}
+  .v950-pulse-grid small{font-size:8.5px!important}
+  .v950-pulse-grid strong{font-size:12px!important}
+}
+
+/* Keep the pulse out of the way once the art column becomes narrow. */
+@media(max-width:1500px){
+  .v950-project-pulse{display:none!important}
+}
