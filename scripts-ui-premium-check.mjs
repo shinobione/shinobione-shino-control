@@ -44,6 +44,11 @@ assert.match(css,/CONTENT HIERARCHY \+ FINAL MATERIAL POLISH/,'content hierarchy
 assert.match(css,/SPACE UTILIZATION \/ PROJECT PULSE/,'project pulse layout pass missing');
 assert.match(css,/\.v950-project-pulse\{/,'project pulse style missing');
 assert.match(app,/v950-project-pulse/,'project pulse markup missing');
+assert.match(css,/SOURCES \/ SYNC PREMIUM REBUILD/,'Sources Sync premium rebuild missing');
+assert.match(css,/\.view-sources \.main-inner\{/,'Sources Sync full-width override missing');
+assert.match(css,/\.view-sources \.sync-health-metrics\{/,'Sources Sync health layout missing');
+assert.match(app,/sources-summary-grid/,'Sources Sync summary metrics missing');
+assert.match(app,/sources-layout/,'Sources Sync premium layout missing');
 
 for (const file of [
   'public/assets/ui/backgrounds/project-hero-master.avif',
