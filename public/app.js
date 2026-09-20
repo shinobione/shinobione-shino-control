@@ -411,14 +411,14 @@ function projectManagerModal(targetId){
         <div class="manager-editor-head"><div><span>${isNew?'NOUVEAU PROJET':'ÉDITION DU PROJET'}</span><h2>${isNew?'Créer un projet':esc(selected.name)}</h2><p>${isNew?'Projet local CONTROL, prêt à recevoir des sources plus tard.':'Les réglages manuels restent prioritaires sans effacer les données source.'}</p></div>${project&&!isNew?`<button class="manager-open-project" data-open-managed-project="${esc(project.id)}">Ouvrir ↗</button>`:''}</div>
         <form id="projectManagerForm" data-project-id="${esc(selected.id)}">
           <div class="manager-form-grid">
-            <label class="wide"><span>Nom</span><input name="name" required maxlength="120" value="${esc(selected.name||'')}" placeholder="Nom du projet"></label>
-            <label><span>Univers / type</span><input name="universe" maxlength="80" value="${esc(selected.universe||'PROJECT')}" placeholder="DEV, MUSIC, PERSONAL…"></label>
-            <label><span>Groupe</span><input name="group" maxlength="80" list="projectGroups" value="${esc(control.group||'')}" placeholder="Ex. SHINO, Musique, Perso…"><datalist id="projectGroups">${groups.map(group=>`<option value="${esc(group)}"></option>`).join('')}</datalist></label>
-            <label><span>État</span><select name="statusOverride">${statuses.map(status=>`<option value="${status}" ${status===statusValue?'selected':''}>${status==='AUTO'?'Auto — état dérivé':boardLabel(status)}</option>`).join('')}</select><small>État source actuel : ${esc(boardLabel(autoStatus))}</small></label>
-            <label><span>Dépôt GitHub</span><input name="repo" maxlength="180" value="${esc(selected.repo||'')}" placeholder="owner/repository"></label>
-            <label class="wide"><span>Tags</span><input name="tags" maxlength="420" value="${esc(projectTags(selected).join(', '))}" placeholder="frontend, urgent, audio, client…"></label>
-            <label class="wide"><span>Description</span><textarea name="description" maxlength="2400" rows="3" placeholder="À quoi sert ce projet ?">${esc(selected.description||'')}</textarea></label>
-            <label class="wide"><span>Note personnelle</span><textarea name="note" maxlength="4000" rows="5" placeholder="Décisions, contexte, rappel, contrainte, prochaine intention…">${esc(control.note||'')}</textarea></label>
+            <label class="manager-name-field"><span>Nom</span><input name="name" required maxlength="120" value="${esc(selected.name||'')}" placeholder="Nom du projet"></label>
+            <label class="manager-universe-field"><span>Univers / type</span><input name="universe" maxlength="80" value="${esc(selected.universe||'PROJECT')}" placeholder="DEV, MUSIC, PERSONAL…"></label>
+            <label class="manager-group-field"><span>Groupe</span><input name="group" maxlength="80" list="projectGroups" value="${esc(control.group||'')}" placeholder="Ex. SHINO, Musique, Perso…"><datalist id="projectGroups">${groups.map(group=>`<option value="${esc(group)}"></option>`).join('')}</datalist></label>
+            <label class="manager-status-field"><span>État</span><select name="statusOverride">${statuses.map(status=>`<option value="${status}" ${status===statusValue?'selected':''}>${status==='AUTO'?'Auto — état dérivé':boardLabel(status)}</option>`).join('')}</select><small>État source actuel : ${esc(boardLabel(autoStatus))}</small></label>
+            <label class="manager-repo-field"><span>Dépôt GitHub</span><input name="repo" maxlength="180" value="${esc(selected.repo||'')}" placeholder="owner/repository"></label>
+            <label class="manager-tags-field"><span>Tags</span><input name="tags" maxlength="420" value="${esc(projectTags(selected).join(', '))}" placeholder="frontend, urgent, audio, client…"></label>
+            <label class="manager-description-field"><span>Description</span><textarea name="description" maxlength="2400" rows="3" placeholder="À quoi sert ce projet ?">${esc(selected.description||'')}</textarea></label>
+            <label class="manager-note-field"><span>Note personnelle</span><textarea name="note" maxlength="4000" rows="5" placeholder="Décisions, contexte, rappel, contrainte, prochaine intention…">${esc(control.note||'')}</textarea></label>
           </div>
           <div class="manager-flags">
             <label><input type="checkbox" name="pinned" ${control.pinned?'checked':''}><span>★ Épingler / prioritaire</span></label>
