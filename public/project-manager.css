@@ -174,3 +174,293 @@
   .manager-form-grid label.wide{grid-column:auto}
   .manager-editor-head h2{font-size:26px}
 }
+
+
+/* v0.10.1 — ultrawide readability + no-scroll editor */
+@media (min-width:821px){
+  .project-manager-overlay{
+    padding:12px;
+  }
+
+  .project-manager{
+    width:min(3000px,calc(100vw - 24px));
+    height:calc(100vh - 24px);
+    max-height:none;
+    grid-template-columns:430px minmax(0,1fr);
+    border-radius:18px;
+  }
+
+  .project-manager-list{
+    padding:18px 15px 16px;
+  }
+
+  .project-manager-list>header{
+    padding:0 5px 13px;
+  }
+
+  .project-manager-list>header h2{
+    font-size:25px;
+  }
+
+  .manager-new{
+    height:44px;
+    margin-bottom:10px;
+    font-size:12px;
+  }
+
+  .manager-project-scroll{
+    gap:6px;
+    padding-right:6px;
+  }
+
+  .manager-project-row{
+    grid-template-columns:42px minmax(0,1fr) auto;
+    gap:11px;
+    min-height:52px;
+    padding:8px 10px;
+  }
+
+  .manager-project-row .project-emblem.tiny{
+    width:38px;
+    height:38px;
+    font-size:11px;
+  }
+
+  .manager-project-row b{
+    font-size:13px;
+    line-height:1.2;
+  }
+
+  .manager-project-row small{
+    margin-top:4px;
+    font-size:10px;
+    line-height:1.2;
+  }
+
+  .manager-project-row em{
+    font-size:8px;
+  }
+
+  .project-manager-editor{
+    min-width:0;
+    overflow:hidden;
+    padding:22px 30px 18px;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .manager-editor-head{
+    flex:0 0 auto;
+    padding-bottom:14px;
+  }
+
+  .manager-editor-head h2{
+    margin:4px 0 4px;
+    font-size:32px;
+  }
+
+  .manager-editor-head p{
+    font-size:11px;
+  }
+
+  .project-manager-editor form{
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .manager-form-grid{
+    flex:0 0 auto;
+    display:grid;
+    grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) minmax(0,1fr);
+    gap:10px 12px;
+  }
+
+  .manager-form-grid label{
+    gap:5px;
+  }
+
+  .manager-form-grid label.wide{
+    grid-column:auto;
+  }
+
+  .manager-name-field{grid-column:span 2}
+  .manager-universe-field{grid-column:span 1}
+  .manager-group-field,
+  .manager-status-field,
+  .manager-repo-field{grid-column:span 1}
+  .manager-tags-field{grid-column:1/-1}
+  .manager-description-field{grid-column:span 1}
+  .manager-note-field{grid-column:span 2}
+
+  .manager-form-grid label>span{
+    font-size:9px;
+  }
+
+  .manager-form-grid input,
+  .manager-form-grid select,
+  .manager-form-grid textarea{
+    font-size:12px;
+    padding:9px 11px;
+  }
+
+  .manager-form-grid input,
+  .manager-form-grid select{
+    height:39px;
+  }
+
+  .manager-form-grid textarea{
+    resize:none;
+    min-height:100px;
+    height:100px;
+  }
+
+  .manager-note-field textarea,
+  .manager-description-field textarea{
+    height:112px;
+    min-height:112px;
+  }
+
+  .manager-form-grid label>small{
+    font-size:8px;
+  }
+
+  .manager-flags{
+    flex:0 0 auto;
+    margin:11px 0;
+    gap:8px;
+  }
+
+  .manager-flags label{
+    padding:8px 11px;
+    font-size:10px;
+  }
+
+  .manager-info-strip{
+    flex:0 0 auto;
+    margin:0 0 12px;
+    padding:9px;
+  }
+
+  .manager-info-strip div{
+    padding:2px 8px;
+  }
+
+  .manager-info-strip span{
+    font-size:7px;
+  }
+
+  .manager-info-strip b{
+    font-size:10px;
+  }
+
+  .project-manager-editor form>footer{
+    flex:0 0 auto;
+    margin-top:auto;
+    padding-top:2px;
+  }
+
+  .manager-cancel,
+  .manager-save{
+    height:39px;
+  }
+}
+
+/* Group view: readable cards instead of a wall of tiny tiles */
+@media (min-width:1500px){
+  .project-group-grid{
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:10px;
+  }
+}
+@media (min-width:1050px) and (max-width:1499px){
+  .project-group-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:10px;
+  }
+}
+@media (min-width:821px) and (max-width:1049px){
+  .project-group-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+  }
+}
+
+.group-project-card{
+  min-height:92px;
+  padding:12px 13px;
+}
+
+.group-project-card>div:first-child{
+  grid-template-columns:38px minmax(0,1fr) 28px;
+  gap:10px;
+}
+
+.group-project-card .project-emblem.tiny{
+  width:36px;
+  height:36px;
+  font-size:10px;
+}
+
+.group-project-card h5{
+  font-size:12px;
+  line-height:1.25;
+}
+
+.group-project-card small{
+  display:block;
+  margin-top:3px;
+  font-size:9px;
+  line-height:1.25;
+}
+
+.group-project-card button{
+  font-size:13px;
+}
+
+.group-project-card p{
+  margin:9px 0 7px;
+  min-height:30px;
+  font-size:10px;
+  line-height:1.42;
+}
+
+.group-card-tags span{
+  font-size:8px;
+  padding:3px 7px;
+}
+
+.project-group{
+  padding:13px;
+}
+
+.project-group>header h4{
+  font-size:13px;
+}
+
+.project-group>header button{
+  font-size:9px;
+}
+
+@media (min-width:2200px){
+  .project-manager{
+    grid-template-columns:470px minmax(0,1fr);
+  }
+
+  .manager-project-row{
+    min-height:55px;
+  }
+
+  .manager-project-row b{
+    font-size:14px;
+  }
+
+  .manager-project-row small{
+    font-size:10.5px;
+  }
+
+  .project-manager-editor{
+    padding-left:38px;
+    padding-right:38px;
+  }
+}
