@@ -50,6 +50,8 @@ assert.match(css,/\.view-sources \.sync-health-metrics\{/,'Sources Sync health l
 assert.match(app,/sources-summary-grid/,'Sources Sync summary metrics missing');
 assert.match(app,/sources-layout/,'Sources Sync premium layout missing');
 assert.match(css,/Sources \/ Sync semantic health colors/,'sync health semantic colors missing');
+assert.match(css,/sidebar GitHub sync card layout fix/,'sidebar sync layout fix missing');
+assert.match(css,/grid-template-columns:34px minmax\(0,1fr\) 30px/,'sidebar sync grid columns missing');
 
 for (const file of [
   'public/assets/ui/backgrounds/project-hero-master.avif',
