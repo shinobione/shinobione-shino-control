@@ -399,6 +399,7 @@ function moveManagedSource(state, payload = {}) {
   const sourceId = cleanProjectText(payload.sourceId, 220);
   const source = state.sources.find(item => item.id === sourceId);
   if (!source) return null;
+  if (!['chatgpt_thread','chatgpt_archived','github_repo'].includes(source.type)) throw new Error('This source is managed automatically and cannot be moved manually');
 
   const requestedProjectId = cleanProjectText(payload.projectId || '', 180) || null;
   const target = requestedProjectId ? state.projects.find(item => item.id === requestedProjectId) : null;
@@ -454,6 +455,7 @@ function archiveManagedSource(state, payload = {}) {
   const sourceId = cleanProjectText(payload.sourceId, 220);
   const source = state.sources.find(item => item.id === sourceId);
   if (!source) return null;
+  if (!['chatgpt_thread','chatgpt_archived','github_repo'].includes(source.type)) throw new Error('This source is managed automatically and cannot be archived manually');
 
   const archived = payload.archived === true;
   const now = new Date().toISOString();
