@@ -50,6 +50,23 @@ Manual state never deletes the source-derived state: CONTROL keeps the automatic
 
 The private project note is intentionally excluded from the GitHub Pages public snapshot.
 
+## Source management
+
+CONTROL v0.11 adds a user-owned source assignment layer without deleting provenance.
+
+From the **Sources** tab of **Gérer les projets**, you can:
+
+- see the ChatGPT conversations and GitHub sources attached to a project;
+- manually move a ChatGPT conversation to another CONTROL project;
+- detach a source so it no longer drives any project state;
+- archive and restore a source without deleting its history;
+- move a GitHub repository between projects, with the project repo binding moving with it;
+- reattach detached sources;
+- classify items from **Discovered** directly into the selected project;
+- create a new CONTROL project directly from a discovered source.
+
+Manual ChatGPT source assignments survive future Collector updates and are not overwritten by the automatic ownership repair. Archived/detached source evidence is excluded from current derivation and from the public Pages snapshot.
+
 ## GitHub sync
 
 GitHub sync is incremental. CONTROL stores cursors/ETags for repository feeds so unchanged commits, PRs and workflow feeds are skipped instead of being rebuilt.
