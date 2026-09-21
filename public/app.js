@@ -509,10 +509,12 @@ function projectManagerModal(targetId){
       <aside class="project-manager-list">
         <header><div><span>PROJECT CONTROL</span><h2>Gérer les projets</h2></div><button id="projectManagerClose" aria-label="Fermer">×</button></header>
         <button class="manager-new ${isNew?'active':''}" id="newManagedProject">＋ Nouveau projet</button>
-        <div class="manager-project-scroll">${ordered.map(p=>{const d=projectState(p.id),ctl=projectControl(p);return `<button class="manager-project-row ${p.id===targetId?'active':''} ${projectArchived(p)?'archived':''}" data-manager-select="${esc(p.id)}"><span class="project-emblem tiny">${projectGlyph(p)}</span><div><b>${ctl.pinned?'★ ':''}${esc(p.name)}</b><small>${esc(projectGroup(p))} · ${esc(boardLabel(d?.status))}</small></div>${projectArchived(p)?'<em>ARCHIVE</em>':''}</button>`}).join('')}</div>
+        <div class="manager-project-scroll">${ordered.map(p=>{const d=projectState(p.id),ctl=projectControl(p);return `<button class="manager-project-row ${p.id===targetId?'active':''} ${projectArchived(p)?'archived':''}" data-manager-select="${esc(p.id)}"><span class="project-emblem tiny">${projectGlyph(p)}</span><div><b>${ctl.pinned?'★ ':''}${esc(p.name)}</b><small>${esc(projectGroup(p))} · ${esc(boardLabel(d?.status))} · ${allProjectSources(p.id).length} src</small></div>${projectArchived(p)?'<em>ARCHIVE</em>':''}</button>`}).join('')}</div>
       </aside>
       <main class="project-manager-editor">
-        <div class="manager-editor-head"><div><span>${isNew?'NOUVEAU PROJET':'ÉDITION DU PROJET'}</span><h2>${isNew?'Créer un projet':esc(selected.name)}</h2><p>${isNew?'Projet local CONTROL, prêt à recevoir des sources plus tard.':'Les réglages manuels restent prioritaires sans effacer les données source.'}</p></div>${project&&!isNew?`<button class="manager-open-project" data-open-managed-project="${esc(project.id)}">Ouvrir ↗</button>`:''}</div>
+        <div class="manager-editor-head"><div><span>${isNew?'NOUVEAU PROJET':manageProjectSection==='sources'?'SOURCE MANAGER':'ÉDITION DU PROJET'}</span><h2>${isNew?'Créer un projet':esc(selected.name)}</h2><p>${isNew?'Projet local CONTROL, prêt à recevoir des sources plus tard.':manageProjectSection==='sources'?'Contrôle les conversations, dépôts et sources qui alimentent ce projet.':'Les réglages manuels restent prioritaires sans effacer les données source.'}</p></div>${project&&!isNew?`<button class="manager-open-project" data-open-managed-project="${esc(project.id)}">Ouvrir ↗</button>`:''}</div>
+        ${project?`<nav class="manager-editor-tabs"><button class="${manageProjectSection==='project'?'active':''}" data-manager-section="project">Projet</button><button class="${manageProjectSection==='sources'?'active':''}" data-manager-section="sources">Sources <b>${allProjectSources(project.id).length}</b></button></nav>`:''}
+        <div class="manager-section manager-project-section ${manageProjectSection==='project'||isNew?'active':''}">
         <form id="projectManagerForm" data-project-id="${esc(selected.id)}">
           <div class="manager-form-grid">
             <label class="manager-name-field"><span>Nom</span><input name="name" required maxlength="120" value="${esc(selected.name||'')}" placeholder="Nom du projet"></label>
@@ -531,6 +533,8 @@ function projectManagerModal(targetId){
           <div class="manager-info-strip"><div><span>STATUT CONTROL</span><b>${esc(statusValue==='AUTO'?boardLabel(autoStatus):boardLabel(statusValue))}</b></div><div><span>GROUPE</span><b>${esc(control.group||'Sans groupe')}</b></div><div><span>SOURCES</span><b>${project?sourcesFor(project.id).length:0}</b></div><div><span>MODE</span><b>${isNew?'MANUEL':derived?.manualStatusOverride?'MANUEL + SOURCES':'SOURCES + CONTROL'}</b></div></div>
           <footer><button type="button" class="manager-cancel" id="projectManagerCancel">Annuler</button><button type="submit" class="manager-save">${isNew?'Créer le projet':'Enregistrer les changements'}</button></footer>
         </form>
+        </div>
+        ${project?`<div class="manager-section manager-sources-section ${manageProjectSection==='sources'?'active':''}">${projectSourcesManager(project)}</div>`:''}
       </main>
     </section>
   </div>`;
