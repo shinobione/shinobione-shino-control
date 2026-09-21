@@ -67,6 +67,24 @@ From the **Sources** tab of **Gérer les projets**, you can:
 
 Manual ChatGPT source assignments survive future Collector updates and are not overwritten by the automatic ownership repair. Archived/detached source evidence is excluded from current derivation and from the public Pages snapshot.
 
+## Drag & drop
+
+CONTROL v0.12 adds direct manipulation on top of the project/source management layer.
+
+On the dashboard:
+
+- drag a project card between **Attention**, **En cours**, **Stables** and **Autres** to apply the matching manual state;
+- drag a project between existing **Groupes** to change its group, including **Sans groupe**;
+- while a project is being dragged, quick drop actions appear for **Retour en Auto** and **Épingler**.
+
+In **Gérer les projets → Sources**:
+
+- drag an active or detached source onto any project in the left project list to reassign it;
+- drag a discovered ChatGPT source onto a project to classify it immediately;
+- drag an active source onto the **Détacher la source** zone to remove it from all projects without deleting provenance.
+
+All button/select controls remain available as a fallback. Manual ChatGPT ownership protection from v0.11 still applies after a drag operation.
+
 ## GitHub sync
 
 GitHub sync is incremental. CONTROL stores cursors/ETags for repository feeds so unchanged commits, PRs and workflow feeds are skipped instead of being rebuilt.
