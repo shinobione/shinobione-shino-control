@@ -1,0 +1,261 @@
+/* SHINO // CONTROL — Drag & Drop Interaction Layer v1 */
+
+[draggable="true"]{
+  -webkit-user-drag:element;
+}
+
+.board-card[draggable="true"],
+.group-project-card[draggable="true"],
+.source-manager-row[draggable="true"]{
+  cursor:grab;
+  user-select:none;
+}
+.board-card[draggable="true"]:active,
+.group-project-card[draggable="true"]:active,
+.source-manager-row[draggable="true"]:active{
+  cursor:grabbing;
+}
+
+.control-dragging *{cursor:grabbing!important}
+.is-dragging{
+  opacity:.30!important;
+  transform:scale(.985)!important;
+  filter:saturate(.72)!important;
+}
+
+.board-drop-hint,
+.group-drop-hint{
+  display:none;
+  pointer-events:none;
+}
+body.drag-kind-project .board-column,
+body.drag-kind-project .project-group{
+  position:relative;
+  outline:1px dashed rgba(87,174,255,.20);
+  outline-offset:-5px;
+}
+body.drag-kind-project .board-drop-hint,
+body.drag-kind-project .group-drop-hint{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:34px;
+  margin:0 0 7px;
+  border:1px dashed rgba(91,179,255,.28);
+  border-radius:9px;
+  color:#79bfe9;
+  background:rgba(14,54,91,.18);
+  font-size:8px;
+  font-weight:850;
+  letter-spacing:.03em;
+  opacity:.76;
+}
+.board-column.is-drop-over,
+.project-group.is-drop-over{
+  outline:2px solid rgba(63,191,255,.88)!important;
+  outline-offset:-3px!important;
+  background:
+    radial-gradient(300px 140px at 50% 0%,rgba(56,175,255,.16),transparent 72%),
+    rgba(7,25,47,.88)!important;
+  box-shadow:0 0 26px rgba(37,148,255,.16),inset 0 0 35px rgba(40,136,255,.07)!important;
+}
+.board-column.is-drop-over .board-drop-hint,
+.project-group.is-drop-over .group-drop-hint{
+  border-style:solid;
+  border-color:rgba(74,205,255,.70);
+  color:#ddf7ff;
+  background:rgba(23,104,164,.28);
+  opacity:1;
+}
+
+.project-dnd-shelf{
+  display:grid;
+  grid-template-columns:auto minmax(170px,240px) minmax(150px,210px);
+  gap:7px;
+  align-items:stretch;
+  max-height:0;
+  margin:0;
+  overflow:hidden;
+  opacity:0;
+  transform:translateY(-8px);
+  transition:max-height .18s ease,opacity .16s ease,transform .18s ease,margin .18s ease;
+}
+body.drag-kind-project .project-dnd-shelf{
+  max-height:66px;
+  margin:8px 0 10px;
+  opacity:1;
+  transform:none;
+}
+.project-dnd-shelf>span{
+  align-self:center;
+  color:#476985;
+  font-size:7px;
+  font-weight:900;
+  letter-spacing:.16em;
+}
+.project-dnd-shelf>div{
+  min-height:48px;
+  display:grid;
+  grid-template-columns:34px 1fr;
+  grid-template-rows:auto auto;
+  column-gap:8px;
+  align-content:center;
+  padding:6px 10px;
+  border:1px dashed rgba(67,146,218,.28);
+  border-radius:10px;
+  color:#9ab8d6;
+  background:linear-gradient(135deg,rgba(9,33,61,.74),rgba(12,27,57,.70));
+}
+.project-dnd-shelf>div b{
+  grid-row:1/3;
+  align-self:center;
+  display:grid;
+  place-items:center;
+  width:29px;height:29px;
+  border-radius:8px;
+  color:#80d8ff;
+  background:rgba(42,139,219,.16);
+  font-size:14px;
+}
+.project-dnd-shelf>div strong{font-size:9px;color:#d6eaff}
+.project-dnd-shelf>div small{font-size:7px;color:#647f9e}
+.project-dnd-shelf>div.is-drop-over{
+  border-style:solid;
+  border-color:rgba(67,199,255,.78);
+  background:linear-gradient(135deg,rgba(15,83,136,.64),rgba(51,49,145,.58));
+  box-shadow:0 0 22px rgba(42,160,255,.15);
+}
+.project-dnd-shelf>div[data-drop-pin].is-drop-over b{color:#ffd874;background:rgba(184,127,28,.18)}
+
+body.drag-kind-source .manager-project-row,
+body.drag-kind-discovered .manager-project-row{
+  position:relative;
+  border-style:dashed;
+  border-color:rgba(76,156,231,.42);
+}
+body.drag-kind-source .manager-project-row:after,
+body.drag-kind-discovered .manager-project-row:after{
+  content:"DÉPOSER ICI";
+  position:absolute;
+  right:10px;
+  top:50%;
+  transform:translateY(-50%);
+  padding:3px 6px;
+  border-radius:999px;
+  color:#70cfff;
+  background:rgba(32,117,183,.16);
+  font-size:6px;
+  font-weight:900;
+  letter-spacing:.08em;
+  opacity:.0;
+  transition:opacity .12s ease;
+}
+body.drag-kind-source .manager-project-row:hover:after,
+body.drag-kind-discovered .manager-project-row:hover:after,
+.manager-project-row.is-drop-over:after{opacity:1!important}
+.manager-project-row.is-drop-over{
+  border-style:solid!important;
+  border-color:#4ac9ff!important;
+  background:linear-gradient(90deg,rgba(25,111,196,.52),rgba(71,49,167,.26))!important;
+  box-shadow:inset 3px 0 #59dcff,0 0 24px rgba(44,158,255,.18)!important;
+}
+
+.source-detach-drop{
+  flex:0 0 auto;
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:3px 10px;
+  align-items:center;
+  max-height:0;
+  margin:0;
+  padding:0 12px;
+  overflow:hidden;
+  border:0 solid rgba(240,143,75,.30);
+  border-radius:10px;
+  background:rgba(91,43,20,.16);
+  opacity:0;
+  transform:translateY(-5px);
+  transition:max-height .16s ease,opacity .14s ease,padding .16s ease,border-width .16s ease,margin .16s ease,transform .16s ease;
+}
+body.drag-kind-source .source-detach-drop{
+  max-height:58px;
+  margin:0 0 2px;
+  padding:9px 12px;
+  border-width:1px;
+  border-style:dashed;
+  opacity:1;
+  transform:none;
+}
+.source-detach-drop b{
+  color:#f0b286;
+  font-size:9px;
+}
+.source-detach-drop span{
+  color:#8e6d59;
+  font-size:7px;
+}
+.source-detach-drop.is-drop-over{
+  border-style:solid;
+  border-color:rgba(255,156,83,.76);
+  background:rgba(122,55,22,.30);
+  box-shadow:0 0 20px rgba(219,107,45,.10);
+}
+.source-detach-drop.is-drop-over b{color:#ffd1ae}
+
+.source-manager-row.is-drop-over{
+  border-color:#54d7ff!important;
+}
+.source-manager-row[draggable="true"]:before,
+.board-card[draggable="true"]:before,
+.group-project-card[draggable="true"]:before{
+  content:"⋮⋮";
+  position:absolute;
+  z-index:5;
+  color:rgba(122,178,220,.0);
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:-2px;
+  transition:color .12s ease,opacity .12s ease;
+  pointer-events:none;
+}
+.source-manager-row[draggable="true"]{position:relative}
+.source-manager-row[draggable="true"]:before{left:3px;top:50%;transform:translateY(-50%) rotate(90deg)}
+.board-card[draggable="true"],
+.group-project-card[draggable="true"]{position:relative}
+.board-card[draggable="true"]:before,
+.group-project-card[draggable="true"]:before{left:5px;top:5px}
+.source-manager-row[draggable="true"]:hover:before,
+.board-card[draggable="true"]:hover:before,
+.group-project-card[draggable="true"]:hover:before{color:rgba(118,195,238,.72)}
+
+.drag-kind-project [data-drop-status],
+.drag-kind-project [data-drop-group],
+.drag-kind-project [data-drop-auto],
+.drag-kind-project [data-drop-pin],
+.drag-kind-source [data-source-drop-project],
+.drag-kind-discovered [data-source-drop-project],
+.drag-kind-source [data-source-drop-detach]{
+  transition:border-color .12s ease,background .12s ease,box-shadow .12s ease,outline .12s ease;
+}
+
+@media (min-width:2200px){
+  body.drag-kind-project .board-drop-hint,
+  body.drag-kind-project .group-drop-hint{
+    min-height:40px;
+    font-size:9px;
+  }
+  .project-dnd-shelf{
+    grid-template-columns:auto 280px 240px;
+    gap:9px;
+  }
+  body.drag-kind-project .project-dnd-shelf{max-height:74px}
+  .project-dnd-shelf>div{min-height:54px}
+  .project-dnd-shelf>div strong{font-size:10px}
+  .project-dnd-shelf>div small{font-size:8px}
+}
+@media (max-width:900px){
+  .project-dnd-shelf{display:none!important}
+  .board-card[draggable="true"],
+  .group-project-card[draggable="true"],
+  .source-manager-row[draggable="true"]{cursor:default}
+}
