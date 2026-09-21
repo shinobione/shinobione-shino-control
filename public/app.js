@@ -24,7 +24,7 @@ async function api(path, options={}) {
 async function load(){ state=await api('/api/state'); render(); }
 function toast(msg){ const el=document.createElement('div');el.className='toast';el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),3000); }
 function projectState(id){return state.derived.find(d=>d.projectId===id)}
-function evidenceFor(id){return state.evidence.filter(e=>e.projectId===id&&e.inventoryCurrent!==false).sort((a,b)=>new Date(b.timestamp||0)-new Date(a.timestamp||0))}
+function evidenceFor(id){return state.evidence.filter(e=>e.projectId===id&&e.inventoryCurrent!==false&&e.controlExcluded!==true).sort((a,b)=>new Date(b.timestamp||0)-new Date(a.timestamp||0))}
 function sourceManagedArchived(source){return source?.control?.archived === true}
 function sourcesFor(id,{archives=false,includeManagedArchived=false}={}){
   return state.sources.filter(source=>{
