@@ -177,6 +177,45 @@ function boardBucket(status="") {
 function boardLabel(status="") {
   return ({BLOCKED:"Blocked","NEEDS TEST":"Needs test",ACTIVE:"Active",STABLE:"Stable",DONE:"Done",WAITING:"Waiting",EMPTY:"Empty",UNSYNCED:"Unsynced"})[status] || status || "Unknown";
 }
+function boardDropStatus(bucket=""){
+  return ({attention:'NEEDS TEST',active:'ACTIVE',stable:'STABLE',other:'WAITING'})[bucket] || null;
+}
+async function updateManagedProjectPatch(projectId,patch,message='Projet mis à jour'){
+  const out=await api('/api/projects/update',{method:'POST',body:JSON.stringify({projectId,...patch})});
+  state=out.state;
+  render();
+  toast(message);
+  return out;
+}
+function dragPayloadFromEvent(event){
+  if(activeDragPayload)return activeDragPayload;
+  try{
+    const raw=event.dataTransfer?.getData('application/x-shino-control');
+    return raw?JSON.parse(raw):null;
+  }catch{return null}
+}
+function beginControlDrag(event,payload,element){
+  activeDragPayload=payload;
+  dragSuppressUntil=Date.now()+450;
+  event.dataTransfer.effectAllowed='move';
+  event.dataTransfer.setData('application/x-shino-control',JSON.stringify(payload));
+  event.dataTransfer.setData('text/plain',payload.label||payload.id||'SHINO CONTROL');
+  element?.classList.add('is-dragging');
+  document.body.classList.add('control-dragging',`drag-kind-${payload.kind}`);
+}
+function clearControlDrag(){
+  activeDragPayload=null;
+  document.body.classList.remove('control-dragging','drag-kind-project','drag-kind-source','drag-kind-discovered');
+  document.querySelectorAll('.is-dragging,.is-drop-over').forEach(el=>el.classList.remove('is-dragging','is-drop-over'));
+}
+function dragZoneAccepts(zone,payload){
+  if(!payload)return false;
+  if(zone.matches('[data-drop-status],[data-drop-group]'))return payload.kind==='project';
+  if(zone.matches('[data-source-drop-project]'))return ['source','discovered'].includes(payload.kind);
+  if(zone.matches('[data-source-drop-detach]'))return payload.kind==='source';
+  return false;
+}
+
 function visibleProjects(){
   return state.projects.filter(p=>!projectArchived(p)).filter(matchesFilter).sort((a,b)=>priorityScore(b)-priorityScore(a) || a.name.localeCompare(b.name));
 }
@@ -196,7 +235,7 @@ function boardProjectCard(p){
   const d=projectState(p.id); if(!d)return "";
   const e=evidenceFor(p.id)[0], c=ctAs(p), badges=sourceBadges(p.id), resume=displayResume(p,d,e), control=projectControl(p);
   const tags=projectTags(p).slice(0,2);
-  return `<article class="board-card ${statusClass(d.status)} ${projectVisualClass(p)}" style="${projectVisualVars(p)}" data-open-project="${p.id}"><div class="board-card-top"><div class="board-card-labels"><span class="project-type">${esc(p.universe||"PROJECT")}</span>${control.group?`<span class="project-group-tag">${esc(control.group)}</span>`:''}</div><div class="board-card-actions"><span class="status-tag">${esc(boardLabel(d.status))}${d.manualStatusOverride?' · M':''}</span><button class="board-manage" data-manage-project="${p.id}" data-stop title="Gérer le projet">•••</button></div></div><h4>${control.pinned?'★ ':''}${esc(p.name)}</h4><p class="board-resume">${esc(control.note || resume)}</p>${tags.length?`<div class="project-tags">${tags.map(tag=>`<span>${esc(tag)}</span>`).join('')}</div>`:''}<div class="board-meta"><span class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</span><span>${e?`${esc(rel(e.timestamp))} ago`:"No evidence"}</span></div><div class="board-footer"><div class="mini-sources">${badges.slice(0,2).map(g=>`<span class="${sourceClass(g.type)}">${esc(g.label)}${g.count>1?` ×${g.count}`:""}</span>`).join("")}</div>${c.chat?`<a class="quick-open" href="${esc(c.chat.url)}" target="_blank" data-stop title="Continue in ChatGPT">↗</a>`:c.pr?`<a class="quick-open" href="${esc(c.pr.url)}" target="_blank" data-stop title="Open PR">↗</a>`:""}</div></article>`;
+  return `<article class="board-card ${statusClass(d.status)} ${projectVisualClass(p)}" style="${projectVisualVars(p)}" data-open-project="${p.id}" data-drag-project="${esc(p.id)}" draggable="true" aria-grabbed="false"><div class="board-card-top"><div class="board-card-labels"><span class="project-type">${esc(p.universe||"PROJECT")}</span>${control.group?`<span class="project-group-tag">${esc(control.group)}</span>`:''}</div><div class="board-card-actions"><span class="status-tag">${esc(boardLabel(d.status))}${d.manualStatusOverride?' · M':''}</span><button class="board-manage" data-manage-project="${p.id}" data-stop title="Gérer le projet">•••</button></div></div><h4>${control.pinned?'★ ':''}${esc(p.name)}</h4><p class="board-resume">${esc(control.note || resume)}</p>${tags.length?`<div class="project-tags">${tags.map(tag=>`<span>${esc(tag)}</span>`).join('')}</div>`:''}<div class="board-meta"><span class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</span><span>${e?`${esc(rel(e.timestamp))} ago`:"No evidence"}</span></div><div class="board-footer"><div class="mini-sources">${badges.slice(0,2).map(g=>`<span class="${sourceClass(g.type)}">${esc(g.label)}${g.count>1?` ×${g.count}`:""}</span>`).join("")}</div>${c.chat?`<a class="quick-open" href="${esc(c.chat.url)}" target="_blank" data-stop title="Continue in ChatGPT">↗</a>`:c.pr?`<a class="quick-open" href="${esc(c.pr.url)}" target="_blank" data-stop title="Open PR">↗</a>`:""}</div></article>`;
 }
 function projectListV3(projects){
   return `<div class="project-list-v3">${projects.length?projects.map(listProjectCardV3).join(""):`<div class="empty compact-empty">Aucun projet dans ce filtre.</div>`}</div>`;
@@ -383,7 +422,7 @@ function githubPulse(){
 }
 function premiumProjectBoard(buckets){
   const columns=[['attention','Attention','Bloquants & validations'],['active','En cours','En développement'],['stable','Stables','Fonctionnels'],['other','Autres','Veille / idées']];
-  return `<div class="project-board premium-project-board">${columns.map(([key,title,subtitle])=>{const items=buckets[key]||[],shown=items.slice(0,3),more=Math.max(0,items.length-shown.length);return `<section class="board-column board-${key}"><header><div><h4>${esc(title)} <span>${items.length}</span></h4><p>${esc(subtitle)}</p></div><i></i></header><div class="board-stack">${shown.length?shown.map(boardProjectCard).join(''):`<div class="board-empty">Rien ici pour le moment.</div>`}${more?`<button class="board-more" data-project-view="list">+ ${more} autre${more===1?'':'s'}</button>`:''}</div></section>`}).join('')}</div>`;
+  return `<div class="project-board premium-project-board">${columns.map(([key,title,subtitle])=>{const items=buckets[key]||[],shown=items.slice(0,3),more=Math.max(0,items.length-shown.length);const dropStatus=boardDropStatus(key);return `<section class="board-column board-${key}" data-drop-status="${esc(dropStatus||'')}"><header><div><h4>${esc(title)} <span>${items.length}</span></h4><p>${esc(subtitle)}</p></div><i></i></header><div class="board-drop-hint">Déposer ici → ${esc(boardLabel(dropStatus))}</div><div class="board-stack">${shown.length?shown.map(boardProjectCard).join(''):`<div class="board-empty">Rien ici pour le moment.</div>`}${more?`<button class="board-more" data-project-view="list">+ ${more} autre${more===1?'':'s'}</button>`:''}</div></section>`}).join('')}</div>`;
 }
 function groupedProjectsPanel(projects){
   const groups=new Map();
@@ -393,8 +432,9 @@ function groupedProjectsPanel(projects){
     list.push(project);
     groups.set(key,list);
   }
+  if(!groups.has('Sans groupe'))groups.set('Sans groupe',[]);
   const entries=[...groups.entries()].sort(([a],[b])=>a==='Sans groupe'?1:b==='Sans groupe'?-1:a.localeCompare(b,'fr'));
-  return `<div class="project-groups">${entries.map(([group,items])=>`<section class="project-group"><header><div><span class="group-dot"></span><h4>${esc(group)}</h4><b>${items.length}</b></div><button data-manage-all="${esc(items[0]?.id||'')}">Gérer</button></header><div class="project-group-grid">${items.map(p=>{const d=projectState(p.id),control=projectControl(p);return `<article class="group-project-card ${statusClass(d?.status)}" data-open-project="${p.id}"><div><span class="project-emblem tiny">${projectGlyph(p)}</span><div><h5>${control.pinned?'★ ':''}${esc(p.name)}</h5><small>${esc(boardLabel(d?.status))}${d?.manualStatusOverride?' · manuel':''}</small></div><button data-manage-project="${p.id}" data-stop>•••</button></div><p>${esc(control.note || displayResume(p,d,evidenceFor(p.id)[0]))}</p><div class="group-card-tags">${projectTags(p).slice(0,3).map(tag=>`<span>${esc(tag)}</span>`).join('')}</div></article>`}).join('')}</div></section>`).join('')}</div>`;
+  return `<div class="project-groups">${entries.map(([group,items])=>`<section class="project-group" data-drop-group="${group==='Sans groupe'?'':esc(group)}"><header><div><span class="group-dot"></span><h4>${esc(group)}</h4><b>${items.length}</b></div><button data-manage-all="${esc(items[0]?.id||'')}">Gérer</button></header><div class="group-drop-hint">Déposer ici pour classer dans ${esc(group)}</div><div class="project-group-grid">${items.map(p=>{const d=projectState(p.id),control=projectControl(p);return `<article class="group-project-card ${statusClass(d?.status)}" data-open-project="${p.id}" data-drag-project="${esc(p.id)}" draggable="true" aria-grabbed="false"><div><span class="project-emblem tiny">${projectGlyph(p)}</span><div><h5>${control.pinned?'★ ':''}${esc(p.name)}</h5><small>${esc(boardLabel(d?.status))}${d?.manualStatusOverride?' · manuel':''}</small></div><button data-manage-project="${p.id}" data-stop>•••</button></div><p>${esc(control.note || displayResume(p,d,evidenceFor(p.id)[0]))}</p><div class="group-card-tags">${projectTags(p).slice(0,3).map(tag=>`<span>${esc(tag)}</span>`).join('')}</div></article>`}).join('')}</div></section>`).join('')}</div>`;
 }
 function allProjectsPanel(projects,buckets){
   const mode=(id,label)=>`<button class="view-chip ${projectView===id?'active':''}" data-project-view="${id}">${label}</button>`;
@@ -414,7 +454,7 @@ function sourceManagerRow(source, currentProjectId){
   const mutable=sourceAssignable(source);
   const age=source.conversationUpdatedAt||source.lastObservedAt||null;
   const manual=source.control?.assignment==='MANUAL';
-  return `<article class="source-manager-row ${archived?'archived':''}">
+  return `<article class="source-manager-row ${archived?'archived':''}" ${mutable&&!archived?`data-drag-source="${esc(source.id)}" draggable="true" aria-grabbed="false"`:''}>
     <div class="source-manager-icon ${sourceClass(source.type)}">${source.type==='chatgpt_thread'||source.type==='chatgpt_archived'?'AI':String(source.type||'').startsWith('github_')?'GH':'•'}</div>
     <div class="source-manager-copy">
       <div class="source-manager-title"><b>${esc(source.title||sourceKindLabel(source))}</b><span>${esc(sourceKindLabel(source))}</span>${manual?'<em>MANUEL</em>':''}${archived?'<em class="archived">ARCHIVÉ</em>':''}</div>
@@ -429,7 +469,7 @@ function sourceManagerRow(source, currentProjectId){
 }
 
 function detachedSourceRow(source, projectId){
-  return `<article class="source-manager-row detached">
+  return `<article class="source-manager-row detached" data-drag-source="${esc(source.id)}" draggable="true" aria-grabbed="false">
     <div class="source-manager-icon ${sourceClass(source.type)}">${source.type==='chatgpt_thread'||source.type==='chatgpt_archived'?'AI':source.type==='github_repo'?'GH':'•'}</div>
     <div class="source-manager-copy"><div class="source-manager-title"><b>${esc(source.title||sourceKindLabel(source))}</b><span>Détachée</span><em>MANUEL</em></div><p>${esc(source.url||'Source sans projet')}</p><small>${esc(sourceKindLabel(source))}</small></div>
     <div class="source-manager-actions compact"><button class="source-action primary" data-source-attach="${esc(source.id)}" data-project-id="${esc(projectId)}">Rattacher ici</button>${source.url?`<a class="source-action" href="${esc(source.url)}" target="_blank">Ouvrir ↗</a>`:''}</div>
@@ -438,7 +478,7 @@ function detachedSourceRow(source, projectId){
 
 function discoveredSourceRow(item, projectId){
   const suggested=item.projectTitle||item.chatgptProjectTitle||item.title||'Nouveau projet';
-  return `<article class="source-manager-row discovered">
+  return `<article class="source-manager-row discovered" data-drag-discovered="${esc(item.id)}" draggable="true" aria-grabbed="false">
     <div class="source-manager-icon source-chat">AI</div>
     <div class="source-manager-copy"><div class="source-manager-title"><b>${esc(item.title||'Conversation ChatGPT')}</b><span>À classer</span></div><p>${esc(item.preview||item.projectTitle||'Source découverte')}</p><small>${esc(item.projectTitle||'Aucun projet ChatGPT identifié')}</small></div>
     <div class="source-manager-actions compact"><button class="source-action primary" data-discovered-assign="${esc(item.id)}" data-project-id="${esc(projectId)}">Rattacher ici</button><button class="source-action" data-discovered-create="${esc(item.id)}" data-project-name="${esc(suggested)}">Créer un projet</button>${item.url?`<a class="source-action" href="${esc(item.url)}" target="_blank">Ouvrir ↗</a>`:''}</div>
@@ -464,7 +504,7 @@ function projectSourcesManager(project){
       <article><span>GitHub</span><b>${githubCount}</b><small>repos / composants</small></article>
       <article><span>À classer</span><b>${detached.length+discovered.length}</b><small>hors projet</small></article>
     </div>
-    <div class="source-manager-toolbar"><div><h3>Sources de ${esc(project.name)}</h3><p>Déplace, détache ou archive une source sans supprimer son historique.</p></div><span>${live.length} active${live.length===1?'':'s'}</span></div>
+    <div class="source-manager-toolbar"><div><h3>Sources de ${esc(project.name)}</h3><p>Déplace, détache ou archive une source sans supprimer son historique. Tu peux aussi glisser une source sur un projet à gauche.</p></div><span>${live.length} active${live.length===1?'':'s'}</span></div><div class="source-detach-drop" data-source-drop-detach><b>⇲ Détacher la source</b><span>Dépose ici pour la sortir de tous les projets sans la supprimer.</span></div>
     <div class="source-manager-list">${live.length?live.map(source=>sourceManagerRow(source,project.id)).join(''):'<div class="source-manager-empty">Aucune source active pour ce projet.</div>'}</div>
     ${archived.length?`<details class="source-manager-section"><summary>Archives <b>${archived.length}</b></summary><div class="source-manager-list">${archived.map(source=>sourceManagerRow(source,project.id)).join('')}</div></details>`:''}
     ${detached.length?`<details class="source-manager-section detached-section" open><summary>Sources détachées <b>${detached.length}</b></summary><div class="source-manager-list">${detached.map(source=>detachedSourceRow(source,project.id)).join('')}</div></details>`:''}
@@ -509,7 +549,7 @@ function projectManagerModal(targetId){
       <aside class="project-manager-list">
         <header><div><span>PROJECT CONTROL</span><h2>Gérer les projets</h2></div><button id="projectManagerClose" aria-label="Fermer">×</button></header>
         <button class="manager-new ${isNew?'active':''}" id="newManagedProject">＋ Nouveau projet</button>
-        <div class="manager-project-scroll">${ordered.map(p=>{const d=projectState(p.id),ctl=projectControl(p);return `<button class="manager-project-row ${p.id===targetId?'active':''} ${projectArchived(p)?'archived':''}" data-manager-select="${esc(p.id)}"><span class="project-emblem tiny">${projectGlyph(p)}</span><div><b>${ctl.pinned?'★ ':''}${esc(p.name)}</b><small>${esc(projectGroup(p))} · ${esc(boardLabel(d?.status))} · ${allProjectSources(p.id).length} src</small></div>${projectArchived(p)?'<em>ARCHIVE</em>':''}</button>`}).join('')}</div>
+        <div class="manager-project-scroll">${ordered.map(p=>{const d=projectState(p.id),ctl=projectControl(p);return `<button class="manager-project-row ${p.id===targetId?'active':''} ${projectArchived(p)?'archived':''}" data-manager-select="${esc(p.id)}" data-source-drop-project="${esc(p.id)}"><span class="project-emblem tiny">${projectGlyph(p)}</span><div><b>${ctl.pinned?'★ ':''}${esc(p.name)}</b><small>${esc(projectGroup(p))} · ${esc(boardLabel(d?.status))} · ${allProjectSources(p.id).length} src</small></div>${projectArchived(p)?'<em>ARCHIVE</em>':''}</button>`}).join('')}</div>
       </aside>
       <main class="project-manager-editor">
         <div class="manager-editor-head"><div><span>${isNew?'NOUVEAU PROJET':manageProjectSection==='sources'?'SOURCE MANAGER':'ÉDITION DU PROJET'}</span><h2>${isNew?'Créer un projet':esc(selected.name)}</h2><p>${isNew?'Projet local CONTROL, prêt à recevoir des sources plus tard.':manageProjectSection==='sources'?'Contrôle les conversations, dépôts et sources qui alimentent ce projet.':'Les réglages manuels restent prioritaires sans effacer les données source.'}</p></div>${project&&!isNew?`<button class="manager-open-project" data-open-managed-project="${esc(project.id)}">Ouvrir ↗</button>`:''}</div>
