@@ -13,7 +13,7 @@ const rel = ts => {
 const statusClass = status => `status-${String(status||'UNKNOWN').replace(/[^A-Z0-9]+/gi,'-').replace(/^-|-$/g,'')}`;
 const sourceClass = type => type==='github_repo'?'source-github':type==='chatgpt_thread'?'source-chatgpt':type==='github_component'?'source-component':'source-other';
 const sourceLabel = s => s.type==='github_repo'?'GitHub':s.type==='chatgpt_thread'?'ChatGPT':s.type==='chatgpt_archived'?'ChatGPT archive':s.type==='github_component'?(s.title||'Component'):s.type;
-let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, manageProjectId=null, projectView=localStorage.getItem('controlProjectView') || 'board', statusPickerOutsideBound=false;
+let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, manageProjectId=null, manageProjectSection='project', projectView=localStorage.getItem('controlProjectView') || 'board', statusPickerOutsideBound=false;
 
 async function api(path, options={}) {
   const r = await fetch(path, {headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
@@ -24,8 +24,25 @@ async function api(path, options={}) {
 async function load(){ state=await api('/api/state'); render(); }
 function toast(msg){ const el=document.createElement('div');el.className='toast';el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),3000); }
 function projectState(id){return state.derived.find(d=>d.projectId===id)}
-function evidenceFor(id){return state.evidence.filter(e=>e.projectId===id&&e.inventoryCurrent!==false).sort((a,b)=>new Date(b.timestamp||0)-new Date(a.timestamp||0))}
-function sourcesFor(id,{archives=false}={}){return state.sources.filter(s=>s.projectId===id&&(archives?s.type==='chatgpt_archived':s.type!=='chatgpt_archived'))}
+function evidenceFor(id){return state.evidence.filter(e=>e.projectId===id&&e.inventoryCurrent!==false&&e.controlExcluded!==true).sort((a,b)=>new Date(b.timestamp||0)-new Date(a.timestamp||0))}
+function sourceManagedArchived(source){return source?.control?.archived === true}
+function sourcesFor(id,{archives=false,includeManagedArchived=false}={}){
+  return state.sources.filter(source=>{
+    if(source.projectId!==id)return false;
+    if(!includeManagedArchived&&sourceManagedArchived(source))return false;
+    return archives?source.type==='chatgpt_archived':source.type!=='chatgpt_archived';
+  });
+}
+function allProjectSources(id){return state.sources.filter(source=>source.projectId===id)}
+function detachedSources(){return state.sources.filter(source=>!source.projectId&&source.control?.assignment==='MANUAL')}
+function sourceAssignable(source){return ['chatgpt_thread','chatgpt_archived','github_repo'].includes(source?.type)}
+function sourceKindLabel(source){
+  if(source?.type==='chatgpt_thread')return 'ChatGPT';
+  if(source?.type==='chatgpt_archived')return 'ChatGPT archivé';
+  if(source?.type==='github_repo')return 'Dépôt GitHub';
+  if(source?.type==='github_component')return 'Composant GitHub';
+  return sourceLabel(source||{type:'source'});
+}
 function projectById(id){return state.projects.find(p=>p.id===id)}
 function projectControl(project){return project?.control || {}}
 function projectArchived(project){return projectControl(project).archived === true}
@@ -385,6 +402,93 @@ function allProjectsPanel(projects,buckets){
   const body=projectView==='board'?premiumProjectBoard(buckets):projectView==='groups'?groupedProjectsPanel(projects):projectListV3(projects);
   return `<section class="all-projects-panel"><div class="all-projects-head"><div><span class="projects-head-icon">▦</span><h3>Tous les projets</h3><small>${projects.length} actifs · ${archivedCount} archivé${archivedCount===1?'':'s'}</small></div><div class="all-projects-tools"><button class="project-manage-main" data-manage-all="${esc(projects[0]?.id||'__new__')}">⚙ Gérer les projets</button><div class="project-search"><span>⌕</span><input data-search placeholder="Rechercher un projet…" value="${esc(query)}"></div><select id="statusFilter" class="select compact-filter">${['ALL','ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','EMPTY','UNSYNCED'].map(x=>`<option ${statusFilter===x?'selected':''}>${x}</option>`).join('')}</select><div class="view-chips">${mode('board','Colonnes')}${mode('groups','Groupes')}${mode('list','Liste')}</div></div></div>${body}</section>`;
 }
+function sourceManagerProjectOptions(currentId=''){
+  return [...state.projects]
+    .sort((a,b)=>projectArchived(a)-projectArchived(b)||a.name.localeCompare(b.name,'fr'))
+    .map(project=>`<option value="${esc(project.id)}" ${project.id===currentId?'selected':''}>${esc(project.name)}${projectArchived(project)?' · archivé':''}</option>`)
+    .join('');
+}
+
+function sourceManagerRow(source, currentProjectId){
+  const archived=sourceManagedArchived(source);
+  const mutable=sourceAssignable(source);
+  const age=source.conversationUpdatedAt||source.lastObservedAt||null;
+  const manual=source.control?.assignment==='MANUAL';
+  return `<article class="source-manager-row ${archived?'archived':''}">
+    <div class="source-manager-icon ${sourceClass(source.type)}">${source.type==='chatgpt_thread'||source.type==='chatgpt_archived'?'AI':String(source.type||'').startsWith('github_')?'GH':'•'}</div>
+    <div class="source-manager-copy">
+      <div class="source-manager-title"><b>${esc(source.title||sourceKindLabel(source))}</b><span>${esc(sourceKindLabel(source))}</span>${manual?'<em>MANUEL</em>':''}${archived?'<em class="archived">ARCHIVÉ</em>':''}</div>
+      <p>${esc(source.url||source.state||'Source enregistrée')}</p>
+      <small>${age?`Mis à jour ${esc(rel(age))} ago`:'Pas de date'} · ${esc(source.id)}</small>
+    </div>
+    <div class="source-manager-actions">
+      ${mutable?(archived?`<button class="source-action restore" data-source-archive="${esc(source.id)}" data-archived="false">Restaurer</button>`:`<select data-source-target="${esc(source.id)}">${sourceManagerProjectOptions(currentProjectId)}</select><button class="source-action primary" data-source-move="${esc(source.id)}">Déplacer</button><button class="source-action" data-source-detach="${esc(source.id)}">Détacher</button><button class="source-action danger" data-source-archive="${esc(source.id)}" data-archived="true">Archiver</button>`):'<span class="source-auto-badge">Géré automatiquement</span>'}
+      ${source.url?`<a class="source-action" href="${esc(source.url)}" target="_blank">Ouvrir ↗</a>`:''}
+    </div>
+  </article>`;
+}
+
+function detachedSourceRow(source, projectId){
+  return `<article class="source-manager-row detached">
+    <div class="source-manager-icon ${sourceClass(source.type)}">${source.type==='chatgpt_thread'||source.type==='chatgpt_archived'?'AI':source.type==='github_repo'?'GH':'•'}</div>
+    <div class="source-manager-copy"><div class="source-manager-title"><b>${esc(source.title||sourceKindLabel(source))}</b><span>Détachée</span><em>MANUEL</em></div><p>${esc(source.url||'Source sans projet')}</p><small>${esc(sourceKindLabel(source))}</small></div>
+    <div class="source-manager-actions compact"><button class="source-action primary" data-source-attach="${esc(source.id)}" data-project-id="${esc(projectId)}">Rattacher ici</button>${source.url?`<a class="source-action" href="${esc(source.url)}" target="_blank">Ouvrir ↗</a>`:''}</div>
+  </article>`;
+}
+
+function discoveredSourceRow(item, projectId){
+  const suggested=item.projectTitle||item.chatgptProjectTitle||item.title||'Nouveau projet';
+  return `<article class="source-manager-row discovered">
+    <div class="source-manager-icon source-chat">AI</div>
+    <div class="source-manager-copy"><div class="source-manager-title"><b>${esc(item.title||'Conversation ChatGPT')}</b><span>À classer</span></div><p>${esc(item.preview||item.projectTitle||'Source découverte')}</p><small>${esc(item.projectTitle||'Aucun projet ChatGPT identifié')}</small></div>
+    <div class="source-manager-actions compact"><button class="source-action primary" data-discovered-assign="${esc(item.id)}" data-project-id="${esc(projectId)}">Rattacher ici</button><button class="source-action" data-discovered-create="${esc(item.id)}" data-project-name="${esc(suggested)}">Créer un projet</button>${item.url?`<a class="source-action" href="${esc(item.url)}" target="_blank">Ouvrir ↗</a>`:''}</div>
+  </article>`;
+}
+
+function projectSourcesManager(project){
+  const all=allProjectSources(project.id).sort((a,b)=>{
+    const aa=sourceManagedArchived(a),ba=sourceManagedArchived(b);
+    if(aa!==ba)return aa?1:-1;
+    return new Date(b.conversationUpdatedAt||b.lastObservedAt||0)-new Date(a.conversationUpdatedAt||a.lastObservedAt||0);
+  });
+  const live=all.filter(source=>!sourceManagedArchived(source));
+  const archived=all.filter(source=>sourceManagedArchived(source));
+  const detached=detachedSources();
+  const discovered=state.discovered||[];
+  const chatCount=all.filter(source=>['chatgpt_thread','chatgpt_archived'].includes(source.type)).length;
+  const githubCount=all.filter(source=>String(source.type||'').startsWith('github_')).length;
+  return `<section class="source-manager">
+    <div class="source-manager-summary">
+      <article><span>Sources actives</span><b>${live.length}</b><small>alimentent le projet</small></article>
+      <article><span>ChatGPT</span><b>${chatCount}</b><small>conversations liées</small></article>
+      <article><span>GitHub</span><b>${githubCount}</b><small>repos / composants</small></article>
+      <article><span>À classer</span><b>${detached.length+discovered.length}</b><small>hors projet</small></article>
+    </div>
+    <div class="source-manager-toolbar"><div><h3>Sources de ${esc(project.name)}</h3><p>Déplace, détache ou archive une source sans supprimer son historique.</p></div><span>${live.length} active${live.length===1?'':'s'}</span></div>
+    <div class="source-manager-list">${live.length?live.map(source=>sourceManagerRow(source,project.id)).join(''):'<div class="source-manager-empty">Aucune source active pour ce projet.</div>'}</div>
+    ${archived.length?`<details class="source-manager-section"><summary>Archives <b>${archived.length}</b></summary><div class="source-manager-list">${archived.map(source=>sourceManagerRow(source,project.id)).join('')}</div></details>`:''}
+    ${detached.length?`<details class="source-manager-section detached-section" open><summary>Sources détachées <b>${detached.length}</b></summary><div class="source-manager-list">${detached.map(source=>detachedSourceRow(source,project.id)).join('')}</div></details>`:''}
+    ${discovered.length?`<details class="source-manager-section discovered-section" open><summary>Découvertes à classer <b>${discovered.length}</b></summary><div class="source-manager-list">${discovered.map(item=>discoveredSourceRow(item,project.id)).join('')}</div></details>`:''}
+  </section>`;
+}
+
+async function moveManagedSource(sourceId,projectId){
+  const out=await api('/api/sources/move',{method:'POST',body:JSON.stringify({sourceId,projectId})});
+  state=out.state;render();toast(projectId?'Source déplacée':'Source détachée');
+}
+async function archiveManagedSource(sourceId,archived){
+  const out=await api('/api/sources/archive',{method:'POST',body:JSON.stringify({sourceId,archived})});
+  state=out.state;render();toast(archived?'Source archivée':'Source restaurée');
+}
+async function assignDiscoveredSource(discoveredId,projectId){
+  const out=await api('/api/discovered/assign',{method:'POST',body:JSON.stringify({discoveredId,projectId})});
+  state=out.state;render();toast('Source rattachée');
+}
+async function createProjectFromDiscovered(discoveredId,name){
+  const out=await api('/api/discovered/assign',{method:'POST',body:JSON.stringify({discoveredId,createProjectName:name})});
+  state=out.state;manageProjectId=out.project.id;manageProjectSection='sources';render();toast('Projet créé et source rattachée');
+}
+
 function projectManagerModal(targetId){
   const isNew=targetId==='__new__';
   const project=isNew?null:projectById(targetId);
@@ -405,10 +509,12 @@ function projectManagerModal(targetId){
       <aside class="project-manager-list">
         <header><div><span>PROJECT CONTROL</span><h2>Gérer les projets</h2></div><button id="projectManagerClose" aria-label="Fermer">×</button></header>
         <button class="manager-new ${isNew?'active':''}" id="newManagedProject">＋ Nouveau projet</button>
-        <div class="manager-project-scroll">${ordered.map(p=>{const d=projectState(p.id),ctl=projectControl(p);return `<button class="manager-project-row ${p.id===targetId?'active':''} ${projectArchived(p)?'archived':''}" data-manager-select="${esc(p.id)}"><span class="project-emblem tiny">${projectGlyph(p)}</span><div><b>${ctl.pinned?'★ ':''}${esc(p.name)}</b><small>${esc(projectGroup(p))} · ${esc(boardLabel(d?.status))}</small></div>${projectArchived(p)?'<em>ARCHIVE</em>':''}</button>`}).join('')}</div>
+        <div class="manager-project-scroll">${ordered.map(p=>{const d=projectState(p.id),ctl=projectControl(p);return `<button class="manager-project-row ${p.id===targetId?'active':''} ${projectArchived(p)?'archived':''}" data-manager-select="${esc(p.id)}"><span class="project-emblem tiny">${projectGlyph(p)}</span><div><b>${ctl.pinned?'★ ':''}${esc(p.name)}</b><small>${esc(projectGroup(p))} · ${esc(boardLabel(d?.status))} · ${allProjectSources(p.id).length} src</small></div>${projectArchived(p)?'<em>ARCHIVE</em>':''}</button>`}).join('')}</div>
       </aside>
       <main class="project-manager-editor">
-        <div class="manager-editor-head"><div><span>${isNew?'NOUVEAU PROJET':'ÉDITION DU PROJET'}</span><h2>${isNew?'Créer un projet':esc(selected.name)}</h2><p>${isNew?'Projet local CONTROL, prêt à recevoir des sources plus tard.':'Les réglages manuels restent prioritaires sans effacer les données source.'}</p></div>${project&&!isNew?`<button class="manager-open-project" data-open-managed-project="${esc(project.id)}">Ouvrir ↗</button>`:''}</div>
+        <div class="manager-editor-head"><div><span>${isNew?'NOUVEAU PROJET':manageProjectSection==='sources'?'SOURCE MANAGER':'ÉDITION DU PROJET'}</span><h2>${isNew?'Créer un projet':esc(selected.name)}</h2><p>${isNew?'Projet local CONTROL, prêt à recevoir des sources plus tard.':manageProjectSection==='sources'?'Contrôle les conversations, dépôts et sources qui alimentent ce projet.':'Les réglages manuels restent prioritaires sans effacer les données source.'}</p></div>${project&&!isNew?`<button class="manager-open-project" data-open-managed-project="${esc(project.id)}">Ouvrir ↗</button>`:''}</div>
+        ${project?`<nav class="manager-editor-tabs"><button class="${manageProjectSection==='project'?'active':''}" data-manager-section="project">Projet</button><button class="${manageProjectSection==='sources'?'active':''}" data-manager-section="sources">Sources <b>${allProjectSources(project.id).length}</b></button></nav>`:''}
+        <div class="manager-section manager-project-section ${manageProjectSection==='project'||isNew?'active':''}">
         <form id="projectManagerForm" data-project-id="${esc(selected.id)}">
           <div class="manager-form-grid">
             <label class="manager-name-field"><span>Nom</span><input name="name" required maxlength="120" value="${esc(selected.name||'')}" placeholder="Nom du projet"></label>
@@ -427,6 +533,8 @@ function projectManagerModal(targetId){
           <div class="manager-info-strip"><div><span>STATUT CONTROL</span><b>${esc(statusValue==='AUTO'?boardLabel(autoStatus):boardLabel(statusValue))}</b></div><div><span>GROUPE</span><b>${esc(control.group||'Sans groupe')}</b></div><div><span>SOURCES</span><b>${project?sourcesFor(project.id).length:0}</b></div><div><span>MODE</span><b>${isNew?'MANUEL':derived?.manualStatusOverride?'MANUEL + SOURCES':'SOURCES + CONTROL'}</b></div></div>
           <footer><button type="button" class="manager-cancel" id="projectManagerCancel">Annuler</button><button type="submit" class="manager-save">${isNew?'Créer le projet':'Enregistrer les changements'}</button></footer>
         </form>
+        </div>
+        ${project?`<div class="manager-section manager-sources-section ${manageProjectSection==='sources'?'active':''}">${projectSourcesManager(project)}</div>`:''}
       </main>
     </section>
   </div>`;
@@ -534,7 +642,7 @@ function projectPage(id){
         <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">?</span><h2>Pourquoi cet état ?</h2></div></div><p class="v8-why">${d.status==='EMPTY'?'CONTROL connaît le projet mais aucune conversation courante n’est rattachée.':`CONTROL dérive cet état depuis ${d.evidenceIds.length} élément${d.evidenceIds.length===1?'':'s'} récent${d.evidenceIds.length===1?'':'s'}.`}</p><ul class="v8-why-list">${d.evidenceIds.slice(0,5).map(eid=>{const item=state.evidence.find(x=>x.id===eid&&x.inventoryCurrent!==false);return item?`<li>${esc(item.title)}</li>`:''}).join('')}</ul></section>
         <section class="v8-side-card project-organization-card"><div class="v8-section-head"><div><span class="v8-section-icon">✦</span><h2>Organisation</h2></div><button class="v8-side-edit" data-manage-project="${esc(p.id)}" data-stop>Modifier</button></div><div class="project-org-meta"><div><small>Groupe</small><b>${esc(projectGroup(p))}</b></div><div><small>État</small><b>${esc(boardLabel(d.status))}${d.manualStatusOverride?' · manuel':''}</b></div></div>${projectTags(p).length?`<div class="project-org-tags">${projectTags(p).map(tag=>`<span>${esc(tag)}</span>`).join('')}</div>`:''}<p class="project-org-note">${esc(projectControl(p).note||'Aucune note personnelle pour ce projet.')}</p></section>
         <section class="v8-side-card"><div class="v8-section-head"><div><span class="v8-section-icon">▣</span><h2>Fichiers clés</h2></div></div>${files.length?files.map(path=>`<div class="v8-file"><span>‹›</span><b>${esc(path)}</b></div>`).join(''):'<p class="v8-empty-note">Aucun chemin de fichier détecté dans les évidences courantes.</p>'}</section>
-        <section class="v8-side-card v9-sources-card"><div class="v8-section-head"><div><span class="v8-section-icon">◎</span><h2>Sources du projet</h2></div><span class="v8-good">${src.length}</span></div>${sourcePanel||'<p class="v8-empty-note">Aucune source courante.</p>'}</section>
+        <section class="v8-side-card v9-sources-card"><div class="v8-section-head"><div><span class="v8-section-icon">◎</span><h2>Sources du projet</h2></div><div class="v8-source-head-actions"><span class="v8-good">${src.length}</span><button class="v8-side-edit" data-manage-sources="${esc(p.id)}" data-stop>Gérer</button></div></div>${sourcePanel||'<p class="v8-empty-note">Aucune source courante.</p>'}</section>
       </aside>
     </div>
   </div>`;
@@ -569,9 +677,9 @@ function unsyncedCard(p){
 }
 function discoveredView(){return `<div class="topbar"><div class="titleblock"><h2>Discovered</h2><p>Sources détectées mais pas encore rattachées à un projet.</p></div></div><div class="panel"><div class="discover-list">${state.discovered.length?state.discovered.map(d=>`<div class="discover-item"><strong>${esc(d.title)}</strong><p>${esc(d.preview||'')}</p><div class="actions"><select class="select" data-map-select="${d.id}">${activeProjects().map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button class="btn gold small" data-map="${d.id}">Map source</button><button class="btn small ghost" data-ignore="${d.id}">Ignore</button><a class="btn small" href="${esc(d.url)}" target="_blank">Open</a></div></div>`).join(''):'<div class="empty">Nothing unmapped. New ChatGPT threads or repos land here only when CONTROL cannot resolve them confidently.</div>'}</div></div>`}
 function sourcesView(){
-  const current=state.sources.filter(s=>s.type!=='chatgpt_archived');
+  const current=state.sources.filter(s=>s.type!=='chatgpt_archived'&&!sourceManagedArchived(s)&&!!s.projectId);
   const gh=current.filter(s=>s.type==='github_repo'), comps=current.filter(s=>s.type==='github_component'), chats=current.filter(s=>s.type==='chatgpt_thread');
-  const archives=state.sources.filter(s=>s.type==='chatgpt_archived');
+  const archives=state.sources.filter(s=>s.type==='chatgpt_archived'||sourceManagedArchived(s));
   const mappedProjectKeys=Object.keys(state.settings?.chatgptProjectMappings||{}).length;
   const inv=state.settings?.lastChatgptInventory;
   const catchup=state.settings?.lastChatgptCatchup;
@@ -659,17 +767,25 @@ function bind(){
   document.querySelectorAll('[data-scroll-activity]').forEach(b=>b.addEventListener('click',()=>document.querySelector('[data-activity-section]')?.scrollIntoView({behavior:'smooth',block:'start'})));
   document.querySelectorAll('[data-global-project-search]').forEach(el=>el.addEventListener('keydown',e=>{if(e.key==='Enter'){query=e.target.value;modalProject=null;view='radar';render();}}));
   document.querySelectorAll('[data-project-view]').forEach(b=>b.addEventListener('click',()=>{projectView=b.dataset.projectView||'board';localStorage.setItem('controlProjectView',projectView);render()}));
-  document.querySelectorAll('[data-manage-project]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();manageProjectId=b.dataset.manageProject;render()}));
-  document.querySelectorAll('[data-manage-all]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();manageProjectId=b.dataset.manageAll||activeProjects()[0]?.id||'__new__';render()}));
+  document.querySelectorAll('[data-manage-project]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();manageProjectId=b.dataset.manageProject;manageProjectSection='project';render()}));
+  document.querySelectorAll('[data-manage-sources]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();manageProjectId=b.dataset.manageSources;manageProjectSection='sources';render()}));
+  document.querySelectorAll('[data-manage-all]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();manageProjectId=b.dataset.manageAll||activeProjects()[0]?.id||'__new__';manageProjectSection='project';render()}));
   document.querySelectorAll('[data-manager-select]').forEach(b=>b.addEventListener('click',()=>{manageProjectId=b.dataset.managerSelect;render()}));
-  $('#newManagedProject')?.addEventListener('click',()=>{manageProjectId='__new__';render()});
-  $('#projectManagerClose')?.addEventListener('click',()=>{manageProjectId=null;render()});
+  $('#newManagedProject')?.addEventListener('click',()=>{manageProjectId='__new__';manageProjectSection='project';render()});
+  document.querySelectorAll('[data-manager-section]').forEach(b=>b.addEventListener('click',()=>{manageProjectSection=b.dataset.managerSection||'project';render()}));
+  $('#projectManagerClose')?.addEventListener('click',()=>{manageProjectId=null;manageProjectSection='project';render()});
   $('#projectManagerCancel')?.addEventListener('click',()=>{manageProjectId=null;render()});
   $('[data-manager-overlay]')?.addEventListener('click',e=>{if(e.target===e.currentTarget){manageProjectId=null;render()}});
   $('[data-open-managed-project]')?.addEventListener('click',e=>{modalProject=e.currentTarget.dataset.openManagedProject;manageProjectId=null;view='radar';render()});
   document.querySelectorAll('[data-status-trigger]').forEach(trigger=>trigger.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const picker=trigger.closest('[data-status-picker]');const open=picker?.classList.toggle('open');trigger.setAttribute('aria-expanded',open?'true':'false')}));
   document.querySelectorAll('[data-status-value]').forEach(option=>option.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const picker=option.closest('[data-status-picker]');if(!picker)return;const value=option.dataset.statusValue||'AUTO';const input=picker.querySelector('input[name="statusOverride"]');const label=picker.querySelector('[data-status-current]');if(input)input.value=value;if(label)label.textContent=value==='AUTO'?'Auto — état dérivé':option.querySelector('span:nth-child(2)')?.textContent||value;picker.querySelectorAll('[data-status-value]').forEach(item=>{const selected=item===option;item.classList.toggle('selected',selected);item.setAttribute('aria-selected',selected?'true':'false')});picker.classList.remove('open');picker.querySelector('[data-status-trigger]')?.setAttribute('aria-expanded','false')}));
   if(!statusPickerOutsideBound){document.addEventListener('click',e=>{document.querySelectorAll('[data-status-picker].open').forEach(picker=>{if(!picker.contains(e.target)){picker.classList.remove('open');picker.querySelector('[data-status-trigger]')?.setAttribute('aria-expanded','false')}})});statusPickerOutsideBound=true}
+  document.querySelectorAll('[data-source-move]').forEach(button=>button.addEventListener('click',async()=>{const sourceId=button.dataset.sourceMove;const select=document.querySelector(`[data-source-target="${CSS.escape(sourceId)}"]`);try{await moveManagedSource(sourceId,select?.value||'')}catch(error){toast(`Déplacement impossible : ${error.message}`)}}));
+  document.querySelectorAll('[data-source-detach]').forEach(button=>button.addEventListener('click',async()=>{try{await moveManagedSource(button.dataset.sourceDetach,null)}catch(error){toast(`Détachement impossible : ${error.message}`)}}));
+  document.querySelectorAll('[data-source-attach]').forEach(button=>button.addEventListener('click',async()=>{try{await moveManagedSource(button.dataset.sourceAttach,button.dataset.projectId)}catch(error){toast(`Rattachement impossible : ${error.message}`)}}));
+  document.querySelectorAll('[data-source-archive]').forEach(button=>button.addEventListener('click',async()=>{try{await archiveManagedSource(button.dataset.sourceArchive,button.dataset.archived==='true')}catch(error){toast(`Action impossible : ${error.message}`)}}));
+  document.querySelectorAll('[data-discovered-assign]').forEach(button=>button.addEventListener('click',async()=>{try{await assignDiscoveredSource(button.dataset.discoveredAssign,button.dataset.projectId)}catch(error){toast(`Rattachement impossible : ${error.message}`)}}));
+  document.querySelectorAll('[data-discovered-create]').forEach(button=>button.addEventListener('click',async()=>{try{await createProjectFromDiscovered(button.dataset.discoveredCreate,button.dataset.projectName||'Nouveau projet')}catch(error){toast(`Création impossible : ${error.message}`)}}));
   $('#projectManagerForm')?.addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget;const save=form.querySelector('.manager-save');if(save){save.disabled=true;save.textContent='Enregistrement…'}try{await saveManagedProject(form)}catch(error){toast(`Impossible d’enregistrer : ${error.message}`);if(save){save.disabled=false;save.textContent=form.dataset.projectId==='__new__'?'Créer le projet':'Enregistrer les changements'}}});
   $('#syncBtn')?.addEventListener('click',()=>{view='sources';render();setTimeout(()=>$('#ghToken')?.focus(),0)});
   $('#syncBtn2')?.addEventListener('click',syncGithub);
@@ -677,7 +793,7 @@ function bind(){
   document.querySelectorAll('[data-why]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();modalProject=b.dataset.why;render()}));
   document.querySelectorAll('[data-stop]').forEach(el=>el.addEventListener('click',e=>e.stopPropagation()));
   $('#closeModal')?.addEventListener('click',()=>{modalProject=null;render()});
-  document.querySelectorAll('[data-map]').forEach(b=>b.onclick=async()=>{const id=b.dataset.map;const projectId=$(`[data-map-select="${id}"]`).value;await api('/api/remap',{method:'POST',body:JSON.stringify({discoveredId:id,projectId})});await load();toast('Source mapped')});
+  document.querySelectorAll('[data-map]').forEach(b=>b.onclick=async()=>{const id=b.dataset.map;const projectId=$(`[data-map-select="${id}"]`).value;const out=await api('/api/discovered/assign',{method:'POST',body:JSON.stringify({discoveredId:id,projectId})});state=out.state;render();toast('Source rattachée')});
   document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=async()=>{await api('/api/discovered/ignore',{method:'POST',body:JSON.stringify({id:b.dataset.ignore})});await load();toast('Source ignored')});
 }
 document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(manageProjectId){manageProjectId=null;render();return}if(modalProject){modalProject=null;render()}});

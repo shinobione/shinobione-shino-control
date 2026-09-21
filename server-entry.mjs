@@ -350,6 +350,206 @@ function createManagedProject(state, payload = {}) {
   return project;
 }
 
+
+function managedSourceKey(source = {}) {
+  const explicit = cleanProjectText(source.externalId || '', 220);
+  if (explicit) return explicit;
+  try { return new URL(source.url || '').pathname.match(/\/c\/([^/?#]+)/i)?.[1] || null; }
+  catch { return null; }
+}
+
+function managedSourceRepo(source = {}) {
+  const titleRepo = cleanProjectRepo(source.title || '');
+  if (titleRepo) return titleRepo;
+  try {
+    const url = new URL(source.url || '');
+    if (!/github\.com$/i.test(url.hostname)) return null;
+    const parts = url.pathname.split('/').filter(Boolean);
+    return parts.length >= 2 ? cleanProjectRepo(`${parts[0]}/${parts[1]}`) : null;
+  } catch {
+    return null;
+  }
+}
+
+function sourceIsGithubBundle(source = {}) {
+  return source.type === 'github_repo';
+}
+
+function sourceAffectedEvidence(state, source, previousProjectId = null) {
+  const direct = (state.evidence || []).filter(item => item.sourceId === source.id);
+  if (!sourceIsGithubBundle(source) || !previousProjectId) return direct;
+  const repo = managedSourceRepo(source);
+  const oldProject = (state.projects || []).find(item => item.id === previousProjectId);
+  if (!repo || (oldProject?.repo !== repo && source.control?.repo !== repo)) return direct;
+  const bundle = (state.evidence || []).filter(item =>
+    item.projectId === previousProjectId &&
+    item.liveSync === true &&
+    /^github_/.test(String(item.sourceType || ''))
+  );
+  return [...new Map([...direct, ...bundle].map(item => [item.id, item])).values()];
+}
+
+function moveManagedSource(state, payload = {}) {
+  state.settings ||= {};
+  state.settings.manualMappings ||= {};
+  state.sources ||= [];
+  state.evidence ||= [];
+  state.projects ||= [];
+
+  const sourceId = cleanProjectText(payload.sourceId, 220);
+  const source = state.sources.find(item => item.id === sourceId);
+  if (!source) return null;
+  if (!['chatgpt_thread','chatgpt_archived','github_repo'].includes(source.type)) throw new Error('This source is managed automatically and cannot be moved manually');
+
+  const requestedProjectId = cleanProjectText(payload.projectId || '', 180) || null;
+  const target = requestedProjectId ? state.projects.find(item => item.id === requestedProjectId) : null;
+  if (requestedProjectId && !target) throw new Error('Target project not found');
+
+  const previousProjectId = source.projectId || null;
+  const previousProject = previousProjectId ? state.projects.find(item => item.id === previousProjectId) : null;
+  const now = new Date().toISOString();
+  const repo = sourceIsGithubBundle(source) ? managedSourceRepo(source) : null;
+
+  if (repo && target?.repo && target.repo !== repo) {
+    throw new Error(`Target project already uses GitHub repo ${target.repo}`);
+  }
+
+  const affectedEvidence = sourceAffectedEvidence(state, source, previousProjectId);
+  for (const evidence of affectedEvidence) {
+    evidence.projectId = target?.id || null;
+    evidence.controlExcluded = source.control?.archived === true || !target;
+  }
+
+  if (repo) {
+    if (previousProject && previousProject.id !== target?.id && previousProject.repo === repo) previousProject.repo = null;
+    if (target) target.repo = repo;
+  }
+
+  source.projectId = target?.id || null;
+  source.state = target ? 'MAPPED' : 'DETACHED';
+  source.control = {
+    ...(source.control || {}),
+    assignment:'MANUAL',
+    projectId:target?.id || null,
+    detached:!target,
+    updatedAt:now,
+    updatedBy:'user'
+  };
+
+  const key = managedSourceKey(source);
+  if (key && ['chatgpt_thread','chatgpt_archived'].includes(source.type)) {
+    if (target) state.settings.manualMappings[key] = target.id;
+    else delete state.settings.manualMappings[key];
+  }
+
+  const dirtyProjectIds = [...new Set([previousProjectId, target?.id].filter(Boolean))];
+  deriveAll(state, {dirtyProjectIds});
+  return {source, previousProjectId, projectId:target?.id || null, dirtyProjectIds};
+}
+
+function archiveManagedSource(state, payload = {}) {
+  state.sources ||= [];
+  state.evidence ||= [];
+  state.projects ||= [];
+
+  const sourceId = cleanProjectText(payload.sourceId, 220);
+  const source = state.sources.find(item => item.id === sourceId);
+  if (!source) return null;
+  if (!['chatgpt_thread','chatgpt_archived','github_repo'].includes(source.type)) throw new Error('This source is managed automatically and cannot be archived manually');
+
+  const archived = payload.archived === true;
+  const now = new Date().toISOString();
+  const projectId = source.projectId || null;
+  const project = projectId ? state.projects.find(item => item.id === projectId) : null;
+  const repo = sourceIsGithubBundle(source) ? managedSourceRepo(source) : null;
+  const affectedEvidence = sourceAffectedEvidence(state, source, projectId);
+
+  source.control = {
+    ...(source.control || {}),
+    archived,
+    archivedAt:archived ? (source.control?.archivedAt || now) : null,
+    updatedAt:now,
+    updatedBy:'user'
+  };
+
+  for (const evidence of affectedEvidence) evidence.controlExcluded = archived || !source.projectId;
+
+  if (repo && project) {
+    if (archived && project.repo === repo) {
+      source.control.repo = repo;
+      project.repo = null;
+    } else if (!archived && !project.repo) {
+      project.repo = source.control?.repo || repo;
+    } else if (!archived && project.repo && project.repo !== repo) {
+      throw new Error(`Project already uses GitHub repo ${project.repo}`);
+    }
+  }
+
+  if (projectId) deriveAll(state, {dirtyProjectIds:[projectId]});
+  return {source, projectId, archived};
+}
+
+function assignDiscoveredManaged(state, payload = {}) {
+  state.settings ||= {};
+  state.settings.manualMappings ||= {};
+  state.sources ||= [];
+  state.evidence ||= [];
+  state.discovered ||= [];
+  state.projects ||= [];
+
+  const discoveredId = cleanProjectText(payload.discoveredId, 220);
+  const discovered = state.discovered.find(item => item.id === discoveredId);
+  if (!discovered) return null;
+
+  let project = null;
+  const requestedProjectId = cleanProjectText(payload.projectId || '', 180);
+  if (requestedProjectId) project = state.projects.find(item => item.id === requestedProjectId) || null;
+  if (!project && payload.createProjectName) {
+    project = createManagedProject(state, {
+      name:cleanProjectText(payload.createProjectName, 120),
+      universe:cleanProjectText(payload.universe || discovered.projectTitle || 'PROJECT', 80) || 'PROJECT',
+      statusOverride:'ACTIVE'
+    });
+  }
+  if (!project) throw new Error('Project not found');
+
+  const key = cleanProjectText(discovered.conversationKey || discovered.externalId || discovered.url || '', 300) || null;
+  let source = key
+    ? state.sources.find(item => ['chatgpt_thread','chatgpt_archived'].includes(item.type) && (item.externalId === key || item.url === discovered.url))
+    : null;
+
+  if (!source) {
+    const base = projectSlug(discovered.title || 'source');
+    source = { id:`src-manual-${base}-${Date.now().toString(36)}` };
+    state.sources.push(source);
+  }
+
+  Object.assign(source, {
+    projectId:project.id,
+    type:discovered.type || 'chatgpt_thread',
+    externalId:key,
+    title:discovered.title || source.title || 'Mapped source',
+    url:discovered.url || source.url || null,
+    lastObservedAt:discovered.observedAt || discovered.lastObservedAt || new Date().toISOString(),
+    state:'MAPPED',
+    chatgptProjectKey:discovered.chatgptProjectKey || source.chatgptProjectKey || null,
+    chatgptProjectTitle:discovered.projectTitle || discovered.chatgptProjectTitle || source.chatgptProjectTitle || null,
+    control:{
+      ...(source.control || {}),
+      assignment:'MANUAL',
+      projectId:project.id,
+      detached:false,
+      updatedAt:new Date().toISOString(),
+      updatedBy:'user'
+    }
+  });
+
+  if (key) state.settings.manualMappings[key] = project.id;
+  state.discovered = state.discovered.filter(item => item.id !== discovered.id);
+  deriveAll(state, {dirtyProjectIds:[project.id]});
+  return {source, project};
+}
+
 http.createServer = function wrappedCreateServer(listener) {
   return originalCreateServer(async (req, res) => {
     try {
@@ -378,6 +578,36 @@ http.createServer = function wrappedCreateServer(listener) {
         deriveAll(state, {dirtyProjectIds:[project.id]});
         writeState(state);
         return json(res, 201, {ok:true, project, state});
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/sources/move') {
+        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+        const payload = await readBody(req);
+        const state = readState();
+        const result = moveManagedSource(state, payload);
+        if (!result) return json(res, 404, {error:'Source not found'});
+        writeState(state);
+        return json(res, 200, {ok:true, ...result, state});
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/sources/archive') {
+        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+        const payload = await readBody(req);
+        const state = readState();
+        const result = archiveManagedSource(state, payload);
+        if (!result) return json(res, 404, {error:'Source not found'});
+        writeState(state);
+        return json(res, 200, {ok:true, ...result, state});
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/discovered/assign') {
+        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+        const payload = await readBody(req);
+        const state = readState();
+        const result = assignDiscoveredManaged(state, payload);
+        if (!result) return json(res, 404, {error:'Discovered source not found'});
+        writeState(state);
+        return json(res, 200, {ok:true, ...result, state});
       }
 
       if (req.method === 'POST' && url.pathname === '/api/control/restart') {
