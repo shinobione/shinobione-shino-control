@@ -422,7 +422,7 @@ function sourceManagerRow(source, currentProjectId){
       <small>${age?`Mis à jour ${esc(rel(age))} ago`:'Pas de date'} · ${esc(source.id)}</small>
     </div>
     <div class="source-manager-actions">
-      ${mutable?`<select data-source-target="${esc(source.id)}">${sourceManagerProjectOptions(currentProjectId)}</select><button class="source-action primary" data-source-move="${esc(source.id)}">Déplacer</button><button class="source-action" data-source-detach="${esc(source.id)}">Détacher</button><button class="source-action ${archived?'restore':'danger'}" data-source-archive="${esc(source.id)}" data-archived="${archived?'false':'true'}">${archived?'Restaurer':'Archiver'}</button>`:'<span class="source-auto-badge">Géré automatiquement</span>'}
+      ${mutable?(archived?`<button class="source-action restore" data-source-archive="${esc(source.id)}" data-archived="false">Restaurer</button>`:`<select data-source-target="${esc(source.id)}">${sourceManagerProjectOptions(currentProjectId)}</select><button class="source-action primary" data-source-move="${esc(source.id)}">Déplacer</button><button class="source-action" data-source-detach="${esc(source.id)}">Détacher</button><button class="source-action danger" data-source-archive="${esc(source.id)}" data-archived="true">Archiver</button>`):'<span class="source-auto-badge">Géré automatiquement</span>'}
       ${source.url?`<a class="source-action" href="${esc(source.url)}" target="_blank">Ouvrir ↗</a>`:''}
     </div>
   </article>`;
@@ -677,9 +677,9 @@ function unsyncedCard(p){
 }
 function discoveredView(){return `<div class="topbar"><div class="titleblock"><h2>Discovered</h2><p>Sources détectées mais pas encore rattachées à un projet.</p></div></div><div class="panel"><div class="discover-list">${state.discovered.length?state.discovered.map(d=>`<div class="discover-item"><strong>${esc(d.title)}</strong><p>${esc(d.preview||'')}</p><div class="actions"><select class="select" data-map-select="${d.id}">${activeProjects().map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button class="btn gold small" data-map="${d.id}">Map source</button><button class="btn small ghost" data-ignore="${d.id}">Ignore</button><a class="btn small" href="${esc(d.url)}" target="_blank">Open</a></div></div>`).join(''):'<div class="empty">Nothing unmapped. New ChatGPT threads or repos land here only when CONTROL cannot resolve them confidently.</div>'}</div></div>`}
 function sourcesView(){
-  const current=state.sources.filter(s=>s.type!=='chatgpt_archived');
+  const current=state.sources.filter(s=>s.type!=='chatgpt_archived'&&!sourceManagedArchived(s)&&!!s.projectId);
   const gh=current.filter(s=>s.type==='github_repo'), comps=current.filter(s=>s.type==='github_component'), chats=current.filter(s=>s.type==='chatgpt_thread');
-  const archives=state.sources.filter(s=>s.type==='chatgpt_archived');
+  const archives=state.sources.filter(s=>s.type==='chatgpt_archived'||sourceManagedArchived(s));
   const mappedProjectKeys=Object.keys(state.settings?.chatgptProjectMappings||{}).length;
   const inv=state.settings?.lastChatgptInventory;
   const catchup=state.settings?.lastChatgptCatchup;
@@ -793,7 +793,7 @@ function bind(){
   document.querySelectorAll('[data-why]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();modalProject=b.dataset.why;render()}));
   document.querySelectorAll('[data-stop]').forEach(el=>el.addEventListener('click',e=>e.stopPropagation()));
   $('#closeModal')?.addEventListener('click',()=>{modalProject=null;render()});
-  document.querySelectorAll('[data-map]').forEach(b=>b.onclick=async()=>{const id=b.dataset.map;const projectId=$(`[data-map-select="${id}"]`).value;await api('/api/remap',{method:'POST',body:JSON.stringify({discoveredId:id,projectId})});await load();toast('Source mapped')});
+  document.querySelectorAll('[data-map]').forEach(b=>b.onclick=async()=>{const id=b.dataset.map;const projectId=$(`[data-map-select="${id}"]`).value;const out=await api('/api/discovered/assign',{method:'POST',body:JSON.stringify({discoveredId:id,projectId})});state=out.state;render();toast('Source rattachée')});
   document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=async()=>{await api('/api/discovered/ignore',{method:'POST',body:JSON.stringify({id:b.dataset.ignore})});await load();toast('Source ignored')});
 }
 document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(manageProjectId){manageProjectId=null;render();return}if(modalProject){modalProject=null;render()}});
