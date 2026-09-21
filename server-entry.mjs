@@ -380,7 +380,7 @@ function sourceAffectedEvidence(state, source, previousProjectId = null) {
   if (!sourceIsGithubBundle(source) || !previousProjectId) return direct;
   const repo = managedSourceRepo(source);
   const oldProject = (state.projects || []).find(item => item.id === previousProjectId);
-  if (!repo || oldProject?.repo !== repo) return direct;
+  if (!repo || (oldProject?.repo !== repo && source.control?.repo !== repo)) return direct;
   const bundle = (state.evidence || []).filter(item =>
     item.projectId === previousProjectId &&
     item.liveSync === true &&
