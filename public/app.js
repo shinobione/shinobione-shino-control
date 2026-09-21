@@ -210,7 +210,7 @@ function clearControlDrag(){
 }
 function dragZoneAccepts(zone,payload){
   if(!payload)return false;
-  if(zone.matches('[data-drop-status],[data-drop-group]'))return payload.kind==='project';
+  if(zone.matches('[data-drop-status],[data-drop-group],[data-drop-auto],[data-drop-pin]'))return payload.kind==='project';
   if(zone.matches('[data-source-drop-project]'))return ['source','discovered'].includes(payload.kind);
   if(zone.matches('[data-source-drop-detach]'))return payload.kind==='source';
   return false;
@@ -440,7 +440,7 @@ function allProjectsPanel(projects,buckets){
   const mode=(id,label)=>`<button class="view-chip ${projectView===id?'active':''}" data-project-view="${id}">${label}</button>`;
   const archivedCount=state.projects.filter(projectArchived).length;
   const body=projectView==='board'?premiumProjectBoard(buckets):projectView==='groups'?groupedProjectsPanel(projects):projectListV3(projects);
-  return `<section class="all-projects-panel"><div class="all-projects-head"><div><span class="projects-head-icon">▦</span><h3>Tous les projets</h3><small>${projects.length} actifs · ${archivedCount} archivé${archivedCount===1?'':'s'}</small></div><div class="all-projects-tools"><button class="project-manage-main" data-manage-all="${esc(projects[0]?.id||'__new__')}">⚙ Gérer les projets</button><div class="project-search"><span>⌕</span><input data-search placeholder="Rechercher un projet…" value="${esc(query)}"></div><select id="statusFilter" class="select compact-filter">${['ALL','ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','EMPTY','UNSYNCED'].map(x=>`<option ${statusFilter===x?'selected':''}>${x}</option>`).join('')}</select><div class="view-chips">${mode('board','Colonnes')}${mode('groups','Groupes')}${mode('list','Liste')}</div></div></div>${body}</section>`;
+  return `<section class="all-projects-panel"><div class="all-projects-head"><div><span class="projects-head-icon">▦</span><h3>Tous les projets</h3><small>${projects.length} actifs · ${archivedCount} archivé${archivedCount===1?'':'s'}</small></div><div class="all-projects-tools"><button class="project-manage-main" data-manage-all="${esc(projects[0]?.id||'__new__')}">⚙ Gérer les projets</button><div class="project-search"><span>⌕</span><input data-search placeholder="Rechercher un projet…" value="${esc(query)}"></div><select id="statusFilter" class="select compact-filter">${['ALL','ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','EMPTY','UNSYNCED'].map(x=>`<option ${statusFilter===x?'selected':''}>${x}</option>`).join('')}</select><div class="view-chips">${mode('board','Colonnes')}${mode('groups','Groupes')}${mode('list','Liste')}</div></div></div><div class="project-dnd-shelf" aria-hidden="true"><span>DROP ACTIONS</span><div data-drop-auto><b>↺</b><strong>Retour en Auto</strong><small>les sources reprennent la main</small></div><div data-drop-pin><b>★</b><strong>Épingler</strong><small>passe en priorité</small></div></div>${body}</section>`;
 }
 function sourceManagerProjectOptions(currentId=''){
   return [...state.projects]
@@ -858,7 +858,13 @@ function bindControlDragDrop(){
       zone.classList.remove('is-drop-over');
       dragSuppressUntil=Date.now()+450;
       try{
-        if(zone.matches('[data-drop-status]')){
+        if(zone.matches('[data-drop-auto]')){
+          const project=projectById(payload.id);
+          await updateManagedProjectPatch(payload.id,{statusOverride:null},`${project?.name||'Projet'} → état Auto`);
+        }else if(zone.matches('[data-drop-pin]')){
+          const project=projectById(payload.id);
+          await updateManagedProjectPatch(payload.id,{pinned:true},`${project?.name||'Projet'} → priorité`);
+        }else if(zone.matches('[data-drop-status]')){
           const status=zone.dataset.dropStatus;
           const project=projectById(payload.id);
           if(projectState(payload.id)?.status===status&&projectState(payload.id)?.manualStatusOverride){
@@ -922,7 +928,7 @@ function bind(){
   $('#projectManagerForm')?.addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget;const save=form.querySelector('.manager-save');if(save){save.disabled=true;save.textContent='Enregistrement…'}try{await saveManagedProject(form)}catch(error){toast(`Impossible d’enregistrer : ${error.message}`);if(save){save.disabled=false;save.textContent=form.dataset.projectId==='__new__'?'Créer le projet':'Enregistrer les changements'}}});
   $('#syncBtn')?.addEventListener('click',()=>{view='sources';render();setTimeout(()=>$('#ghToken')?.focus(),0)});
   $('#syncBtn2')?.addEventListener('click',syncGithub);
-  document.querySelectorAll('[data-open-project]').forEach(el=>el.onclick=e=>{if(e.target.closest('[data-stop],[data-why]'))return;modalProject=el.dataset.openProject;render()});
+  document.querySelectorAll('[data-open-project]').forEach(el=>el.onclick=e=>{if(Date.now()<dragSuppressUntil||e.target.closest('[data-stop],[data-why]'))return;modalProject=el.dataset.openProject;render()});
   document.querySelectorAll('[data-why]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();modalProject=b.dataset.why;render()}));
   document.querySelectorAll('[data-stop]').forEach(el=>el.addEventListener('click',e=>e.stopPropagation()));
   $('#closeModal')?.addEventListener('click',()=>{modalProject=null;render()});
