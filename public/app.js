@@ -402,6 +402,93 @@ function allProjectsPanel(projects,buckets){
   const body=projectView==='board'?premiumProjectBoard(buckets):projectView==='groups'?groupedProjectsPanel(projects):projectListV3(projects);
   return `<section class="all-projects-panel"><div class="all-projects-head"><div><span class="projects-head-icon">▦</span><h3>Tous les projets</h3><small>${projects.length} actifs · ${archivedCount} archivé${archivedCount===1?'':'s'}</small></div><div class="all-projects-tools"><button class="project-manage-main" data-manage-all="${esc(projects[0]?.id||'__new__')}">⚙ Gérer les projets</button><div class="project-search"><span>⌕</span><input data-search placeholder="Rechercher un projet…" value="${esc(query)}"></div><select id="statusFilter" class="select compact-filter">${['ALL','ACTIVE','NEEDS TEST','BLOCKED','STABLE','WAITING','DONE','EMPTY','UNSYNCED'].map(x=>`<option ${statusFilter===x?'selected':''}>${x}</option>`).join('')}</select><div class="view-chips">${mode('board','Colonnes')}${mode('groups','Groupes')}${mode('list','Liste')}</div></div></div>${body}</section>`;
 }
+function sourceManagerProjectOptions(currentId=''){
+  return [...state.projects]
+    .sort((a,b)=>projectArchived(a)-projectArchived(b)||a.name.localeCompare(b.name,'fr'))
+    .map(project=>`<option value="${esc(project.id)}" ${project.id===currentId?'selected':''}>${esc(project.name)}${projectArchived(project)?' · archivé':''}</option>`)
+    .join('');
+}
+
+function sourceManagerRow(source, currentProjectId){
+  const archived=sourceManagedArchived(source);
+  const mutable=sourceAssignable(source);
+  const age=source.conversationUpdatedAt||source.lastObservedAt||null;
+  const manual=source.control?.assignment==='MANUAL';
+  return `<article class="source-manager-row ${archived?'archived':''}">
+    <div class="source-manager-icon ${sourceClass(source.type)}">${source.type==='chatgpt_thread'||source.type==='chatgpt_archived'?'AI':String(source.type||'').startsWith('github_')?'GH':'•'}</div>
+    <div class="source-manager-copy">
+      <div class="source-manager-title"><b>${esc(source.title||sourceKindLabel(source))}</b><span>${esc(sourceKindLabel(source))}</span>${manual?'<em>MANUEL</em>':''}${archived?'<em class="archived">ARCHIVÉ</em>':''}</div>
+      <p>${esc(source.url||source.state||'Source enregistrée')}</p>
+      <small>${age?`Mis à jour ${esc(rel(age))} ago`:'Pas de date'} · ${esc(source.id)}</small>
+    </div>
+    <div class="source-manager-actions">
+      ${mutable?`<select data-source-target="${esc(source.id)}">${sourceManagerProjectOptions(currentProjectId)}</select><button class="source-action primary" data-source-move="${esc(source.id)}">Déplacer</button><button class="source-action" data-source-detach="${esc(source.id)}">Détacher</button><button class="source-action ${archived?'restore':'danger'}" data-source-archive="${esc(source.id)}" data-archived="${archived?'false':'true'}">${archived?'Restaurer':'Archiver'}</button>`:'<span class="source-auto-badge">Géré automatiquement</span>'}
+      ${source.url?`<a class="source-action" href="${esc(source.url)}" target="_blank">Ouvrir ↗</a>`:''}
+    </div>
+  </article>`;
+}
+
+function detachedSourceRow(source, projectId){
+  return `<article class="source-manager-row detached">
+    <div class="source-manager-icon ${sourceClass(source.type)}">${source.type==='chatgpt_thread'||source.type==='chatgpt_archived'?'AI':source.type==='github_repo'?'GH':'•'}</div>
+    <div class="source-manager-copy"><div class="source-manager-title"><b>${esc(source.title||sourceKindLabel(source))}</b><span>Détachée</span><em>MANUEL</em></div><p>${esc(source.url||'Source sans projet')}</p><small>${esc(sourceKindLabel(source))}</small></div>
+    <div class="source-manager-actions compact"><button class="source-action primary" data-source-attach="${esc(source.id)}" data-project-id="${esc(projectId)}">Rattacher ici</button>${source.url?`<a class="source-action" href="${esc(source.url)}" target="_blank">Ouvrir ↗</a>`:''}</div>
+  </article>`;
+}
+
+function discoveredSourceRow(item, projectId){
+  const suggested=item.projectTitle||item.chatgptProjectTitle||item.title||'Nouveau projet';
+  return `<article class="source-manager-row discovered">
+    <div class="source-manager-icon source-chat">AI</div>
+    <div class="source-manager-copy"><div class="source-manager-title"><b>${esc(item.title||'Conversation ChatGPT')}</b><span>À classer</span></div><p>${esc(item.preview||item.projectTitle||'Source découverte')}</p><small>${esc(item.projectTitle||'Aucun projet ChatGPT identifié')}</small></div>
+    <div class="source-manager-actions compact"><button class="source-action primary" data-discovered-assign="${esc(item.id)}" data-project-id="${esc(projectId)}">Rattacher ici</button><button class="source-action" data-discovered-create="${esc(item.id)}" data-project-name="${esc(suggested)}">Créer un projet</button>${item.url?`<a class="source-action" href="${esc(item.url)}" target="_blank">Ouvrir ↗</a>`:''}</div>
+  </article>`;
+}
+
+function projectSourcesManager(project){
+  const all=allProjectSources(project.id).sort((a,b)=>{
+    const aa=sourceManagedArchived(a),ba=sourceManagedArchived(b);
+    if(aa!==ba)return aa?1:-1;
+    return new Date(b.conversationUpdatedAt||b.lastObservedAt||0)-new Date(a.conversationUpdatedAt||a.lastObservedAt||0);
+  });
+  const live=all.filter(source=>!sourceManagedArchived(source));
+  const archived=all.filter(source=>sourceManagedArchived(source));
+  const detached=detachedSources();
+  const discovered=state.discovered||[];
+  const chatCount=all.filter(source=>['chatgpt_thread','chatgpt_archived'].includes(source.type)).length;
+  const githubCount=all.filter(source=>String(source.type||'').startsWith('github_')).length;
+  return `<section class="source-manager">
+    <div class="source-manager-summary">
+      <article><span>Sources actives</span><b>${live.length}</b><small>alimentent le projet</small></article>
+      <article><span>ChatGPT</span><b>${chatCount}</b><small>conversations liées</small></article>
+      <article><span>GitHub</span><b>${githubCount}</b><small>repos / composants</small></article>
+      <article><span>À classer</span><b>${detached.length+discovered.length}</b><small>hors projet</small></article>
+    </div>
+    <div class="source-manager-toolbar"><div><h3>Sources de ${esc(project.name)}</h3><p>Déplace, détache ou archive une source sans supprimer son historique.</p></div><span>${live.length} active${live.length===1?'':'s'}</span></div>
+    <div class="source-manager-list">${live.length?live.map(source=>sourceManagerRow(source,project.id)).join(''):'<div class="source-manager-empty">Aucune source active pour ce projet.</div>'}</div>
+    ${archived.length?`<details class="source-manager-section"><summary>Archives <b>${archived.length}</b></summary><div class="source-manager-list">${archived.map(source=>sourceManagerRow(source,project.id)).join('')}</div></details>`:''}
+    ${detached.length?`<details class="source-manager-section detached-section" open><summary>Sources détachées <b>${detached.length}</b></summary><div class="source-manager-list">${detached.map(source=>detachedSourceRow(source,project.id)).join('')}</div></details>`:''}
+    ${discovered.length?`<details class="source-manager-section discovered-section" open><summary>Découvertes à classer <b>${discovered.length}</b></summary><div class="source-manager-list">${discovered.map(item=>discoveredSourceRow(item,project.id)).join('')}</div></details>`:''}
+  </section>`;
+}
+
+async function moveManagedSource(sourceId,projectId){
+  const out=await api('/api/sources/move',{method:'POST',body:JSON.stringify({sourceId,projectId})});
+  state=out.state;render();toast(projectId?'Source déplacée':'Source détachée');
+}
+async function archiveManagedSource(sourceId,archived){
+  const out=await api('/api/sources/archive',{method:'POST',body:JSON.stringify({sourceId,archived})});
+  state=out.state;render();toast(archived?'Source archivée':'Source restaurée');
+}
+async function assignDiscoveredSource(discoveredId,projectId){
+  const out=await api('/api/discovered/assign',{method:'POST',body:JSON.stringify({discoveredId,projectId})});
+  state=out.state;render();toast('Source rattachée');
+}
+async function createProjectFromDiscovered(discoveredId,name){
+  const out=await api('/api/discovered/assign',{method:'POST',body:JSON.stringify({discoveredId,createProjectName:name})});
+  state=out.state;manageProjectId=out.project.id;manageProjectSection='sources';render();toast('Projet créé et source rattachée');
+}
+
 function projectManagerModal(targetId){
   const isNew=targetId==='__new__';
   const project=isNew?null:projectById(targetId);
