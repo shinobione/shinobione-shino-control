@@ -13,7 +13,7 @@ const rel = ts => {
 const statusClass = status => `status-${String(status||'UNKNOWN').replace(/[^A-Z0-9]+/gi,'-').replace(/^-|-$/g,'')}`;
 const sourceClass = type => type==='github_repo'?'source-github':type==='chatgpt_thread'?'source-chatgpt':type==='github_component'?'source-component':'source-other';
 const sourceLabel = s => s.type==='github_repo'?'GitHub':s.type==='chatgpt_thread'?'ChatGPT':s.type==='chatgpt_archived'?'ChatGPT archive':s.type==='github_component'?(s.title||'Component'):s.type;
-let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, manageProjectId=null, projectView=localStorage.getItem('controlProjectView') || 'board', statusPickerOutsideBound=false;
+let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, manageProjectId=null, manageProjectSection='project', projectView=localStorage.getItem('controlProjectView') || 'board', statusPickerOutsideBound=false;
 
 async function api(path, options={}) {
   const r = await fetch(path, {headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
@@ -25,7 +25,24 @@ async function load(){ state=await api('/api/state'); render(); }
 function toast(msg){ const el=document.createElement('div');el.className='toast';el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),3000); }
 function projectState(id){return state.derived.find(d=>d.projectId===id)}
 function evidenceFor(id){return state.evidence.filter(e=>e.projectId===id&&e.inventoryCurrent!==false).sort((a,b)=>new Date(b.timestamp||0)-new Date(a.timestamp||0))}
-function sourcesFor(id,{archives=false}={}){return state.sources.filter(s=>s.projectId===id&&(archives?s.type==='chatgpt_archived':s.type!=='chatgpt_archived'))}
+function sourceManagedArchived(source){return source?.control?.archived === true}
+function sourcesFor(id,{archives=false,includeManagedArchived=false}={}){
+  return state.sources.filter(source=>{
+    if(source.projectId!==id)return false;
+    if(!includeManagedArchived&&sourceManagedArchived(source))return false;
+    return archives?source.type==='chatgpt_archived':source.type!=='chatgpt_archived';
+  });
+}
+function allProjectSources(id){return state.sources.filter(source=>source.projectId===id)}
+function detachedSources(){return state.sources.filter(source=>!source.projectId&&source.control?.assignment==='MANUAL')}
+function sourceAssignable(source){return ['chatgpt_thread','chatgpt_archived','github_repo'].includes(source?.type)}
+function sourceKindLabel(source){
+  if(source?.type==='chatgpt_thread')return 'ChatGPT';
+  if(source?.type==='chatgpt_archived')return 'ChatGPT archivé';
+  if(source?.type==='github_repo')return 'Dépôt GitHub';
+  if(source?.type==='github_component')return 'Composant GitHub';
+  return sourceLabel(source||{type:'source'});
+}
 function projectById(id){return state.projects.find(p=>p.id===id)}
 function projectControl(project){return project?.control || {}}
 function projectArchived(project){return projectControl(project).archived === true}
