@@ -292,12 +292,14 @@ function projectSlug(value = '') {
 }
 
 function normalizedManagedControl(existing = {}, payload = {}, now = new Date().toISOString()) {
-  const rawStatus = cleanProjectText(payload.statusOverride ?? existing.statusOverride ?? '', 32).toUpperCase();
+  const statusInput = Object.prototype.hasOwnProperty.call(payload, 'statusOverride') ? payload.statusOverride : existing.statusOverride;
+  const groupInput = Object.prototype.hasOwnProperty.call(payload, 'group') ? payload.group : existing.group;
+  const rawStatus = cleanProjectText(statusInput ?? '', 32).toUpperCase();
   const archived = payload.archived === undefined ? existing.archived === true : payload.archived === true;
   const wasArchived = existing.archived === true;
   return {
     ...existing,
-    group:cleanProjectText(payload.group ?? existing.group ?? '', 80) || null,
+    group:cleanProjectText(groupInput ?? '', 80) || null,
     note:cleanProjectText(payload.note ?? existing.note ?? '', 4000) || null,
     tags:cleanProjectTags(payload.tags ?? existing.tags ?? []),
     statusOverride:MANAGED_PROJECT_STATUSES.has(rawStatus) ? rawStatus : null,
