@@ -832,7 +832,7 @@ function bindControlDragDrop(){
     element.addEventListener('dragend',()=>{element.setAttribute('aria-grabbed','false');clearControlDrag()});
   });
 
-  document.querySelectorAll('[data-drop-status],[data-drop-group],[data-source-drop-project],[data-source-drop-detach]').forEach(zone=>{
+  document.querySelectorAll('[data-drop-status],[data-drop-group],[data-drop-auto],[data-drop-pin],[data-source-drop-project],[data-source-drop-detach]').forEach(zone=>{
     zone.addEventListener('dragenter',event=>{
       const payload=dragPayloadFromEvent(event);
       if(!dragZoneAccepts(zone,payload))return;
