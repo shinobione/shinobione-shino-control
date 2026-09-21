@@ -798,7 +798,100 @@ function projectModal(id){
 }
 
 async function syncGithub(){const input=$('#ghToken');const token=input?.value||'';toast('GitHub sync started…');try{const out=await api('/api/sync/github',{method:'POST',body:JSON.stringify({token})});state=out.state;toast('GitHub sync complete');render();}catch(e){toast(`Sync failed: ${e.message}`)}}
+function bindControlDragDrop(){
+  document.querySelectorAll('[data-drag-project]').forEach(element=>{
+    element.addEventListener('dragstart',event=>{
+      if(event.target.closest('button,a,input,select,textarea')){event.preventDefault();return}
+      const project=projectById(element.dataset.dragProject);
+      if(!project){event.preventDefault();return}
+      element.setAttribute('aria-grabbed','true');
+      beginControlDrag(event,{kind:'project',id:project.id,label:project.name},element);
+    });
+    element.addEventListener('dragend',()=>{element.setAttribute('aria-grabbed','false');clearControlDrag()});
+  });
+
+  document.querySelectorAll('[data-drag-source]').forEach(element=>{
+    element.addEventListener('dragstart',event=>{
+      if(event.target.closest('button,a,input,select,textarea')){event.preventDefault();return}
+      const source=state.sources.find(item=>item.id===element.dataset.dragSource);
+      if(!source||!sourceAssignable(source)||sourceManagedArchived(source)){event.preventDefault();return}
+      element.setAttribute('aria-grabbed','true');
+      beginControlDrag(event,{kind:'source',id:source.id,label:source.title||sourceKindLabel(source)},element);
+    });
+    element.addEventListener('dragend',()=>{element.setAttribute('aria-grabbed','false');clearControlDrag()});
+  });
+
+  document.querySelectorAll('[data-drag-discovered]').forEach(element=>{
+    element.addEventListener('dragstart',event=>{
+      if(event.target.closest('button,a,input,select,textarea')){event.preventDefault();return}
+      const item=(state.discovered||[]).find(row=>row.id===element.dataset.dragDiscovered);
+      if(!item){event.preventDefault();return}
+      element.setAttribute('aria-grabbed','true');
+      beginControlDrag(event,{kind:'discovered',id:item.id,label:item.title||'Conversation découverte'},element);
+    });
+    element.addEventListener('dragend',()=>{element.setAttribute('aria-grabbed','false');clearControlDrag()});
+  });
+
+  document.querySelectorAll('[data-drop-status],[data-drop-group],[data-source-drop-project],[data-source-drop-detach]').forEach(zone=>{
+    zone.addEventListener('dragenter',event=>{
+      const payload=dragPayloadFromEvent(event);
+      if(!dragZoneAccepts(zone,payload))return;
+      event.preventDefault();
+      zone.classList.add('is-drop-over');
+    });
+    zone.addEventListener('dragover',event=>{
+      const payload=dragPayloadFromEvent(event);
+      if(!dragZoneAccepts(zone,payload))return;
+      event.preventDefault();
+      if(event.dataTransfer)event.dataTransfer.dropEffect='move';
+      zone.classList.add('is-drop-over');
+    });
+    zone.addEventListener('dragleave',event=>{
+      if(event.relatedTarget&&zone.contains(event.relatedTarget))return;
+      zone.classList.remove('is-drop-over');
+    });
+    zone.addEventListener('drop',async event=>{
+      const payload=dragPayloadFromEvent(event);
+      if(!dragZoneAccepts(zone,payload))return;
+      event.preventDefault();
+      event.stopPropagation();
+      zone.classList.remove('is-drop-over');
+      dragSuppressUntil=Date.now()+450;
+      try{
+        if(zone.matches('[data-drop-status]')){
+          const status=zone.dataset.dropStatus;
+          const project=projectById(payload.id);
+          if(projectState(payload.id)?.status===status&&projectState(payload.id)?.manualStatusOverride){
+            toast(`${project?.name||'Projet'} est déjà en ${boardLabel(status)}`);
+          }else{
+            await updateManagedProjectPatch(payload.id,{statusOverride:status},`${project?.name||'Projet'} → ${boardLabel(status)}`);
+          }
+        }else if(zone.matches('[data-drop-group]')){
+          const group=zone.dataset.dropGroup||'';
+          const project=projectById(payload.id);
+          if(projectGroup(project)===(group||'Sans groupe')){
+            toast(`${project?.name||'Projet'} est déjà dans ${group||'Sans groupe'}`);
+          }else{
+            await updateManagedProjectPatch(payload.id,{group},`${project?.name||'Projet'} → ${group||'Sans groupe'}`);
+          }
+        }else if(zone.matches('[data-source-drop-project]')){
+          const projectId=zone.dataset.sourceDropProject;
+          if(payload.kind==='source')await moveManagedSource(payload.id,projectId);
+          else if(payload.kind==='discovered')await assignDiscoveredSource(payload.id,projectId);
+        }else if(zone.matches('[data-source-drop-detach]')&&payload.kind==='source'){
+          await moveManagedSource(payload.id,null);
+        }
+      }catch(error){
+        toast(`Drag & drop impossible : ${error.message}`);
+      }finally{
+        clearControlDrag();
+      }
+    });
+  });
+}
+
 function bind(){
+  bindControlDragDrop();
   document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;modalProject=null;render()});
   document.querySelectorAll('[data-search]').forEach(el=>el.addEventListener('input',e=>{query=e.target.value;render()}));
   $('#statusFilter')?.addEventListener('change',e=>{statusFilter=e.target.value;render()});
