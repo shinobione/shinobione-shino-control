@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deriveAll } from './lib/derive.mjs';
-import { runtimeStatePath } from './lib/state-store.mjs';
+import { runtimeStatePath, writeRuntimeState } from './lib/state-store.mjs';
+import { authorized, json } from './lib/http-security.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
@@ -24,18 +25,7 @@ function readState() {
 
 function saveState(state) {
   deriveAll(state);
-  fs.writeFileSync(DATA, JSON.stringify(state, null, 2));
-}
-
-function json(res, code, body) {
-  res.writeHead(code, {
-    'Content-Type':'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin':'*',
-    'Access-Control-Allow-Headers':'Content-Type, Authorization',
-    'Access-Control-Allow-Methods':'GET, POST, OPTIONS',
-    'Cache-Control':'no-store'
-  });
-  res.end(JSON.stringify(body));
+  writeRuntimeState(state);
 }
 
 function readBody(req) {
@@ -50,17 +40,6 @@ function readBody(req) {
       catch (error) { reject(error); }
     });
   });
-}
-
-function isLoopback(req) {
-  const ip = req.socket.remoteAddress || '';
-  return ip === '127.0.0.1' || ip === '::1' || ip.includes('127.0.0.1') || ip.includes('::ffff:127.0.0.1');
-}
-
-function authorized(req) {
-  const required = process.env.SHINO_CONTROL_TOKEN;
-  if (!required) return isLoopback(req);
-  return req.headers.authorization === `Bearer ${required}`;
 }
 
 function safeId(prefix='id') {
