@@ -528,3 +528,89 @@
   .manager-status-trigger{height:44px}
   .manager-status-option{min-height:40px;font-size:12px}
 }
+
+
+/* v0.13.0 — bulk project control */
+.manager-selection-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  min-height:30px;margin:-2px 2px 9px;padding:0 4px;
+  color:#6f8cab;font-size:9px
+}
+.manager-selection-head label{display:flex;align-items:center;gap:7px;cursor:pointer}
+.manager-selection-head input{accent-color:#48b8ff}
+.manager-selection-head b{color:#89a8c8;font-size:8px;font-weight:800}
+
+.manager-bulk-panel{
+  flex:0 0 auto;display:grid;gap:7px;margin:0 0 10px;padding:10px;
+  border:1px solid rgba(75,163,245,.42);border-radius:12px;
+  background:
+    radial-gradient(260px 100px at 20% 0%,rgba(57,139,255,.12),transparent 70%),
+    linear-gradient(145deg,rgba(8,37,70,.92),rgba(8,22,46,.94));
+  box-shadow:inset 0 1px rgba(255,255,255,.035),0 10px 30px rgba(0,0,0,.12)
+}
+.manager-bulk-title{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center}
+.manager-bulk-title span{color:#54c7ff;font-size:7px;font-weight:900;letter-spacing:.16em}
+.manager-bulk-title strong{color:#ddecff;font-size:9px}
+.manager-bulk-title button{
+  border:0;background:transparent;color:#7796b7;font-size:8px;font-weight:800;cursor:pointer
+}
+.manager-bulk-row{display:grid;grid-template-columns:minmax(0,1fr) 68px;gap:6px}
+.manager-bulk-row select,
+.manager-bulk-row button,
+.manager-bulk-buttons button{
+  min-width:0;height:30px;border-radius:8px;border:1px solid rgba(64,129,194,.34);
+  color:#cfe7fb;background:rgba(5,24,45,.86);font-size:8px;font-weight:800;outline:none
+}
+.manager-bulk-row select{padding:0 8px}
+.manager-bulk-row button,.manager-bulk-buttons button{cursor:pointer}
+.manager-bulk-row button:hover,.manager-bulk-buttons button:hover{
+  border-color:rgba(72,182,255,.72);color:white;background:rgba(17,58,99,.88)
+}
+.manager-bulk-buttons{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.manager-bulk-buttons button[data-bulk-archive="true"]{
+  color:#e8b385;border-color:rgba(202,126,67,.30)
+}
+.manager-bulk-buttons button[data-bulk-archive="false"]{
+  color:#75d8be;border-color:rgba(67,190,154,.28)
+}
+
+.manager-project-row{
+  grid-template-columns:22px minmax(0,1fr);gap:5px;padding:6px
+}
+.manager-project-row.selected{
+  border-color:rgba(87,184,255,.62);
+  background:linear-gradient(90deg,rgba(26,89,159,.30),rgba(29,35,83,.18))
+}
+.manager-project-check{
+  display:grid;place-items:center;width:22px;height:100%;min-height:40px;cursor:pointer
+}
+.manager-project-check input{width:13px;height:13px;accent-color:#49bbff;cursor:pointer}
+.manager-project-open{
+  min-width:0;width:100%;display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:10px;align-items:center;
+  padding:4px;border:0;border-radius:8px;color:inherit;background:transparent;text-align:left;cursor:pointer
+}
+.manager-project-open:focus-visible{outline:1px solid #4cbcff;outline-offset:1px}
+.manager-project-row.active .manager-project-open{color:#fff}
+.manager-project-row.archived .manager-project-open{opacity:.72}
+.manager-project-open em{justify-self:end}
+.manager-project-row .project-emblem.tiny{flex:none}
+
+.toast{
+  display:flex!important;align-items:center;gap:12px
+}
+.toast>span{min-width:0}
+.toast>button{
+  flex:0 0 auto;height:27px;padding:0 10px;border-radius:8px;
+  border:1px solid rgba(101,193,255,.56);color:#e7f6ff;
+  background:linear-gradient(135deg,rgba(35,126,220,.86),rgba(93,65,218,.82));
+  font:inherit;font-size:9px;font-weight:900;cursor:pointer
+}
+.toast>button:hover{filter:brightness(1.12)}
+.toast>button:disabled{opacity:.5;cursor:wait}
+
+@media (min-width:2200px){
+  .manager-selection-head{font-size:10px}
+  .manager-bulk-panel{padding:12px}
+  .manager-bulk-title strong{font-size:10px}
+  .manager-bulk-row select,.manager-bulk-row button,.manager-bulk-buttons button{height:34px;font-size:9px}
+}

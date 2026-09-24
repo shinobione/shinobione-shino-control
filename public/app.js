@@ -13,7 +13,7 @@ const rel = ts => {
 const statusClass = status => `status-${String(status||'UNKNOWN').replace(/[^A-Z0-9]+/gi,'-').replace(/^-|-$/g,'')}`;
 const sourceClass = type => type==='github_repo'?'source-github':type==='chatgpt_thread'?'source-chatgpt':type==='github_component'?'source-component':'source-other';
 const sourceLabel = s => s.type==='github_repo'?'GitHub':s.type==='chatgpt_thread'?'ChatGPT':s.type==='chatgpt_archived'?'ChatGPT archive':s.type==='github_component'?(s.title||'Component'):s.type;
-let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, manageProjectId=null, manageProjectSection='project', projectView=localStorage.getItem('controlProjectView') || 'board', statusPickerOutsideBound=false, activeDragPayload=null, dragSuppressUntil=0;
+let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, manageProjectId=null, manageProjectSection='project', projectView=localStorage.getItem('controlProjectView') || 'board', statusPickerOutsideBound=false, activeDragPayload=null, dragSuppressUntil=0, selectedProjectIds=new Set(), undoAction=null;
 
 async function api(path, options={}) {
   const r = await fetch(path, {headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
@@ -22,7 +22,70 @@ async function api(path, options={}) {
   return data;
 }
 async function load(){ state=await api('/api/state'); render(); }
-function toast(msg){ const el=document.createElement('div');el.className='toast';el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),3000); }
+function toast(msg,action=null){
+  const el=document.createElement('div');
+  el.className='toast';
+  const label=document.createElement('span');
+  label.textContent=msg;
+  el.appendChild(label);
+  let timer=null;
+  if(action?.label&&typeof action.run==='function'){
+    const button=document.createElement('button');
+    button.type='button';
+    button.textContent=action.label;
+    button.onclick=async()=>{
+      button.disabled=true;
+      if(timer)clearTimeout(timer);
+      try{await action.run();el.remove()}catch(error){button.disabled=false;label.textContent=`Annulation impossible : ${error.message}`}
+    };
+    el.appendChild(button);
+  }
+  document.body.appendChild(el);
+  timer=setTimeout(()=>el.remove(),action?6500:3000);
+}
+function setUndo(label,run){
+  const action={label,run};
+  undoAction=action;
+  toast(label,{label:'Annuler',run:async()=>{
+    if(undoAction!==action){toast('Cette annulation a expiré');return}
+    undoAction=null;
+    await action.run();
+  }});
+}
+function projectOrder(project){
+  const value=Number(projectControl(project).order);
+  return Number.isFinite(value)&&value>0?value:Number.POSITIVE_INFINITY;
+}
+function sortProjectsUserFirst(a,b){
+  const ao=projectOrder(a),bo=projectOrder(b);
+  if(ao!==bo)return ao-bo;
+  return priorityScore(b)-priorityScore(a)||a.name.localeCompare(b.name,'fr');
+}
+function captureProjectPatch(project,fields){
+  const control=projectControl(project);
+  const out={projectId:project.id};
+  for(const field of fields){
+    if(field==='group')out.group=control.group||null;
+    else if(field==='statusOverride')out.statusOverride=control.statusOverride||null;
+    else if(field==='pinned')out.pinned=control.pinned===true;
+    else if(field==='archived')out.archived=control.archived===true;
+    else if(field==='order')out.order=Number.isFinite(Number(control.order))?Number(control.order):null;
+    else if(field==='name')out.name=project.name;
+    else if(field==='universe')out.universe=project.universe||'PROJECT';
+    else if(field==='repo')out.repo=project.repo||'';
+    else if(field==='description')out.description=project.description||'';
+    else if(field==='tags')out.tags=projectTags(project);
+    else if(field==='note')out.note=control.note||'';
+  }
+  return out;
+}
+async function undoProjectUpdates(updates,message='Modification annulée'){
+  const out=await api('/api/projects/bulk',{method:'POST',body:JSON.stringify({updates})});
+  state=out.state;
+  render();
+  toast(message);
+}
+
 function projectState(id){return state.derived.find(d=>d.projectId===id)}
 function evidenceFor(id){return state.evidence.filter(e=>e.projectId===id&&e.inventoryCurrent!==false&&e.controlExcluded!==true).sort((a,b)=>new Date(b.timestamp||0)-new Date(a.timestamp||0))}
 function sourceManagedArchived(source){return source?.control?.archived === true}
@@ -180,11 +243,36 @@ function boardLabel(status="") {
 function boardDropStatus(bucket=""){
   return ({attention:'NEEDS TEST',active:'ACTIVE',stable:'STABLE',other:'WAITING'})[bucket] || null;
 }
-async function updateManagedProjectPatch(projectId,patch,message='Projet mis à jour'){
+async function updateManagedProjectPatch(projectId,patch,message='Projet mis à jour',{undo=true}={}){
+  const project=projectById(projectId);
+  const before=project?captureProjectPatch(project,Object.keys(patch)) : null;
   const out=await api('/api/projects/update',{method:'POST',body:JSON.stringify({projectId,...patch})});
   state=out.state;
   render();
-  toast(message);
+  if(undo&&before){
+    setUndo(message,async()=>undoProjectUpdates([before]));
+  }else toast(message);
+  return out;
+}
+async function bulkManagedProjectPatch(projectIds,patch,message='Projets mis à jour'){
+  const ids=[...new Set(projectIds)].filter(id=>projectById(id));
+  if(!ids.length)return null;
+  const fields=Object.keys(patch);
+  const before=ids.map(id=>captureProjectPatch(projectById(id),fields));
+  const out=await api('/api/projects/bulk',{method:'POST',body:JSON.stringify({projectIds:ids,patch})});
+  state=out.state;
+  render();
+  setUndo(message,async()=>undoProjectUpdates(before));
+  return out;
+}
+async function reorderManagedProject(projectId,projectIds,patch={},message='Ordre mis à jour'){
+  const ids=[...new Set(projectIds)].filter(id=>projectById(id));
+  const fields=['order',...Object.keys(patch)];
+  const before=[...new Set([projectId,...ids])].filter(id=>projectById(id)).map(id=>captureProjectPatch(projectById(id),fields));
+  const out=await api('/api/projects/reorder',{method:'POST',body:JSON.stringify({projectId,projectIds:ids,patch})});
+  state=out.state;
+  render();
+  setUndo(message,async()=>undoProjectUpdates(before));
   return out;
 }
 function dragPayloadFromEvent(event){
@@ -210,14 +298,14 @@ function clearControlDrag(){
 }
 function dragZoneAccepts(zone,payload){
   if(!payload)return false;
-  if(zone.matches('[data-drop-status],[data-drop-group],[data-drop-auto],[data-drop-pin]'))return payload.kind==='project';
+  if(zone.matches('[data-drop-status],[data-drop-group],[data-drop-auto],[data-drop-pin],[data-drop-project-order]'))return payload.kind==='project';
   if(zone.matches('[data-source-drop-project]'))return ['source','discovered'].includes(payload.kind);
   if(zone.matches('[data-source-drop-detach]'))return payload.kind==='source';
   return false;
 }
 
 function visibleProjects(){
-  return state.projects.filter(p=>!projectArchived(p)).filter(matchesFilter).sort((a,b)=>priorityScore(b)-priorityScore(a) || a.name.localeCompare(b.name));
+  return state.projects.filter(p=>!projectArchived(p)).filter(matchesFilter).sort(sortProjectsUserFirst);
 }
 function latestEvidenceRows(limit=8){
   return [...state.evidence].filter(e=>e.inventoryCurrent!==false && e.timestamp && !projectArchived(projectById(e.projectId))).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,limit);
@@ -235,7 +323,7 @@ function boardProjectCard(p){
   const d=projectState(p.id); if(!d)return "";
   const e=evidenceFor(p.id)[0], c=ctAs(p), badges=sourceBadges(p.id), resume=displayResume(p,d,e), control=projectControl(p);
   const tags=projectTags(p).slice(0,2);
-  return `<article class="board-card ${statusClass(d.status)} ${projectVisualClass(p)}" style="${projectVisualVars(p)}" data-open-project="${p.id}" data-drag-project="${esc(p.id)}" draggable="true" aria-grabbed="false"><div class="board-card-top"><div class="board-card-labels"><span class="project-type">${esc(p.universe||"PROJECT")}</span>${control.group?`<span class="project-group-tag">${esc(control.group)}</span>`:''}</div><div class="board-card-actions"><span class="status-tag">${esc(boardLabel(d.status))}${d.manualStatusOverride?' · M':''}</span><button class="board-manage" data-manage-project="${p.id}" data-stop title="Gérer le projet">•••</button></div></div><h4>${control.pinned?'★ ':''}${esc(p.name)}</h4><p class="board-resume">${esc(control.note || resume)}</p>${tags.length?`<div class="project-tags">${tags.map(tag=>`<span>${esc(tag)}</span>`).join('')}</div>`:''}<div class="board-meta"><span class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</span><span>${e?`${esc(rel(e.timestamp))} ago`:"No evidence"}</span></div><div class="board-footer"><div class="mini-sources">${badges.slice(0,2).map(g=>`<span class="${sourceClass(g.type)}">${esc(g.label)}${g.count>1?` ×${g.count}`:""}</span>`).join("")}</div>${c.chat?`<a class="quick-open" href="${esc(c.chat.url)}" target="_blank" data-stop title="Continue in ChatGPT">↗</a>`:c.pr?`<a class="quick-open" href="${esc(c.pr.url)}" target="_blank" data-stop title="Open PR">↗</a>`:""}</div></article>`;
+  return `<article class="board-card ${statusClass(d.status)} ${projectVisualClass(p)}" style="${projectVisualVars(p)}" data-open-project="${p.id}" data-drag-project="${esc(p.id)}" data-drop-project-order="${esc(p.id)}" draggable="true" aria-grabbed="false"><div class="board-card-top"><div class="board-card-labels"><span class="project-type">${esc(p.universe||"PROJECT")}</span>${control.group?`<span class="project-group-tag">${esc(control.group)}</span>`:''}</div><div class="board-card-actions"><span class="status-tag">${esc(boardLabel(d.status))}${d.manualStatusOverride?' · M':''}</span><button class="board-manage" data-manage-project="${p.id}" data-stop title="Gérer le projet">•••</button></div></div><h4>${control.pinned?'★ ':''}${esc(p.name)}</h4><p class="board-resume">${esc(control.note || resume)}</p>${tags.length?`<div class="project-tags">${tags.map(tag=>`<span>${esc(tag)}</span>`).join('')}</div>`:''}<div class="board-meta"><span class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</span><span>${e?`${esc(rel(e.timestamp))} ago`:"No evidence"}</span></div><div class="board-footer"><div class="mini-sources">${badges.slice(0,2).map(g=>`<span class="${sourceClass(g.type)}">${esc(g.label)}${g.count>1?` ×${g.count}`:""}</span>`).join("")}</div>${c.chat?`<a class="quick-open" href="${esc(c.chat.url)}" target="_blank" data-stop title="Continue in ChatGPT">↗</a>`:c.pr?`<a class="quick-open" href="${esc(c.pr.url)}" target="_blank" data-stop title="Open PR">↗</a>`:""}</div></article>`;
 }
 function projectListV3(projects){
   return `<div class="project-list-v3">${projects.length?projects.map(listProjectCardV3).join(""):`<div class="empty compact-empty">Aucun projet dans ce filtre.</div>`}</div>`;
@@ -243,7 +331,7 @@ function projectListV3(projects){
 function listProjectCardV3(p){
   const d=projectState(p.id); if(!d)return "";
   const e=evidenceFor(p.id)[0], c=ctAs(p), resume=displayResume(p,d,e), control=projectControl(p);
-  return `<article class="list-project ${statusClass(d.status)}" data-open-project="${p.id}"><div class="list-project-main"><span class="status-dot"></span><div><h4>${control.pinned?'★ ':''}${esc(p.name)}</h4><small>${esc(p.universe||"PROJECT")}${control.group?` · ${esc(control.group)}`:''}</small></div></div><span class="status-tag">${esc(boardLabel(d.status))}${d.manualStatusOverride?' · M':''}</span><p>${esc(control.note || resume)}</p><div class="list-project-age"><b class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</b><span>${e?`${esc(rel(e.timestamp))} ago`:"—"}</span></div><div class="list-project-actions">${c.chat?`<a class="btn small gold" href="${esc(c.chat.url)}" target="_blank" data-stop>Continue</a>`:c.pr?`<a class="btn small" href="${esc(c.pr.url)}" target="_blank" data-stop>Open PR</a>`:""}<button class="btn small ghost" data-manage-project="${p.id}" data-stop>Gérer</button></div></article>`;
+  return `<article class="list-project ${statusClass(d.status)}" data-open-project="${p.id}" data-drag-project="${esc(p.id)}" data-drop-project-order="${esc(p.id)}" draggable="true" aria-grabbed="false"><div class="list-project-main"><span class="status-dot"></span><div><h4>${control.pinned?'★ ':''}${esc(p.name)}</h4><small>${esc(p.universe||"PROJECT")}${control.group?` · ${esc(control.group)}`:''}</small></div></div><span class="status-tag">${esc(boardLabel(d.status))}${d.manualStatusOverride?' · M':''}</span><p>${esc(control.note || resume)}</p><div class="list-project-age"><b class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</b><span>${e?`${esc(rel(e.timestamp))} ago`:"—"}</span></div><div class="list-project-actions">${c.chat?`<a class="btn small gold" href="${esc(c.chat.url)}" target="_blank" data-stop>Continue</a>`:c.pr?`<a class="btn small" href="${esc(c.pr.url)}" target="_blank" data-stop>Open PR</a>`:""}<button class="btn small ghost" data-manage-project="${p.id}" data-stop>Gérer</button></div></article>`;
 }
 function activityRail(){
   const rows=latestEvidenceRows(7), discovered=state.discovered?.length||0;
@@ -434,7 +522,7 @@ function groupedProjectsPanel(projects){
   }
   if(!groups.has('Sans groupe'))groups.set('Sans groupe',[]);
   const entries=[...groups.entries()].sort(([a],[b])=>a==='Sans groupe'?1:b==='Sans groupe'?-1:a.localeCompare(b,'fr'));
-  return `<div class="project-groups">${entries.map(([group,items])=>`<section class="project-group" data-drop-group="${group==='Sans groupe'?'':esc(group)}"><header><div><span class="group-dot"></span><h4>${esc(group)}</h4><b>${items.length}</b></div><button data-manage-all="${esc(items[0]?.id||'')}">Gérer</button></header><div class="group-drop-hint">Déposer ici pour classer dans ${esc(group)}</div><div class="project-group-grid">${items.map(p=>{const d=projectState(p.id),control=projectControl(p);return `<article class="group-project-card ${statusClass(d?.status)}" data-open-project="${p.id}" data-drag-project="${esc(p.id)}" draggable="true" aria-grabbed="false"><div><span class="project-emblem tiny">${projectGlyph(p)}</span><div><h5>${control.pinned?'★ ':''}${esc(p.name)}</h5><small>${esc(boardLabel(d?.status))}${d?.manualStatusOverride?' · manuel':''}</small></div><button data-manage-project="${p.id}" data-stop>•••</button></div><p>${esc(control.note || displayResume(p,d,evidenceFor(p.id)[0]))}</p><div class="group-card-tags">${projectTags(p).slice(0,3).map(tag=>`<span>${esc(tag)}</span>`).join('')}</div></article>`}).join('')}</div></section>`).join('')}</div>`;
+  return `<div class="project-groups">${entries.map(([group,items])=>`<section class="project-group" data-drop-group="${group==='Sans groupe'?'':esc(group)}"><header><div><span class="group-dot"></span><h4>${esc(group)}</h4><b>${items.length}</b></div><button data-manage-all="${esc(items[0]?.id||'')}">Gérer</button></header><div class="group-drop-hint">Déposer ici pour classer dans ${esc(group)}</div><div class="project-group-grid">${items.map(p=>{const d=projectState(p.id),control=projectControl(p);return `<article class="group-project-card ${statusClass(d?.status)}" data-open-project="${p.id}" data-drag-project="${esc(p.id)}" data-drop-project-order="${esc(p.id)}" draggable="true" aria-grabbed="false"><div><span class="project-emblem tiny">${projectGlyph(p)}</span><div><h5>${control.pinned?'★ ':''}${esc(p.name)}</h5><small>${esc(boardLabel(d?.status))}${d?.manualStatusOverride?' · manuel':''}</small></div><button data-manage-project="${p.id}" data-stop>•••</button></div><p>${esc(control.note || displayResume(p,d,evidenceFor(p.id)[0]))}</p><div class="group-card-tags">${projectTags(p).slice(0,3).map(tag=>`<span>${esc(tag)}</span>`).join('')}</div></article>`}).join('')}</div></section>`).join('')}</div>`;
 }
 function allProjectsPanel(projects,buckets){
   const mode=(id,label)=>`<button class="view-chip ${projectView===id?'active':''}" data-project-view="${id}">${label}</button>`;
@@ -512,13 +600,31 @@ function projectSourcesManager(project){
   </section>`;
 }
 
-async function moveManagedSource(sourceId,projectId){
+async function moveManagedSource(sourceId,projectId,{undo=true}={}){
+  const source=state.sources.find(item=>item.id===sourceId);
+  const previousProjectId=source?.projectId||null;
   const out=await api('/api/sources/move',{method:'POST',body:JSON.stringify({sourceId,projectId})});
-  state=out.state;render();toast(projectId?'Source déplacée':'Source détachée');
+  state=out.state;render();
+  const message=projectId?'Source déplacée':'Source détachée';
+  if(undo&&source){
+    setUndo(message,async()=>{
+      const restored=await api('/api/sources/move',{method:'POST',body:JSON.stringify({sourceId,projectId:previousProjectId})});
+      state=restored.state;render();toast('Déplacement annulé');
+    });
+  }else toast(message);
 }
-async function archiveManagedSource(sourceId,archived){
+async function archiveManagedSource(sourceId,archived,{undo=true}={}){
+  const source=state.sources.find(item=>item.id===sourceId);
+  const previousArchived=sourceManagedArchived(source);
   const out=await api('/api/sources/archive',{method:'POST',body:JSON.stringify({sourceId,archived})});
-  state=out.state;render();toast(archived?'Source archivée':'Source restaurée');
+  state=out.state;render();
+  const message=archived?'Source archivée':'Source restaurée';
+  if(undo&&source){
+    setUndo(message,async()=>{
+      const restored=await api('/api/sources/archive',{method:'POST',body:JSON.stringify({sourceId,archived:previousArchived})});
+      state=restored.state;render();toast('Action annulée');
+    });
+  }else toast(message);
 }
 async function assignDiscoveredSource(discoveredId,projectId){
   const out=await api('/api/discovered/assign',{method:'POST',body:JSON.stringify({discoveredId,projectId})});
@@ -542,14 +648,27 @@ function projectManagerModal(targetId){
   const ordered=[...state.projects].sort((a,b)=>{
     const aa=projectArchived(a), ba=projectArchived(b);
     if(aa!==ba) return aa?1:-1;
-    return projectGroup(a).localeCompare(projectGroup(b),'fr') || a.name.localeCompare(b.name,'fr');
+    const groupSort=projectGroup(a).localeCompare(projectGroup(b),'fr');
+    if(groupSort)return groupSort;
+    const ao=projectOrder(a),bo=projectOrder(b);
+    if(ao!==bo)return ao-bo;
+    return a.name.localeCompare(b.name,'fr');
   });
+  const selectedCount=selectedProjectIds.size;
+  const allSelected=ordered.length>0&&ordered.every(project=>selectedProjectIds.has(project.id));
   return `<div class="project-manager-overlay" data-manager-overlay>
     <section class="project-manager" role="dialog" aria-modal="true" aria-label="Gestion des projets">
       <aside class="project-manager-list">
         <header><div><span>PROJECT CONTROL</span><h2>Gérer les projets</h2></div><button id="projectManagerClose" aria-label="Fermer">×</button></header>
         <button class="manager-new ${isNew?'active':''}" id="newManagedProject">＋ Nouveau projet</button>
-        <div class="manager-project-scroll">${ordered.map(p=>{const d=projectState(p.id),ctl=projectControl(p);return `<button class="manager-project-row ${p.id===targetId?'active':''} ${projectArchived(p)?'archived':''}" data-manager-select="${esc(p.id)}" data-source-drop-project="${esc(p.id)}"><span class="project-emblem tiny">${projectGlyph(p)}</span><div><b>${ctl.pinned?'★ ':''}${esc(p.name)}</b><small>${esc(projectGroup(p))} · ${esc(boardLabel(d?.status))} · ${allProjectSources(p.id).length} src</small></div>${projectArchived(p)?'<em>ARCHIVE</em>':''}</button>`}).join('')}</div>
+        <div class="manager-selection-head"><label><input type="checkbox" id="managerSelectAll" ${allSelected?'checked':''}><span>Tout sélectionner</span></label><b>${selectedCount} sélectionné${selectedCount===1?'':'s'}</b></div>
+        ${selectedCount?`<section class="manager-bulk-panel">
+          <div class="manager-bulk-title"><span>BULK CONTROL</span><strong>${selectedCount} projet${selectedCount===1?'':'s'}</strong><button type="button" data-bulk-clear>Effacer</button></div>
+          <div class="manager-bulk-row"><select id="bulkStatus"><option value="AUTO">État · Auto</option>${statuses.filter(status=>status!=='AUTO').map(status=>`<option value="${status}">État · ${esc(boardLabel(status))}</option>`).join('')}</select><button type="button" data-bulk-status>Appliquer</button></div>
+          <div class="manager-bulk-row"><select id="bulkGroup"><option value="">Groupe · Sans groupe</option>${groups.map(group=>`<option value="${esc(group)}">Groupe · ${esc(group)}</option>`).join('')}</select><button type="button" data-bulk-group>Classer</button></div>
+          <div class="manager-bulk-buttons"><button type="button" data-bulk-pin="true">★ Épingler</button><button type="button" data-bulk-pin="false">☆ Retirer</button><button type="button" data-bulk-archive="true">Archiver</button><button type="button" data-bulk-archive="false">Restaurer</button></div>
+        </section>`:''}
+        <div class="manager-project-scroll">${ordered.map(p=>{const d=projectState(p.id),ctl=projectControl(p),checked=selectedProjectIds.has(p.id);return `<div class="manager-project-row ${p.id===targetId?'active':''} ${projectArchived(p)?'archived':''} ${checked?'selected':''}" data-source-drop-project="${esc(p.id)}"><label class="manager-project-check" data-stop title="Sélectionner"><input type="checkbox" data-bulk-project="${esc(p.id)}" ${checked?'checked':''}></label><button type="button" class="manager-project-open" data-manager-select="${esc(p.id)}"><span class="project-emblem tiny">${projectGlyph(p)}</span><div><b>${ctl.pinned?'★ ':''}${esc(p.name)}</b><small>${esc(projectGroup(p))} · ${esc(boardLabel(d?.status))} · ${allProjectSources(p.id).length} src</small></div>${projectArchived(p)?'<em>ARCHIVE</em>':''}</button></div>`}).join('')}</div>
       </aside>
       <main class="project-manager-editor">
         <div class="manager-editor-head"><div><span>${isNew?'NOUVEAU PROJET':manageProjectSection==='sources'?'SOURCE MANAGER':'ÉDITION DU PROJET'}</span><h2>${isNew?'Créer un projet':esc(selected.name)}</h2><p>${isNew?'Projet local CONTROL, prêt à recevoir des sources plus tard.':manageProjectSection==='sources'?'Contrôle les conversations, dépôts et sources qui alimentent ce projet.':'Les réglages manuels restent prioritaires sans effacer les données source.'}</p></div>${project&&!isNew?`<button class="manager-open-project" data-open-managed-project="${esc(project.id)}">Ouvrir ↗</button>`:''}</div>
@@ -595,12 +714,16 @@ async function saveManagedProject(form){
     archived:data.get('archived')==='on'
   };
   const creating=id==='__new__';
+  const previous=!creating&&projectById(id)
+    ? captureProjectPatch(projectById(id),['name','universe','group','statusOverride','repo','tags','description','note','pinned','archived'])
+    : null;
   const out=await api(creating?'/api/projects/create':'/api/projects/update',{method:'POST',body:JSON.stringify(creating?payload:{...payload,projectId:id})});
   state=out.state;
   manageProjectId=out.project.id;
   if(projectArchived(out.project) && modalProject===out.project.id) modalProject=null;
   render();
-  toast(creating?'Projet créé':'Projet mis à jour');
+  if(!creating&&previous)setUndo('Projet mis à jour',async()=>undoProjectUpdates([previous]));
+  else toast('Projet créé');
 }
 
 function radarView(s){
@@ -832,7 +955,7 @@ function bindControlDragDrop(){
     element.addEventListener('dragend',()=>{element.setAttribute('aria-grabbed','false');clearControlDrag()});
   });
 
-  document.querySelectorAll('[data-drop-status],[data-drop-group],[data-drop-auto],[data-drop-pin],[data-source-drop-project],[data-source-drop-detach]').forEach(zone=>{
+  document.querySelectorAll('[data-drop-status],[data-drop-group],[data-drop-auto],[data-drop-pin],[data-drop-project-order],[data-source-drop-project],[data-source-drop-detach]').forEach(zone=>{
     zone.addEventListener('dragenter',event=>{
       const payload=dragPayloadFromEvent(event);
       if(!dragZoneAccepts(zone,payload))return;
@@ -864,22 +987,46 @@ function bindControlDragDrop(){
         }else if(zone.matches('[data-drop-pin]')){
           const project=projectById(payload.id);
           await updateManagedProjectPatch(payload.id,{pinned:true},`${project?.name||'Projet'} → priorité`);
+        }else if(zone.matches('[data-drop-project-order]')){
+          const targetId=zone.dataset.dropProjectOrder;
+          if(targetId===payload.id)return;
+          const project=projectById(payload.id);
+          const column=zone.closest('[data-drop-status]');
+          const groupZone=zone.closest('[data-drop-group]');
+          if(column){
+            const status=column.dataset.dropStatus;
+            const bucket=boardBucket(status);
+            const ids=visibleProjects().filter(item=>item.id!==payload.id&&boardBucket(projectState(item.id)?.status)===bucket).map(item=>item.id);
+            const targetIndex=Math.max(0,ids.indexOf(targetId));
+            ids.splice(targetIndex,0,payload.id);
+            await reorderManagedProject(payload.id,ids,{statusOverride:status},`${project?.name||'Projet'} repositionné · ${boardLabel(status)}`);
+          }else if(groupZone){
+            const group=groupZone.dataset.dropGroup||'';
+            const displayGroup=group||'Sans groupe';
+            const ids=visibleProjects().filter(item=>item.id!==payload.id&&projectGroup(item)===displayGroup).map(item=>item.id);
+            const targetIndex=Math.max(0,ids.indexOf(targetId));
+            ids.splice(targetIndex,0,payload.id);
+            await reorderManagedProject(payload.id,ids,{group},`${project?.name||'Projet'} repositionné · ${displayGroup}`);
+          }else if(zone.closest('.project-list-v3')){
+            const ids=visibleProjects().filter(item=>item.id!==payload.id).map(item=>item.id);
+            const targetIndex=Math.max(0,ids.indexOf(targetId));
+            ids.splice(targetIndex,0,payload.id);
+            await reorderManagedProject(payload.id,ids,{},`${project?.name||'Projet'} repositionné`);
+          }
         }else if(zone.matches('[data-drop-status]')){
           const status=zone.dataset.dropStatus;
           const project=projectById(payload.id);
-          if(projectState(payload.id)?.status===status&&projectState(payload.id)?.manualStatusOverride){
-            toast(`${project?.name||'Projet'} est déjà en ${boardLabel(status)}`);
-          }else{
-            await updateManagedProjectPatch(payload.id,{statusOverride:status},`${project?.name||'Projet'} → ${boardLabel(status)}`);
-          }
+          const bucket=boardBucket(status);
+          const ids=visibleProjects().filter(item=>item.id!==payload.id&&boardBucket(projectState(item.id)?.status)===bucket).map(item=>item.id);
+          ids.push(payload.id);
+          await reorderManagedProject(payload.id,ids,{statusOverride:status},`${project?.name||'Projet'} → ${boardLabel(status)}`);
         }else if(zone.matches('[data-drop-group]')){
           const group=zone.dataset.dropGroup||'';
+          const displayGroup=group||'Sans groupe';
           const project=projectById(payload.id);
-          if(projectGroup(project)===(group||'Sans groupe')){
-            toast(`${project?.name||'Projet'} est déjà dans ${group||'Sans groupe'}`);
-          }else{
-            await updateManagedProjectPatch(payload.id,{group},`${project?.name||'Projet'} → ${group||'Sans groupe'}`);
-          }
+          const ids=visibleProjects().filter(item=>item.id!==payload.id&&projectGroup(item)===displayGroup).map(item=>item.id);
+          ids.push(payload.id);
+          await reorderManagedProject(payload.id,ids,{group},`${project?.name||'Projet'} → ${displayGroup}`);
         }else if(zone.matches('[data-source-drop-project]')){
           const projectId=zone.dataset.sourceDropProject;
           if(payload.kind==='source')await moveManagedSource(payload.id,projectId);
@@ -906,15 +1053,44 @@ function bind(){
   document.querySelectorAll('[data-scroll-activity]').forEach(b=>b.addEventListener('click',()=>document.querySelector('[data-activity-section]')?.scrollIntoView({behavior:'smooth',block:'start'})));
   document.querySelectorAll('[data-global-project-search]').forEach(el=>el.addEventListener('keydown',e=>{if(e.key==='Enter'){query=e.target.value;modalProject=null;view='radar';render();}}));
   document.querySelectorAll('[data-project-view]').forEach(b=>b.addEventListener('click',()=>{projectView=b.dataset.projectView||'board';localStorage.setItem('controlProjectView',projectView);render()}));
-  document.querySelectorAll('[data-manage-project]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();manageProjectId=b.dataset.manageProject;manageProjectSection='project';render()}));
-  document.querySelectorAll('[data-manage-sources]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();manageProjectId=b.dataset.manageSources;manageProjectSection='sources';render()}));
-  document.querySelectorAll('[data-manage-all]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();manageProjectId=b.dataset.manageAll||activeProjects()[0]?.id||'__new__';manageProjectSection='project';render()}));
+  document.querySelectorAll('[data-manage-project]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();selectedProjectIds.clear();manageProjectId=b.dataset.manageProject;manageProjectSection='project';render()}));
+  document.querySelectorAll('[data-manage-sources]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();selectedProjectIds.clear();manageProjectId=b.dataset.manageSources;manageProjectSection='sources';render()}));
+  document.querySelectorAll('[data-manage-all]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();selectedProjectIds.clear();manageProjectId=b.dataset.manageAll||activeProjects()[0]?.id||'__new__';manageProjectSection='project';render()}));
   document.querySelectorAll('[data-manager-select]').forEach(b=>b.addEventListener('click',()=>{manageProjectId=b.dataset.managerSelect;render()}));
-  $('#newManagedProject')?.addEventListener('click',()=>{manageProjectId='__new__';manageProjectSection='project';render()});
+  document.querySelectorAll('[data-bulk-project]').forEach(input=>input.addEventListener('change',()=>{
+    const id=input.dataset.bulkProject;
+    if(input.checked)selectedProjectIds.add(id);else selectedProjectIds.delete(id);
+    render();
+  }));
+  $('#managerSelectAll')?.addEventListener('change',event=>{
+    if(event.target.checked)state.projects.forEach(project=>selectedProjectIds.add(project.id));
+    else selectedProjectIds.clear();
+    render();
+  });
+  document.querySelectorAll('[data-bulk-clear]').forEach(button=>button.addEventListener('click',()=>{selectedProjectIds.clear();render()}));
+  document.querySelectorAll('[data-bulk-status]').forEach(button=>button.addEventListener('click',async()=>{
+    const value=$('#bulkStatus')?.value||'AUTO';
+    const ids=[...selectedProjectIds];
+    try{await bulkManagedProjectPatch(ids,{statusOverride:value==='AUTO'?null:value},`${ids.length} projet${ids.length===1?'':'s'} · état ${value==='AUTO'?'Auto':boardLabel(value)}`)}catch(error){toast(`Action groupée impossible : ${error.message}`)}
+  }));
+  document.querySelectorAll('[data-bulk-group]').forEach(button=>button.addEventListener('click',async()=>{
+    const group=$('#bulkGroup')?.value||'';
+    const ids=[...selectedProjectIds];
+    try{await bulkManagedProjectPatch(ids,{group},`${ids.length} projet${ids.length===1?'':'s'} · ${group||'Sans groupe'}`)}catch(error){toast(`Classement impossible : ${error.message}`)}
+  }));
+  document.querySelectorAll('[data-bulk-pin]').forEach(button=>button.addEventListener('click',async()=>{
+    const pinned=button.dataset.bulkPin==='true',ids=[...selectedProjectIds];
+    try{await bulkManagedProjectPatch(ids,{pinned},`${ids.length} projet${ids.length===1?'':'s'} · ${pinned?'épinglé':'priorité retirée'}`)}catch(error){toast(`Action groupée impossible : ${error.message}`)}
+  }));
+  document.querySelectorAll('[data-bulk-archive]').forEach(button=>button.addEventListener('click',async()=>{
+    const archived=button.dataset.bulkArchive==='true',ids=[...selectedProjectIds];
+    try{await bulkManagedProjectPatch(ids,{archived},`${ids.length} projet${ids.length===1?'':'s'} · ${archived?'archivé':'restauré'}`)}catch(error){toast(`Action groupée impossible : ${error.message}`)}
+  }));
+  $('#newManagedProject')?.addEventListener('click',()=>{selectedProjectIds.clear();manageProjectId='__new__';manageProjectSection='project';render()});
   document.querySelectorAll('[data-manager-section]').forEach(b=>b.addEventListener('click',()=>{manageProjectSection=b.dataset.managerSection||'project';render()}));
-  $('#projectManagerClose')?.addEventListener('click',()=>{manageProjectId=null;manageProjectSection='project';render()});
-  $('#projectManagerCancel')?.addEventListener('click',()=>{manageProjectId=null;render()});
-  $('[data-manager-overlay]')?.addEventListener('click',e=>{if(e.target===e.currentTarget){manageProjectId=null;render()}});
+  $('#projectManagerClose')?.addEventListener('click',()=>{selectedProjectIds.clear();manageProjectId=null;manageProjectSection='project';render()});
+  $('#projectManagerCancel')?.addEventListener('click',()=>{selectedProjectIds.clear();manageProjectId=null;render()});
+  $('[data-manager-overlay]')?.addEventListener('click',e=>{if(e.target===e.currentTarget){selectedProjectIds.clear();manageProjectId=null;render()}});
   $('[data-open-managed-project]')?.addEventListener('click',e=>{modalProject=e.currentTarget.dataset.openManagedProject;manageProjectId=null;view='radar';render()});
   document.querySelectorAll('[data-status-trigger]').forEach(trigger=>trigger.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const picker=trigger.closest('[data-status-picker]');const open=picker?.classList.toggle('open');trigger.setAttribute('aria-expanded',open?'true':'false')}));
   document.querySelectorAll('[data-status-value]').forEach(option=>option.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const picker=option.closest('[data-status-picker]');if(!picker)return;const value=option.dataset.statusValue||'AUTO';const input=picker.querySelector('input[name="statusOverride"]');const label=picker.querySelector('[data-status-current]');if(input)input.value=value;if(label)label.textContent=value==='AUTO'?'Auto — état dérivé':option.querySelector('span:nth-child(2)')?.textContent||value;picker.querySelectorAll('[data-status-value]').forEach(item=>{const selected=item===option;item.classList.toggle('selected',selected);item.setAttribute('aria-selected',selected?'true':'false')});picker.classList.remove('open');picker.querySelector('[data-status-trigger]')?.setAttribute('aria-expanded','false')}));
@@ -935,5 +1111,5 @@ function bind(){
   document.querySelectorAll('[data-map]').forEach(b=>b.onclick=async()=>{const id=b.dataset.map;const projectId=$(`[data-map-select="${id}"]`).value;const out=await api('/api/discovered/assign',{method:'POST',body:JSON.stringify({discoveredId:id,projectId})});state=out.state;render();toast('Source rattachée')});
   document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=async()=>{await api('/api/discovered/ignore',{method:'POST',body:JSON.stringify({id:b.dataset.ignore})});await load();toast('Source ignored')});
 }
-document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(manageProjectId){manageProjectId=null;render();return}if(modalProject){modalProject=null;render()}});
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(manageProjectId){selectedProjectIds.clear();manageProjectId=null;render();return}if(modalProject){modalProject=null;render()}});
 load().catch(e=>{$('#app').innerHTML=`<div style="padding:30px;color:white">Failed to load CONTROL: ${esc(e.message)}</div>`});
