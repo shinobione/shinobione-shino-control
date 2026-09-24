@@ -59,6 +59,7 @@ jobs:
           node --check scripts-project-management-check.mjs
           node --check scripts-source-manager-check.mjs
           node --check scripts-drag-drop-check.mjs
+          node --check scripts-project-arrange-check.mjs
           node --check scripts-runtime-state-check.mjs
           node --check scripts-tray-check.mjs
           node --check scripts/repair-state.mjs
@@ -103,7 +104,7 @@ jobs:
         run: |
           test -s public/build-info.js
           grep -q 'BUILD v' public/build-info.js
-          grep -q '0.12.0' public/build-info.js
+          grep -q '0.13.0' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
           grep -q '"version": "0.2.8"' extension/control-collector/manifest.json
@@ -147,6 +148,8 @@ jobs:
           grep -q '/api/control/restart' server-entry.mjs
           grep -q '/api/projects/update' server-entry.mjs
           grep -q '/api/projects/create' server-entry.mjs
+          grep -q '/api/projects/bulk' server-entry.mjs
+          grep -q '/api/projects/reorder' server-entry.mjs
           grep -q '/api/sources/move' server-entry.mjs
           grep -q '/api/sources/archive' server-entry.mjs
           grep -q '/api/discovered/assign' server-entry.mjs
@@ -221,6 +224,8 @@ jobs:
           grep -q 'Source Manager v1' public/source-manager.css
           test -s public/drag-drop.css
           grep -q 'Drag & Drop Interaction Layer v1' public/drag-drop.css
+          grep -q 'v0.13.0 — precise reorder targets' public/drag-drop.css
+          grep -q 'v0.13.0 — bulk project control' public/project-manager.css
           grep -q 'project-manager.css' public/index.html
           grep -q 'source-manager.css' public/index.html
           grep -q 'drag-drop.css' public/index.html
@@ -228,6 +233,11 @@ jobs:
           grep -q 'data-drop-status' public/app.js
           grep -q 'data-drop-group' public/app.js
           grep -q 'data-source-drop-project' public/app.js
+          grep -q 'data-drop-project-order' public/app.js
+          grep -q 'data-bulk-project' public/app.js
+          grep -q 'function bulkManagedProjectPatch' public/app.js
+          grep -q 'function reorderManagedProject' public/app.js
+          grep -q 'function setUndo' public/app.js
           grep -q 'function projectManagerModal' public/app.js
           grep -q 'function groupedProjectsPanel' public/app.js
           grep -q 'ui-premium.css' public/index.html
@@ -311,7 +321,7 @@ jobs:
           test -s dist/assets/project-workflow-art.svg
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
-          grep -q '"version": "0.12.0"' dist/state.json
+          grep -q '"version": "0.13.0"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'lastChatgptCatchup' dist/state.json; then
             echo 'Private ChatGPT catch-up diagnostics leaked into public snapshot'
