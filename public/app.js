@@ -293,7 +293,7 @@ function clearControlDrag(){
 }
 function dragZoneAccepts(zone,payload){
   if(!payload)return false;
-  if(zone.matches('[data-drop-status],[data-drop-group],[data-drop-auto],[data-drop-pin]'))return payload.kind==='project';
+  if(zone.matches('[data-drop-status],[data-drop-group],[data-drop-auto],[data-drop-pin],[data-drop-project-order]'))return payload.kind==='project';
   if(zone.matches('[data-source-drop-project]'))return ['source','discovered'].includes(payload.kind);
   if(zone.matches('[data-source-drop-detach]'))return payload.kind==='source';
   return false;
@@ -318,7 +318,7 @@ function boardProjectCard(p){
   const d=projectState(p.id); if(!d)return "";
   const e=evidenceFor(p.id)[0], c=ctAs(p), badges=sourceBadges(p.id), resume=displayResume(p,d,e), control=projectControl(p);
   const tags=projectTags(p).slice(0,2);
-  return `<article class="board-card ${statusClass(d.status)} ${projectVisualClass(p)}" style="${projectVisualVars(p)}" data-open-project="${p.id}" data-drag-project="${esc(p.id)}" draggable="true" aria-grabbed="false"><div class="board-card-top"><div class="board-card-labels"><span class="project-type">${esc(p.universe||"PROJECT")}</span>${control.group?`<span class="project-group-tag">${esc(control.group)}</span>`:''}</div><div class="board-card-actions"><span class="status-tag">${esc(boardLabel(d.status))}${d.manualStatusOverride?' · M':''}</span><button class="board-manage" data-manage-project="${p.id}" data-stop title="Gérer le projet">•••</button></div></div><h4>${control.pinned?'★ ':''}${esc(p.name)}</h4><p class="board-resume">${esc(control.note || resume)}</p>${tags.length?`<div class="project-tags">${tags.map(tag=>`<span>${esc(tag)}</span>`).join('')}</div>`:''}<div class="board-meta"><span class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</span><span>${e?`${esc(rel(e.timestamp))} ago`:"No evidence"}</span></div><div class="board-footer"><div class="mini-sources">${badges.slice(0,2).map(g=>`<span class="${sourceClass(g.type)}">${esc(g.label)}${g.count>1?` ×${g.count}`:""}</span>`).join("")}</div>${c.chat?`<a class="quick-open" href="${esc(c.chat.url)}" target="_blank" data-stop title="Continue in ChatGPT">↗</a>`:c.pr?`<a class="quick-open" href="${esc(c.pr.url)}" target="_blank" data-stop title="Open PR">↗</a>`:""}</div></article>`;
+  return `<article class="board-card ${statusClass(d.status)} ${projectVisualClass(p)}" style="${projectVisualVars(p)}" data-open-project="${p.id}" data-drag-project="${esc(p.id)}" data-drop-project-order="${esc(p.id)}" draggable="true" aria-grabbed="false"><div class="board-card-top"><div class="board-card-labels"><span class="project-type">${esc(p.universe||"PROJECT")}</span>${control.group?`<span class="project-group-tag">${esc(control.group)}</span>`:''}</div><div class="board-card-actions"><span class="status-tag">${esc(boardLabel(d.status))}${d.manualStatusOverride?' · M':''}</span><button class="board-manage" data-manage-project="${p.id}" data-stop title="Gérer le projet">•••</button></div></div><h4>${control.pinned?'★ ':''}${esc(p.name)}</h4><p class="board-resume">${esc(control.note || resume)}</p>${tags.length?`<div class="project-tags">${tags.map(tag=>`<span>${esc(tag)}</span>`).join('')}</div>`:''}<div class="board-meta"><span class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</span><span>${e?`${esc(rel(e.timestamp))} ago`:"No evidence"}</span></div><div class="board-footer"><div class="mini-sources">${badges.slice(0,2).map(g=>`<span class="${sourceClass(g.type)}">${esc(g.label)}${g.count>1?` ×${g.count}`:""}</span>`).join("")}</div>${c.chat?`<a class="quick-open" href="${esc(c.chat.url)}" target="_blank" data-stop title="Continue in ChatGPT">↗</a>`:c.pr?`<a class="quick-open" href="${esc(c.pr.url)}" target="_blank" data-stop title="Open PR">↗</a>`:""}</div></article>`;
 }
 function projectListV3(projects){
   return `<div class="project-list-v3">${projects.length?projects.map(listProjectCardV3).join(""):`<div class="empty compact-empty">Aucun projet dans ce filtre.</div>`}</div>`;
@@ -645,8 +645,8 @@ function projectManagerModal(targetId){
     if(aa!==ba) return aa?1:-1;
     const groupSort=projectGroup(a).localeCompare(projectGroup(b),'fr');
     if(groupSort)return groupSort;
-    const orderSort=projectOrder(a)-projectOrder(b);
-    if(Number.isFinite(orderSort)&&orderSort!==0)return orderSort;
+    const ao=projectOrder(a),bo=projectOrder(b);
+    if(ao!==bo)return ao-bo;
     return a.name.localeCompare(b.name,'fr');
   });
   const selectedCount=selectedProjectIds.size;
@@ -946,7 +946,7 @@ function bindControlDragDrop(){
     element.addEventListener('dragend',()=>{element.setAttribute('aria-grabbed','false');clearControlDrag()});
   });
 
-  document.querySelectorAll('[data-drop-status],[data-drop-group],[data-drop-auto],[data-drop-pin],[data-source-drop-project],[data-source-drop-detach]').forEach(zone=>{
+  document.querySelectorAll('[data-drop-status],[data-drop-group],[data-drop-auto],[data-drop-pin],[data-drop-project-order],[data-source-drop-project],[data-source-drop-detach]').forEach(zone=>{
     zone.addEventListener('dragenter',event=>{
       const payload=dragPayloadFromEvent(event);
       if(!dragZoneAccepts(zone,payload))return;
@@ -978,22 +978,41 @@ function bindControlDragDrop(){
         }else if(zone.matches('[data-drop-pin]')){
           const project=projectById(payload.id);
           await updateManagedProjectPatch(payload.id,{pinned:true},`${project?.name||'Projet'} → priorité`);
+        }else if(zone.matches('[data-drop-project-order]')){
+          const targetId=zone.dataset.dropProjectOrder;
+          if(targetId===payload.id)return;
+          const project=projectById(payload.id);
+          const column=zone.closest('[data-drop-status]');
+          const groupZone=zone.closest('[data-drop-group]');
+          if(column){
+            const status=column.dataset.dropStatus;
+            const bucket=boardBucket(status);
+            const ids=visibleProjects().filter(item=>item.id!==payload.id&&boardBucket(projectState(item.id)?.status)===bucket).map(item=>item.id);
+            const targetIndex=Math.max(0,ids.indexOf(targetId));
+            ids.splice(targetIndex,0,payload.id);
+            await reorderManagedProject(payload.id,ids,{statusOverride:status},`${project?.name||'Projet'} repositionné · ${boardLabel(status)}`);
+          }else if(groupZone){
+            const group=groupZone.dataset.dropGroup||'';
+            const displayGroup=group||'Sans groupe';
+            const ids=visibleProjects().filter(item=>item.id!==payload.id&&projectGroup(item)===displayGroup).map(item=>item.id);
+            const targetIndex=Math.max(0,ids.indexOf(targetId));
+            ids.splice(targetIndex,0,payload.id);
+            await reorderManagedProject(payload.id,ids,{group},`${project?.name||'Projet'} repositionné · ${displayGroup}`);
+          }
         }else if(zone.matches('[data-drop-status]')){
           const status=zone.dataset.dropStatus;
           const project=projectById(payload.id);
-          if(projectState(payload.id)?.status===status&&projectState(payload.id)?.manualStatusOverride){
-            toast(`${project?.name||'Projet'} est déjà en ${boardLabel(status)}`);
-          }else{
-            await updateManagedProjectPatch(payload.id,{statusOverride:status},`${project?.name||'Projet'} → ${boardLabel(status)}`);
-          }
+          const bucket=boardBucket(status);
+          const ids=visibleProjects().filter(item=>item.id!==payload.id&&boardBucket(projectState(item.id)?.status)===bucket).map(item=>item.id);
+          ids.push(payload.id);
+          await reorderManagedProject(payload.id,ids,{statusOverride:status},`${project?.name||'Projet'} → ${boardLabel(status)}`);
         }else if(zone.matches('[data-drop-group]')){
           const group=zone.dataset.dropGroup||'';
+          const displayGroup=group||'Sans groupe';
           const project=projectById(payload.id);
-          if(projectGroup(project)===(group||'Sans groupe')){
-            toast(`${project?.name||'Projet'} est déjà dans ${group||'Sans groupe'}`);
-          }else{
-            await updateManagedProjectPatch(payload.id,{group},`${project?.name||'Projet'} → ${group||'Sans groupe'}`);
-          }
+          const ids=visibleProjects().filter(item=>item.id!==payload.id&&projectGroup(item)===displayGroup).map(item=>item.id);
+          ids.push(payload.id);
+          await reorderManagedProject(payload.id,ids,{group},`${project?.name||'Projet'} → ${displayGroup}`);
         }else if(zone.matches('[data-source-drop-project]')){
           const projectId=zone.dataset.sourceDropProject;
           if(payload.kind==='source')await moveManagedSource(payload.id,projectId);
