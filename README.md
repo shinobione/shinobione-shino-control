@@ -125,14 +125,13 @@ http://127.0.0.1:4177
 
 No npm install is required; CONTROL currently uses Node built-ins and browser APIs only.
 
-For a non-loopback deployment, set an ingestion token:
+CONTROL is a **loopback-only** application; a non-loopback deployment is not supported. All HTTP routes reject unexpected Host values and foreign browser origins. Local dashboard requests use same-origin access, and cross-origin CORS responses are disabled.
 
-```powershell
-$env:SHINO_CONTROL_TOKEN="..."
-npm start
-```
+For the unpacked Chrome Collector, identify its actual ID in `chrome://extensions`, then start CONTROL with `SHINO_CONTROL_EXTENSION_ID` set to that exact ID. Otherwise extension-originated requests are rejected. IDs can vary between machines or unpacked installations.
 
-When `SHINO_CONTROL_TOKEN` is unset, mutation/ingest requests are accepted only from loopback.
+`SHINO_CONTROL_TOKEN` adds bearer-token checks to mutations **and `/api/state`**, but this mode is not yet integrated with the dashboard, Windows tray/supervisor, or Collector configuration workflow. Leave it unset for the currently supported local installation; do not mistake loopback binding for protection against untrusted local processes. Cross-origin sites are additionally rejected by Host, Origin, and browser request-metadata checks.
+
+State updates write an fsynced temporary file and atomically rename it into place. `data/state.local.json.bak` keeps the previous valid saved state as a recovery copy. The backup is not automatically restored if the active file becomes corrupt. Concurrent writes are not yet transactional; test and review this separately before treating the state layer as fully hardened.
 
 ## Windows autonomous startup
 
