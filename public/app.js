@@ -1039,15 +1039,44 @@ function bind(){
   document.querySelectorAll('[data-scroll-activity]').forEach(b=>b.addEventListener('click',()=>document.querySelector('[data-activity-section]')?.scrollIntoView({behavior:'smooth',block:'start'})));
   document.querySelectorAll('[data-global-project-search]').forEach(el=>el.addEventListener('keydown',e=>{if(e.key==='Enter'){query=e.target.value;modalProject=null;view='radar';render();}}));
   document.querySelectorAll('[data-project-view]').forEach(b=>b.addEventListener('click',()=>{projectView=b.dataset.projectView||'board';localStorage.setItem('controlProjectView',projectView);render()}));
-  document.querySelectorAll('[data-manage-project]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();manageProjectId=b.dataset.manageProject;manageProjectSection='project';render()}));
-  document.querySelectorAll('[data-manage-sources]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();manageProjectId=b.dataset.manageSources;manageProjectSection='sources';render()}));
-  document.querySelectorAll('[data-manage-all]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();manageProjectId=b.dataset.manageAll||activeProjects()[0]?.id||'__new__';manageProjectSection='project';render()}));
+  document.querySelectorAll('[data-manage-project]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();selectedProjectIds.clear();manageProjectId=b.dataset.manageProject;manageProjectSection='project';render()}));
+  document.querySelectorAll('[data-manage-sources]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();selectedProjectIds.clear();manageProjectId=b.dataset.manageSources;manageProjectSection='sources';render()}));
+  document.querySelectorAll('[data-manage-all]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();selectedProjectIds.clear();manageProjectId=b.dataset.manageAll||activeProjects()[0]?.id||'__new__';manageProjectSection='project';render()}));
   document.querySelectorAll('[data-manager-select]').forEach(b=>b.addEventListener('click',()=>{manageProjectId=b.dataset.managerSelect;render()}));
-  $('#newManagedProject')?.addEventListener('click',()=>{manageProjectId='__new__';manageProjectSection='project';render()});
+  document.querySelectorAll('[data-bulk-project]').forEach(input=>input.addEventListener('change',()=>{
+    const id=input.dataset.bulkProject;
+    if(input.checked)selectedProjectIds.add(id);else selectedProjectIds.delete(id);
+    render();
+  }));
+  $('#managerSelectAll')?.addEventListener('change',event=>{
+    if(event.target.checked)state.projects.forEach(project=>selectedProjectIds.add(project.id));
+    else selectedProjectIds.clear();
+    render();
+  });
+  document.querySelectorAll('[data-bulk-clear]').forEach(button=>button.addEventListener('click',()=>{selectedProjectIds.clear();render()}));
+  document.querySelectorAll('[data-bulk-status]').forEach(button=>button.addEventListener('click',async()=>{
+    const value=$('#bulkStatus')?.value||'AUTO';
+    const ids=[...selectedProjectIds];
+    try{await bulkManagedProjectPatch(ids,{statusOverride:value==='AUTO'?null:value},`${ids.length} projet${ids.length===1?'':'s'} · état ${value==='AUTO'?'Auto':boardLabel(value)}`)}catch(error){toast(`Action groupée impossible : ${error.message}`)}
+  }));
+  document.querySelectorAll('[data-bulk-group]').forEach(button=>button.addEventListener('click',async()=>{
+    const group=$('#bulkGroup')?.value||'';
+    const ids=[...selectedProjectIds];
+    try{await bulkManagedProjectPatch(ids,{group},`${ids.length} projet${ids.length===1?'':'s'} · ${group||'Sans groupe'}`)}catch(error){toast(`Classement impossible : ${error.message}`)}
+  }));
+  document.querySelectorAll('[data-bulk-pin]').forEach(button=>button.addEventListener('click',async()=>{
+    const pinned=button.dataset.bulkPin==='true',ids=[...selectedProjectIds];
+    try{await bulkManagedProjectPatch(ids,{pinned},`${ids.length} projet${ids.length===1?'':'s'} · ${pinned?'épinglé':'priorité retirée'}`)}catch(error){toast(`Action groupée impossible : ${error.message}`)}
+  }));
+  document.querySelectorAll('[data-bulk-archive]').forEach(button=>button.addEventListener('click',async()=>{
+    const archived=button.dataset.bulkArchive==='true',ids=[...selectedProjectIds];
+    try{await bulkManagedProjectPatch(ids,{archived},`${ids.length} projet${ids.length===1?'':'s'} · ${archived?'archivé':'restauré'}`)}catch(error){toast(`Action groupée impossible : ${error.message}`)}
+  }));
+  $('#newManagedProject')?.addEventListener('click',()=>{selectedProjectIds.clear();manageProjectId='__new__';manageProjectSection='project';render()});
   document.querySelectorAll('[data-manager-section]').forEach(b=>b.addEventListener('click',()=>{manageProjectSection=b.dataset.managerSection||'project';render()}));
-  $('#projectManagerClose')?.addEventListener('click',()=>{manageProjectId=null;manageProjectSection='project';render()});
-  $('#projectManagerCancel')?.addEventListener('click',()=>{manageProjectId=null;render()});
-  $('[data-manager-overlay]')?.addEventListener('click',e=>{if(e.target===e.currentTarget){manageProjectId=null;render()}});
+  $('#projectManagerClose')?.addEventListener('click',()=>{selectedProjectIds.clear();manageProjectId=null;manageProjectSection='project';render()});
+  $('#projectManagerCancel')?.addEventListener('click',()=>{selectedProjectIds.clear();manageProjectId=null;render()});
+  $('[data-manager-overlay]')?.addEventListener('click',e=>{if(e.target===e.currentTarget){selectedProjectIds.clear();manageProjectId=null;render()}});
   $('[data-open-managed-project]')?.addEventListener('click',e=>{modalProject=e.currentTarget.dataset.openManagedProject;manageProjectId=null;view='radar';render()});
   document.querySelectorAll('[data-status-trigger]').forEach(trigger=>trigger.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const picker=trigger.closest('[data-status-picker]');const open=picker?.classList.toggle('open');trigger.setAttribute('aria-expanded',open?'true':'false')}));
   document.querySelectorAll('[data-status-value]').forEach(option=>option.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const picker=option.closest('[data-status-picker]');if(!picker)return;const value=option.dataset.statusValue||'AUTO';const input=picker.querySelector('input[name="statusOverride"]');const label=picker.querySelector('[data-status-current]');if(input)input.value=value;if(label)label.textContent=value==='AUTO'?'Auto — état dérivé':option.querySelector('span:nth-child(2)')?.textContent||value;picker.querySelectorAll('[data-status-value]').forEach(item=>{const selected=item===option;item.classList.toggle('selected',selected);item.setAttribute('aria-selected',selected?'true':'false')});picker.classList.remove('open');picker.querySelector('[data-status-trigger]')?.setAttribute('aria-expanded','false')}));
@@ -1068,5 +1097,5 @@ function bind(){
   document.querySelectorAll('[data-map]').forEach(b=>b.onclick=async()=>{const id=b.dataset.map;const projectId=$(`[data-map-select="${id}"]`).value;const out=await api('/api/discovered/assign',{method:'POST',body:JSON.stringify({discoveredId:id,projectId})});state=out.state;render();toast('Source rattachée')});
   document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=async()=>{await api('/api/discovered/ignore',{method:'POST',body:JSON.stringify({id:b.dataset.ignore})});await load();toast('Source ignored')});
 }
-document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(manageProjectId){manageProjectId=null;render();return}if(modalProject){modalProject=null;render()}});
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(manageProjectId){selectedProjectIds.clear();manageProjectId=null;render();return}if(modalProject){modalProject=null;render()}});
 load().catch(e=>{$('#app').innerHTML=`<div style="padding:30px;color:white">Failed to load CONTROL: ${esc(e.message)}</div>`});
