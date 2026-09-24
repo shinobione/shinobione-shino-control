@@ -44,8 +44,13 @@ function toast(msg,action=null){
   timer=setTimeout(()=>el.remove(),action?6500:3000);
 }
 function setUndo(label,run){
-  undoAction={label,run};
-  toast(label,{label:'Annuler',run:async()=>{const action=undoAction;undoAction=null;if(action)await action.run();}});
+  const action={label,run};
+  undoAction=action;
+  toast(label,{label:'Annuler',run:async()=>{
+    if(undoAction!==action){toast('Cette annulation a expiré');return}
+    undoAction=null;
+    await action.run();
+  }});
 }
 function projectOrder(project){
   const value=Number(projectControl(project).order);
@@ -67,10 +72,10 @@ function captureProjectPatch(project,fields){
     else if(field==='order')out.order=Number.isFinite(Number(control.order))?Number(control.order):null;
     else if(field==='name')out.name=project.name;
     else if(field==='universe')out.universe=project.universe||'PROJECT';
-    else if(field==='repo')out.repo=project.repo||null;
-    else if(field==='description')out.description=project.description||null;
+    else if(field==='repo')out.repo=project.repo||'';
+    else if(field==='description')out.description=project.description||'';
     else if(field==='tags')out.tags=projectTags(project);
-    else if(field==='note')out.note=control.note||null;
+    else if(field==='note')out.note=control.note||'';
   }
   return out;
 }
