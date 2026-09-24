@@ -7,7 +7,8 @@ import { planChatgptCatchup } from './lib/chatgpt-catchup-plan.mjs';
 import { repairChatgptProjectOwnership } from './lib/chatgpt-project-ownership.mjs';
 import { deriveAll } from './lib/derive.mjs';
 import { syncGithubIncremental } from './lib/github-incremental-sync.mjs';
-import { runtimeStatePath } from './lib/state-store.mjs';
+import { runtimeStatePath, writeRuntimeState } from './lib/state-store.mjs';
+import { authorized, guardRequest, json } from './lib/http-security.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA = runtimeStatePath();
@@ -152,7 +153,7 @@ function readState({ derive = false } = {}) {
 
 function writeState(state) {
   retireLegacyShinoSync(state);
-  fs.writeFileSync(DATA, JSON.stringify(state, null, 2));
+  writeRuntimeState(state);
 }
 
 function scrubStateFile() {
@@ -160,7 +161,7 @@ function scrubStateFile() {
     const before = fs.readFileSync(DATA, 'utf8');
     const state = normalizeState(JSON.parse(before));
     const after = JSON.stringify(state, null, 2);
-    if (after !== before.trim()) fs.writeFileSync(DATA, after);
+    if (after !== before.trim()) writeRuntimeState(state);
   } catch {}
 }
 
@@ -227,27 +228,6 @@ function activeTimeoutQuarantine(state, nowMs = Date.now()) {
 {
   const state = readState({ derive:true });
   writeState(state);
-}
-
-function json(res, code, body) {
-  res.writeHead(code, {
-    'Content-Type':'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin':'*',
-    'Access-Control-Allow-Headers':'Content-Type, Authorization',
-    'Access-Control-Allow-Methods':'GET, POST, OPTIONS'
-  });
-  res.end(JSON.stringify(body));
-}
-
-function isLoopback(req) {
-  const ip = req.socket.remoteAddress || '';
-  return ip === '127.0.0.1' || ip === '::1' || ip.includes('127.0.0.1') || ip.includes('::ffff:127.0.0.1');
-}
-
-function authorized(req) {
-  const required = process.env.SHINO_CONTROL_TOKEN;
-  if (!required) return isLoopback(req);
-  return req.headers.authorization === `Bearer ${required}`;
 }
 
 function readBody(req) {
@@ -612,9 +592,12 @@ function assignDiscoveredManaged(state, payload = {}) {
 http.createServer = function wrappedCreateServer(listener) {
   return originalCreateServer(async (req, res) => {
     try {
+      if (!guardRequest(req, res)) return;
+      if (req.method === 'OPTIONS') return json(res, 204, {});
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
 
       if (req.method === 'GET' && url.pathname === '/api/state') {
+        if (process.env.SHINO_CONTROL_TOKEN && !authorized(req)) return json(res, 401, {error:'Unauthorized'});
         return json(res, 200, readState({ derive:true }));
       }
 
