@@ -13,7 +13,7 @@ const rel = ts => {
 const statusClass = status => `status-${String(status||'UNKNOWN').replace(/[^A-Z0-9]+/gi,'-').replace(/^-|-$/g,'')}`;
 const sourceClass = type => type==='github_repo'?'source-github':type==='chatgpt_thread'?'source-chatgpt':type==='github_component'?'source-component':'source-other';
 const sourceLabel = s => s.type==='github_repo'?'GitHub':s.type==='chatgpt_thread'?'ChatGPT':s.type==='chatgpt_archived'?'ChatGPT archive':s.type==='github_component'?(s.title||'Component'):s.type;
-let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, manageProjectId=null, manageProjectSection='project', projectView=localStorage.getItem('controlProjectView') || 'board', statusPickerOutsideBound=false, activeDragPayload=null, dragSuppressUntil=0;
+let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, manageProjectId=null, manageProjectSection='project', projectView=localStorage.getItem('controlProjectView') || 'board', statusPickerOutsideBound=false, activeDragPayload=null, dragSuppressUntil=0, selectedProjectIds=new Set(), undoAction=null;
 
 async function api(path, options={}) {
   const r = await fetch(path, {headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
@@ -22,7 +22,65 @@ async function api(path, options={}) {
   return data;
 }
 async function load(){ state=await api('/api/state'); render(); }
-function toast(msg){ const el=document.createElement('div');el.className='toast';el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),3000); }
+function toast(msg,action=null){
+  const el=document.createElement('div');
+  el.className='toast';
+  const label=document.createElement('span');
+  label.textContent=msg;
+  el.appendChild(label);
+  let timer=null;
+  if(action?.label&&typeof action.run==='function'){
+    const button=document.createElement('button');
+    button.type='button';
+    button.textContent=action.label;
+    button.onclick=async()=>{
+      button.disabled=true;
+      if(timer)clearTimeout(timer);
+      try{await action.run();el.remove()}catch(error){button.disabled=false;label.textContent=`Annulation impossible : ${error.message}`}
+    };
+    el.appendChild(button);
+  }
+  document.body.appendChild(el);
+  timer=setTimeout(()=>el.remove(),action?6500:3000);
+}
+function setUndo(label,run){
+  undoAction={label,run};
+  toast(label,{label:'Annuler',run:async()=>{const action=undoAction;undoAction=null;if(action)await action.run();}});
+}
+function projectOrder(project){
+  const value=Number(projectControl(project).order);
+  return Number.isFinite(value)&&value>0?value:Number.POSITIVE_INFINITY;
+}
+function sortProjectsUserFirst(a,b){
+  const ao=projectOrder(a),bo=projectOrder(b);
+  if(ao!==bo)return ao-bo;
+  return priorityScore(b)-priorityScore(a)||a.name.localeCompare(b.name,'fr');
+}
+function captureProjectPatch(project,fields){
+  const control=projectControl(project);
+  const out={projectId:project.id};
+  for(const field of fields){
+    if(field==='group')out.group=control.group||null;
+    else if(field==='statusOverride')out.statusOverride=control.statusOverride||null;
+    else if(field==='pinned')out.pinned=control.pinned===true;
+    else if(field==='archived')out.archived=control.archived===true;
+    else if(field==='order')out.order=Number.isFinite(Number(control.order))?Number(control.order):null;
+    else if(field==='name')out.name=project.name;
+    else if(field==='universe')out.universe=project.universe||'PROJECT';
+    else if(field==='repo')out.repo=project.repo||null;
+    else if(field==='description')out.description=project.description||null;
+    else if(field==='tags')out.tags=projectTags(project);
+    else if(field==='note')out.note=control.note||null;
+  }
+  return out;
+}
+async function undoProjectUpdates(updates,message='Modification annulée'){
+  const out=await api('/api/projects/bulk',{method:'POST',body:JSON.stringify({updates})});
+  state=out.state;
+  render();
+  toast(message);
+}
+
 function projectState(id){return state.derived.find(d=>d.projectId===id)}
 function evidenceFor(id){return state.evidence.filter(e=>e.projectId===id&&e.inventoryCurrent!==false&&e.controlExcluded!==true).sort((a,b)=>new Date(b.timestamp||0)-new Date(a.timestamp||0))}
 function sourceManagedArchived(source){return source?.control?.archived === true}
