@@ -259,3 +259,35 @@ body.drag-kind-source .source-detach-drop{
   .group-project-card[draggable="true"],
   .source-manager-row[draggable="true"]{cursor:default}
 }
+
+
+/* v0.13.0 — precise reorder targets */
+.board-card[data-drop-project-order],
+.group-project-card[data-drop-project-order]{
+  transition:border-color .12s ease,box-shadow .12s ease,transform .12s ease,background .12s ease,opacity .12s ease;
+}
+.board-card[data-drop-project-order].is-drop-over,
+.group-project-card[data-drop-project-order].is-drop-over{
+  border-color:rgba(82,210,255,.92)!important;
+  box-shadow:
+    0 0 0 1px rgba(79,195,255,.22),
+    0 0 28px rgba(46,164,255,.18),
+    inset 4px 0 rgba(95,217,255,.92)!important;
+  transform:translateY(2px);
+}
+.board-card[data-drop-project-order].is-drop-over:after,
+.group-project-card[data-drop-project-order].is-drop-over:after{
+  content:"INSÉRER AVANT";
+  position:absolute;z-index:12;left:8px;right:8px;top:-7px;height:14px;
+  display:flex;align-items:center;justify-content:center;
+  border-radius:999px;border:1px solid rgba(78,199,255,.72);
+  color:#dff8ff;background:#0b5686;
+  font-size:6px;font-weight:950;letter-spacing:.12em;
+  box-shadow:0 0 18px rgba(44,171,255,.18);
+  pointer-events:none
+}
+body.drag-kind-project .board-card[data-drop-project-order]:not(.is-dragging),
+body.drag-kind-project .group-project-card[data-drop-project-order]:not(.is-dragging){
+  outline:1px solid rgba(75,170,232,.10);
+  outline-offset:-2px
+}
