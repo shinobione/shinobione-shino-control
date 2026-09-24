@@ -85,6 +85,18 @@ In **Gérer les projets → Sources**:
 
 All button/select controls remain available as a fallback. Manual ChatGPT ownership protection from v0.11 still applies after a drag operation.
 
+## Arrange, bulk control and undo
+
+CONTROL v0.13 turns project management into a faster day-to-day workspace:
+
+- **manual order** is persistent: drag a project directly before another card in Columns, Groups or List view;
+- moving a project into another status/group now also places it where you dropped it instead of only changing metadata;
+- **Gérer les projets** adds multi-selection and bulk actions for state, group, pinning and archive/restore;
+- project edits, status/group drags, pin actions, source moves and source archive/restore expose a short-lived **Annuler** action;
+- manual order, groups and tags are safe presentation metadata in the sanitized public snapshot; private notes remain excluded.
+
+Existing single-project controls remain available, so bulk and drag actions are an acceleration layer rather than a replacement.
+
 ## GitHub sync
 
 GitHub sync is incremental. CONTROL stores cursors/ETags for repository feeds so unchanged commits, PRs and workflow feeds are skipped instead of being rebuilt.
