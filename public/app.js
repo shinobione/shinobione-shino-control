@@ -643,14 +643,27 @@ function projectManagerModal(targetId){
   const ordered=[...state.projects].sort((a,b)=>{
     const aa=projectArchived(a), ba=projectArchived(b);
     if(aa!==ba) return aa?1:-1;
-    return projectGroup(a).localeCompare(projectGroup(b),'fr') || a.name.localeCompare(b.name,'fr');
+    const groupSort=projectGroup(a).localeCompare(projectGroup(b),'fr');
+    if(groupSort)return groupSort;
+    const orderSort=projectOrder(a)-projectOrder(b);
+    if(Number.isFinite(orderSort)&&orderSort!==0)return orderSort;
+    return a.name.localeCompare(b.name,'fr');
   });
+  const selectedCount=selectedProjectIds.size;
+  const allSelected=ordered.length>0&&ordered.every(project=>selectedProjectIds.has(project.id));
   return `<div class="project-manager-overlay" data-manager-overlay>
     <section class="project-manager" role="dialog" aria-modal="true" aria-label="Gestion des projets">
       <aside class="project-manager-list">
         <header><div><span>PROJECT CONTROL</span><h2>Gérer les projets</h2></div><button id="projectManagerClose" aria-label="Fermer">×</button></header>
         <button class="manager-new ${isNew?'active':''}" id="newManagedProject">＋ Nouveau projet</button>
-        <div class="manager-project-scroll">${ordered.map(p=>{const d=projectState(p.id),ctl=projectControl(p);return `<button class="manager-project-row ${p.id===targetId?'active':''} ${projectArchived(p)?'archived':''}" data-manager-select="${esc(p.id)}" data-source-drop-project="${esc(p.id)}"><span class="project-emblem tiny">${projectGlyph(p)}</span><div><b>${ctl.pinned?'★ ':''}${esc(p.name)}</b><small>${esc(projectGroup(p))} · ${esc(boardLabel(d?.status))} · ${allProjectSources(p.id).length} src</small></div>${projectArchived(p)?'<em>ARCHIVE</em>':''}</button>`}).join('')}</div>
+        <div class="manager-selection-head"><label><input type="checkbox" id="managerSelectAll" ${allSelected?'checked':''}><span>Tout sélectionner</span></label><b>${selectedCount} sélectionné${selectedCount===1?'':'s'}</b></div>
+        ${selectedCount?`<section class="manager-bulk-panel">
+          <div class="manager-bulk-title"><span>BULK CONTROL</span><strong>${selectedCount} projet${selectedCount===1?'':'s'}</strong><button type="button" data-bulk-clear>Effacer</button></div>
+          <div class="manager-bulk-row"><select id="bulkStatus"><option value="AUTO">État · Auto</option>${statuses.filter(status=>status!=='AUTO').map(status=>`<option value="${status}">État · ${esc(boardLabel(status))}</option>`).join('')}</select><button type="button" data-bulk-status>Appliquer</button></div>
+          <div class="manager-bulk-row"><select id="bulkGroup"><option value="">Groupe · Sans groupe</option>${groups.map(group=>`<option value="${esc(group)}">Groupe · ${esc(group)}</option>`).join('')}</select><button type="button" data-bulk-group>Classer</button></div>
+          <div class="manager-bulk-buttons"><button type="button" data-bulk-pin="true">★ Épingler</button><button type="button" data-bulk-pin="false">☆ Retirer</button><button type="button" data-bulk-archive="true">Archiver</button><button type="button" data-bulk-archive="false">Restaurer</button></div>
+        </section>`:''}
+        <div class="manager-project-scroll">${ordered.map(p=>{const d=projectState(p.id),ctl=projectControl(p),checked=selectedProjectIds.has(p.id);return `<div class="manager-project-row ${p.id===targetId?'active':''} ${projectArchived(p)?'archived':''} ${checked?'selected':''}" data-source-drop-project="${esc(p.id)}"><label class="manager-project-check" data-stop title="Sélectionner"><input type="checkbox" data-bulk-project="${esc(p.id)}" ${checked?'checked':''}></label><button type="button" class="manager-project-open" data-manager-select="${esc(p.id)}"><span class="project-emblem tiny">${projectGlyph(p)}</span><div><b>${ctl.pinned?'★ ':''}${esc(p.name)}</b><small>${esc(projectGroup(p))} · ${esc(boardLabel(d?.status))} · ${allProjectSources(p.id).length} src</small></div>${projectArchived(p)?'<em>ARCHIVE</em>':''}</button></div>`}).join('')}</div>
       </aside>
       <main class="project-manager-editor">
         <div class="manager-editor-head"><div><span>${isNew?'NOUVEAU PROJET':manageProjectSection==='sources'?'SOURCE MANAGER':'ÉDITION DU PROJET'}</span><h2>${isNew?'Créer un projet':esc(selected.name)}</h2><p>${isNew?'Projet local CONTROL, prêt à recevoir des sources plus tard.':manageProjectSection==='sources'?'Contrôle les conversations, dépôts et sources qui alimentent ce projet.':'Les réglages manuels restent prioritaires sans effacer les données source.'}</p></div>${project&&!isNew?`<button class="manager-open-project" data-open-managed-project="${esc(project.id)}">Ouvrir ↗</button>`:''}</div>
