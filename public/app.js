@@ -238,11 +238,36 @@ function boardLabel(status="") {
 function boardDropStatus(bucket=""){
   return ({attention:'NEEDS TEST',active:'ACTIVE',stable:'STABLE',other:'WAITING'})[bucket] || null;
 }
-async function updateManagedProjectPatch(projectId,patch,message='Projet mis à jour'){
+async function updateManagedProjectPatch(projectId,patch,message='Projet mis à jour',{undo=true}={}){
+  const project=projectById(projectId);
+  const before=project?captureProjectPatch(project,Object.keys(patch)) : null;
   const out=await api('/api/projects/update',{method:'POST',body:JSON.stringify({projectId,...patch})});
   state=out.state;
   render();
-  toast(message);
+  if(undo&&before){
+    setUndo(message,async()=>undoProjectUpdates([before]));
+  }else toast(message);
+  return out;
+}
+async function bulkManagedProjectPatch(projectIds,patch,message='Projets mis à jour'){
+  const ids=[...new Set(projectIds)].filter(id=>projectById(id));
+  if(!ids.length)return null;
+  const fields=Object.keys(patch);
+  const before=ids.map(id=>captureProjectPatch(projectById(id),fields));
+  const out=await api('/api/projects/bulk',{method:'POST',body:JSON.stringify({projectIds:ids,patch})});
+  state=out.state;
+  render();
+  setUndo(message,async()=>undoProjectUpdates(before));
+  return out;
+}
+async function reorderManagedProject(projectId,projectIds,patch={},message='Ordre mis à jour'){
+  const ids=[...new Set(projectIds)].filter(id=>projectById(id));
+  const fields=['order',...Object.keys(patch)];
+  const before=[...new Set([projectId,...ids])].filter(id=>projectById(id)).map(id=>captureProjectPatch(projectById(id),fields));
+  const out=await api('/api/projects/reorder',{method:'POST',body:JSON.stringify({projectId,projectIds:ids,patch})});
+  state=out.state;
+  render();
+  setUndo(message,async()=>undoProjectUpdates(before));
   return out;
 }
 function dragPayloadFromEvent(event){
@@ -275,7 +300,7 @@ function dragZoneAccepts(zone,payload){
 }
 
 function visibleProjects(){
-  return state.projects.filter(p=>!projectArchived(p)).filter(matchesFilter).sort((a,b)=>priorityScore(b)-priorityScore(a) || a.name.localeCompare(b.name));
+  return state.projects.filter(p=>!projectArchived(p)).filter(matchesFilter).sort(sortProjectsUserFirst);
 }
 function latestEvidenceRows(limit=8){
   return [...state.evidence].filter(e=>e.inventoryCurrent!==false && e.timestamp && !projectArchived(projectById(e.projectId))).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,limit);
@@ -570,13 +595,31 @@ function projectSourcesManager(project){
   </section>`;
 }
 
-async function moveManagedSource(sourceId,projectId){
+async function moveManagedSource(sourceId,projectId,{undo=true}={}){
+  const source=state.sources.find(item=>item.id===sourceId);
+  const previousProjectId=source?.projectId||null;
   const out=await api('/api/sources/move',{method:'POST',body:JSON.stringify({sourceId,projectId})});
-  state=out.state;render();toast(projectId?'Source déplacée':'Source détachée');
+  state=out.state;render();
+  const message=projectId?'Source déplacée':'Source détachée';
+  if(undo&&source){
+    setUndo(message,async()=>{
+      const restored=await api('/api/sources/move',{method:'POST',body:JSON.stringify({sourceId,projectId:previousProjectId})});
+      state=restored.state;render();toast('Déplacement annulé');
+    });
+  }else toast(message);
 }
-async function archiveManagedSource(sourceId,archived){
+async function archiveManagedSource(sourceId,archived,{undo=true}={}){
+  const source=state.sources.find(item=>item.id===sourceId);
+  const previousArchived=sourceManagedArchived(source);
   const out=await api('/api/sources/archive',{method:'POST',body:JSON.stringify({sourceId,archived})});
-  state=out.state;render();toast(archived?'Source archivée':'Source restaurée');
+  state=out.state;render();
+  const message=archived?'Source archivée':'Source restaurée';
+  if(undo&&source){
+    setUndo(message,async()=>{
+      const restored=await api('/api/sources/archive',{method:'POST',body:JSON.stringify({sourceId,archived:previousArchived})});
+      state=restored.state;render();toast('Action annulée');
+    });
+  }else toast(message);
 }
 async function assignDiscoveredSource(discoveredId,projectId){
   const out=await api('/api/discovered/assign',{method:'POST',body:JSON.stringify({discoveredId,projectId})});
