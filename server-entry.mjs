@@ -295,11 +295,14 @@ function normalizedManagedControl(existing = {}, payload = {}, now = new Date().
   const statusInput = Object.prototype.hasOwnProperty.call(payload, 'statusOverride') ? payload.statusOverride : existing.statusOverride;
   const groupInput = Object.prototype.hasOwnProperty.call(payload, 'group') ? payload.group : existing.group;
   const rawStatus = cleanProjectText(statusInput ?? '', 32).toUpperCase();
+  const orderInput = Object.prototype.hasOwnProperty.call(payload, 'order') ? payload.order : existing.order;
+  const numericOrder = Number(orderInput);
   const archived = payload.archived === undefined ? existing.archived === true : payload.archived === true;
   const wasArchived = existing.archived === true;
   return {
     ...existing,
     group:cleanProjectText(groupInput ?? '', 80) || null,
+    order:Number.isFinite(numericOrder) ? Math.max(0, Math.round(numericOrder)) : null,
     note:cleanProjectText(payload.note ?? existing.note ?? '', 4000) || null,
     tags:cleanProjectTags(payload.tags ?? existing.tags ?? []),
     statusOverride:MANAGED_PROJECT_STATUSES.has(rawStatus) ? rawStatus : null,
@@ -350,6 +353,60 @@ function createManagedProject(state, payload = {}) {
   };
   state.projects.push(project);
   return project;
+}
+
+
+function bulkUpdateManagedProjects(state, payload = {}) {
+  const rawUpdates = Array.isArray(payload.updates)
+    ? payload.updates
+    : (Array.isArray(payload.projectIds) ? payload.projectIds.map(projectId => ({projectId, ...(payload.patch || {})})) : []);
+  if (!rawUpdates.length) throw new Error('No projects selected');
+  if (rawUpdates.length > 100) throw new Error('Too many projects selected');
+
+  const seen = new Set();
+  const projects = [];
+  for (const raw of rawUpdates) {
+    const projectId = cleanProjectText(raw?.projectId, 160);
+    if (!projectId || seen.has(projectId)) continue;
+    seen.add(projectId);
+    const project = updateManagedProject(state, {...raw, projectId});
+    if (!project) throw new Error(`Project not found: ${projectId}`);
+    projects.push(project);
+  }
+  if (!projects.length) throw new Error('No valid projects selected');
+  deriveAll(state, {dirtyProjectIds:projects.map(project => project.id)});
+  return projects;
+}
+
+function reorderManagedProjects(state, payload = {}) {
+  const projectId = cleanProjectText(payload.projectId, 160);
+  const project = state.projects.find(item => item.id === projectId);
+  if (!project) return null;
+
+  const patch = payload.patch && typeof payload.patch === 'object' && !Array.isArray(payload.patch) ? payload.patch : {};
+  updateManagedProject(state, {projectId, ...patch});
+
+  const requested = Array.isArray(payload.projectIds) ? payload.projectIds : [];
+  const orderedIds = [...new Set(requested.map(id => cleanProjectText(id, 160)).filter(Boolean))]
+    .filter(id => state.projects.some(project => project.id === id));
+  if (!orderedIds.includes(projectId)) orderedIds.push(projectId);
+
+  const now = new Date().toISOString();
+  const touched = [];
+  orderedIds.forEach((id, index) => {
+    const item = state.projects.find(project => project.id === id);
+    if (!item) return;
+    item.control = {
+      ...(item.control || {}),
+      order:(index + 1) * 100,
+      updatedAt:now,
+      updatedBy:'user'
+    };
+    touched.push(item);
+  });
+
+  deriveAll(state, {dirtyProjectIds:[projectId]});
+  return {project, projects:touched};
 }
 
 
@@ -580,6 +637,25 @@ http.createServer = function wrappedCreateServer(listener) {
         deriveAll(state, {dirtyProjectIds:[project.id]});
         writeState(state);
         return json(res, 201, {ok:true, project, state});
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/projects/bulk') {
+        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+        const payload = await readBody(req);
+        const state = readState();
+        const projects = bulkUpdateManagedProjects(state, payload);
+        writeState(state);
+        return json(res, 200, {ok:true, projects, state});
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/projects/reorder') {
+        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+        const payload = await readBody(req);
+        const state = readState();
+        const result = reorderManagedProjects(state, payload);
+        if (!result) return json(res, 404, {error:'Project not found'});
+        writeState(state);
+        return json(res, 200, {ok:true, ...result, state});
       }
 
       if (req.method === 'POST' && url.pathname === '/api/sources/move') {
