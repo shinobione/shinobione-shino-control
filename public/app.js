@@ -326,7 +326,7 @@ function projectListV3(projects){
 function listProjectCardV3(p){
   const d=projectState(p.id); if(!d)return "";
   const e=evidenceFor(p.id)[0], c=ctAs(p), resume=displayResume(p,d,e), control=projectControl(p);
-  return `<article class="list-project ${statusClass(d.status)}" data-open-project="${p.id}"><div class="list-project-main"><span class="status-dot"></span><div><h4>${control.pinned?'★ ':''}${esc(p.name)}</h4><small>${esc(p.universe||"PROJECT")}${control.group?` · ${esc(control.group)}`:''}</small></div></div><span class="status-tag">${esc(boardLabel(d.status))}${d.manualStatusOverride?' · M':''}</span><p>${esc(control.note || resume)}</p><div class="list-project-age"><b class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</b><span>${e?`${esc(rel(e.timestamp))} ago`:"—"}</span></div><div class="list-project-actions">${c.chat?`<a class="btn small gold" href="${esc(c.chat.url)}" target="_blank" data-stop>Continue</a>`:c.pr?`<a class="btn small" href="${esc(c.pr.url)}" target="_blank" data-stop>Open PR</a>`:""}<button class="btn small ghost" data-manage-project="${p.id}" data-stop>Gérer</button></div></article>`;
+  return `<article class="list-project ${statusClass(d.status)}" data-open-project="${p.id}" data-drag-project="${esc(p.id)}" data-drop-project-order="${esc(p.id)}" draggable="true" aria-grabbed="false"><div class="list-project-main"><span class="status-dot"></span><div><h4>${control.pinned?'★ ':''}${esc(p.name)}</h4><small>${esc(p.universe||"PROJECT")}${control.group?` · ${esc(control.group)}`:''}</small></div></div><span class="status-tag">${esc(boardLabel(d.status))}${d.manualStatusOverride?' · M':''}</span><p>${esc(control.note || resume)}</p><div class="list-project-age"><b class="fresh-${esc(d.freshness)}">${esc(d.freshness)}</b><span>${e?`${esc(rel(e.timestamp))} ago`:"—"}</span></div><div class="list-project-actions">${c.chat?`<a class="btn small gold" href="${esc(c.chat.url)}" target="_blank" data-stop>Continue</a>`:c.pr?`<a class="btn small" href="${esc(c.pr.url)}" target="_blank" data-stop>Open PR</a>`:""}<button class="btn small ghost" data-manage-project="${p.id}" data-stop>Gérer</button></div></article>`;
 }
 function activityRail(){
   const rows=latestEvidenceRows(7), discovered=state.discovered?.length||0;
@@ -709,12 +709,16 @@ async function saveManagedProject(form){
     archived:data.get('archived')==='on'
   };
   const creating=id==='__new__';
+  const previous=!creating&&projectById(id)
+    ? captureProjectPatch(projectById(id),['name','universe','group','statusOverride','repo','tags','description','note','pinned','archived'])
+    : null;
   const out=await api(creating?'/api/projects/create':'/api/projects/update',{method:'POST',body:JSON.stringify(creating?payload:{...payload,projectId:id})});
   state=out.state;
   manageProjectId=out.project.id;
   if(projectArchived(out.project) && modalProject===out.project.id) modalProject=null;
   render();
-  toast(creating?'Projet créé':'Projet mis à jour');
+  if(!creating&&previous)setUndo('Projet mis à jour',async()=>undoProjectUpdates([previous]));
+  else toast('Projet créé');
 }
 
 function radarView(s){
@@ -998,6 +1002,11 @@ function bindControlDragDrop(){
             const targetIndex=Math.max(0,ids.indexOf(targetId));
             ids.splice(targetIndex,0,payload.id);
             await reorderManagedProject(payload.id,ids,{group},`${project?.name||'Projet'} repositionné · ${displayGroup}`);
+          }else if(zone.closest('.project-list-v3')){
+            const ids=visibleProjects().filter(item=>item.id!==payload.id).map(item=>item.id);
+            const targetIndex=Math.max(0,ids.indexOf(targetId));
+            ids.splice(targetIndex,0,payload.id);
+            await reorderManagedProject(payload.id,ids,{},`${project?.name||'Projet'} repositionné`);
           }
         }else if(zone.matches('[data-drop-status]')){
           const status=zone.dataset.dropStatus;
