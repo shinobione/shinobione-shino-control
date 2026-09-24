@@ -296,7 +296,7 @@ function normalizedManagedControl(existing = {}, payload = {}, now = new Date().
   const groupInput = Object.prototype.hasOwnProperty.call(payload, 'group') ? payload.group : existing.group;
   const rawStatus = cleanProjectText(statusInput ?? '', 32).toUpperCase();
   const orderInput = Object.prototype.hasOwnProperty.call(payload, 'order') ? payload.order : existing.order;
-  const numericOrder = Number(orderInput);
+  const numericOrder = orderInput === null || orderInput === '' || orderInput === undefined ? Number.NaN : Number(orderInput);
   const archived = payload.archived === undefined ? existing.archived === true : payload.archived === true;
   const wasArchived = existing.archived === true;
   return {
