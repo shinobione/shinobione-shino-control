@@ -808,37 +808,34 @@ const server = http.createServer(async (req, res) => {
         writeState(state);
         return json(res, 200, {ok:true, ...result, state});
       }
+
+      res.once('finish', scrubStateFile);
+
+      if (req.method === 'POST' && url.pathname === '/api/remap') {
+        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+        const payload = await readBody(req);
+        const state = readState();
+        const mapped = assignDiscoveredManaged(state, payload);
+        if (!mapped) return json(res, 404, {error:'Source/project not found'});
+        writeState(state);
+        return json(res, 200, {ok:true, sourceId:mapped.source.id, projectId:mapped.project.id});
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/discovered/ignore') {
+        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+        const payload = await readBody(req);
+        const state = readState();
+        state.discovered = state.discovered.filter(item => item.id !== payload.id);
+        deriveAll(state);
+        writeState(state);
+        return json(res, 200, {ok:true});
+      }
+
+      if (url.pathname.startsWith('/api/')) return json(res, 404, {error:'Unknown CONTROL API route'});
+      return serveStatic(url, res);
     } catch (error) {
       return json(res, 500, {error:String(error?.message || error)});
     }
-
-    res.once('finish', scrubStateFile);
-
-    if (req.method === 'POST' && url.pathname === '/api/remap') {
-      if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
-      const payload = await readBody(req);
-      const state = readState();
-      const mapped = assignDiscoveredManaged(state, payload);
-      if (!mapped) return json(res, 404, {error:'Source/project not found'});
-      writeState(state);
-      return json(res, 200, {ok:true, sourceId:mapped.source.id, projectId:mapped.project.id});
-    }
-
-    if (req.method === 'POST' && url.pathname === '/api/discovered/ignore') {
-      if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
-      const payload = await readBody(req);
-      const state = readState();
-      state.discovered = state.discovered.filter(item => item.id !== payload.id);
-      deriveAll(state);
-      writeState(state);
-      return json(res, 200, {ok:true});
-    }
-
-    if (url.pathname.startsWith('/api/')) return json(res, 404, {error:'Unknown CONTROL API route'});
-    return serveStatic(url, res);
-  } catch (error) {
-    return json(res, 500, {error:String(error?.message || error)});
-  }
 });
 
 server.listen(PORT, '127.0.0.1', () => {
