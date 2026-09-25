@@ -46,3 +46,22 @@ jobs:
               throw "PowerShell parse failed: $file"
             }
           }
+      - name: Verify Collector ID persistence
+        shell: powershell
+        run: |
+          $testId = 'abcdefghijklmnopabcdefghijklmnop'
+          & .\scripts\windows\install-startup.ps1 -NoStart -NoTray -ExtensionId $testId
+
+          $configPath = Join-Path $env:LOCALAPPDATA 'SHINO-Control\startup.json'
+          $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+          if ([string]$config.extensionId -ne $testId) {
+            throw "Collector ID was not persisted. Got '$($config.extensionId)'."
+          }
+
+          & .\scripts\windows\install-startup.ps1 -NoStart -NoTray
+          $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+          if ([string]$config.extensionId -ne $testId) {
+            throw "Collector ID was not preserved on reinstall. Got '$($config.extensionId)'."
+          }
+
+          & .\scripts\windows\uninstall-startup.ps1

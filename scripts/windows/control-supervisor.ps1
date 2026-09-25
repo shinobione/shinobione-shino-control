@@ -28,6 +28,19 @@ $config = Read-ControlConfig
 $repoRoot = [string]$config.repoRoot
 $nodePath = [string]$config.nodePath
 $port = if ($config.port) { [int]$config.port } else { 4177 }
+$configuredExtensionId = if ($config.extensionId) { [string]$config.extensionId } else { '' }
+$extensionId = if (-not [string]::IsNullOrWhiteSpace($configuredExtensionId)) {
+  $configuredExtensionId.Trim().ToLowerInvariant()
+}
+else {
+  ([string]$env:SHINO_CONTROL_EXTENSION_ID).Trim().ToLowerInvariant()
+}
+if (-not [string]::IsNullOrWhiteSpace($extensionId)) {
+  if ($extensionId -notmatch '^[a-p]{32}$') {
+    throw "Invalid Collector extension ID in startup configuration: $extensionId"
+  }
+  $env:SHINO_CONTROL_EXTENSION_ID = $extensionId
+}
 $healthUrl = "http://127.0.0.1:$port/api/state"
 
 function Test-ControlHealth {
@@ -49,7 +62,7 @@ if (-not $mutex.WaitOne(0, $false)) {
 
 try {
   Set-Content -LiteralPath $pidFile -Value $PID -Encoding ASCII
-  Write-ControlLog "Supervisor started. Repo=$repoRoot Port=$port"
+  Write-ControlLog "Supervisor started. Repo=$repoRoot Port=$port Collector=$(if ($extensionId) { $extensionId } else { 'NOT_CONFIGURED' })"
 
   $lastWaitLog = [datetime]::MinValue
 

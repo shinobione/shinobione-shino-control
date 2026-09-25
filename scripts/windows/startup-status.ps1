@@ -34,6 +34,20 @@ $trayRunning = $null -ne $trayProcess
 $trayPid = if ($trayRunning) { $trayProcess.Id } else { $null }
 
 $port = if ($config -and $config.port) { [int]$config.port } else { 4177 }
+$configuredExtensionId = if ($config -and $config.extensionId) { [string]$config.extensionId } else { '' }
+$userExtensionId = [string][Environment]::GetEnvironmentVariable('SHINO_CONTROL_EXTENSION_ID', 'User')
+if ($configuredExtensionId -match '^[a-p]{32}$') {
+  $collectorStatus = "CONFIGURED ($configuredExtensionId)"
+  $collectorColor = 'Green'
+}
+elseif ($userExtensionId -match '^[a-p]{32}$') {
+  $collectorStatus = "LEGACY ENV ONLY ($userExtensionId) - rerun startup:install to persist"
+  $collectorColor = 'Yellow'
+}
+else {
+  $collectorStatus = 'NOT CONFIGURED'
+  $collectorColor = 'Yellow'
+}
 $healthUrl = "http://127.0.0.1:$port/api/state"
 $coreHealthy = $false
 try {
@@ -55,6 +69,7 @@ Write-Host ('Autostart  : ' + $(if ($coreInstalled) { 'INSTALLED' } else { 'NOT 
 Write-Host ('Supervisor : ' + $(if ($supervisorRunning) { "RUNNING (PID $supervisorPid)" } else { 'NOT RUNNING' })) -ForegroundColor $(if ($supervisorRunning) { 'Green' } else { 'Yellow' })
 Write-Host ('Core       : ' + $(if ($coreHealthy) { "HEALTHY (PID $corePid)" } else { 'DOWN / WAITING' })) -ForegroundColor $(if ($coreHealthy) { 'Green' } else { 'Yellow' })
 Write-Host ('Tray       : ' + $(if ($trayRunning) { "RUNNING (PID $trayPid)" } elseif ($trayInstalled) { 'INSTALLED / NOT RUNNING' } else { 'DISABLED' })) -ForegroundColor $(if ($trayRunning) { 'Green' } elseif ($trayInstalled) { 'Yellow' } else { 'DarkGray' })
+Write-Host "Collector  : $collectorStatus" -ForegroundColor $collectorColor
 Write-Host "URL        : $healthUrl"
 
 if ($config) {

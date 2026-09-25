@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
   [int]$Port = 4177,
+  [ValidatePattern('^[a-p]{32}$')]
+  [string]$ExtensionId = '',
   [switch]$NoStart,
   [switch]$NoTray
 )
@@ -26,6 +28,38 @@ $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $coreRunName = 'SHINO_CONTROL_Core'
 $trayRunName = 'SHINO_CONTROL_Tray'
 
+$existingConfig = $null
+if (Test-Path -LiteralPath $configPath) {
+  try {
+    $existingConfig = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+  }
+  catch {
+    throw "Existing startup config is unreadable: $configPath"
+  }
+}
+
+$previousExtensionId = if ($existingConfig -and $existingConfig.extensionId) {
+  [string]$existingConfig.extensionId
+}
+else {
+  ''
+}
+$inheritedExtensionId = [string]$env:SHINO_CONTROL_EXTENSION_ID
+$userExtensionId = [string][Environment]::GetEnvironmentVariable('SHINO_CONTROL_EXTENSION_ID', 'User')
+$resolvedExtensionId = ''
+
+foreach ($candidate in @($ExtensionId, $previousExtensionId, $inheritedExtensionId, $userExtensionId)) {
+  if ([string]::IsNullOrWhiteSpace([string]$candidate)) { continue }
+  $candidateText = ([string]$candidate).Trim().ToLowerInvariant()
+  if ($candidateText -notmatch '^[a-p]{32}$') {
+    throw "Invalid Chrome extension ID '$candidateText'. Expected 32 lowercase letters in the a-p range."
+  }
+  $resolvedExtensionId = $candidateText
+  break
+}
+
+$extensionIdChanged = $resolvedExtensionId -ne $previousExtensionId
+
 New-Item -ItemType Directory -Path $runtimeRoot -Force | Out-Null
 Copy-Item -LiteralPath $supervisorSource -Destination $supervisorTarget -Force
 
@@ -33,6 +67,7 @@ $config = [ordered]@{
   repoRoot = $repoRoot
   nodePath = $nodePath
   port = $Port
+  extensionId = $resolvedExtensionId
   trayEnabled = (-not $NoTray)
   installedAt = (Get-Date).ToString('o')
 }
@@ -87,11 +122,20 @@ Write-Host 'SHINO // CONTROL Windows autostart installed.' -ForegroundColor Gree
 Write-Host "Repo       : $repoRoot"
 Write-Host "Node       : $nodePath"
 Write-Host "Port       : $Port"
+Write-Host "Collector  : $(if ($resolvedExtensionId) { "CONFIGURED ($resolvedExtensionId)" } else { 'NOT CONFIGURED - use -ExtensionId <chrome-extension-id>' })" -ForegroundColor $(if ($resolvedExtensionId) { 'Green' } else { 'Yellow' })
 Write-Host "Supervisor : HIDDEN background process"
 Write-Host "Tray       : $(if ($NoTray) { 'DISABLED' } else { 'ENABLED - notification area icon' })" -ForegroundColor $(if ($NoTray) { 'Yellow' } else { 'Green' })
 Write-Host "Runtime    : $runtimeRoot"
 
 if (-not $NoStart) {
+  $healthUrl = "http://127.0.0.1:$Port/api/state"
+  $coreWasHealthy = $false
+  try {
+    $before = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 2
+    $coreWasHealthy = $before.StatusCode -eq 200
+  }
+  catch {}
+
   # Upgrade/reinstall in place: stop only the existing supervisor, never the Core.
   # The replacement supervisor immediately adopts an already-healthy Core.
   if (Test-Path -LiteralPath $pidFile) {
@@ -112,9 +156,30 @@ if (-not $NoStart) {
     Start-Process -FilePath $trayTarget
   }
 
-  $healthUrl = "http://127.0.0.1:$Port/api/state"
+  $coreRestartRequested = $false
+  if ($extensionIdChanged -and $coreWasHealthy) {
+    try {
+      $restart = Invoke-WebRequest `
+        -Uri "http://127.0.0.1:$Port/api/control/restart" `
+        -Method Post `
+        -ContentType 'application/json' `
+        -Body '{}' `
+        -UseBasicParsing `
+        -TimeoutSec 3
+      if ($restart.StatusCode -eq 200) {
+        $coreRestartRequested = $true
+        Write-Host 'Core       : restarting to apply Collector ID' -ForegroundColor Yellow
+        Start-Sleep -Milliseconds 750
+      }
+    }
+    catch {
+      Write-Host 'Collector  : config saved; automatic Core restart failed. Restart CONTROL Core once to apply it.' -ForegroundColor Yellow
+    }
+  }
+
   $healthy = $false
-  for ($i = 0; $i -lt 20; $i++) {
+  $healthAttempts = if ($coreRestartRequested) { 35 } else { 20 }
+  for ($i = 0; $i -lt $healthAttempts; $i++) {
     try {
       $response = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 2
       if ($response.StatusCode -eq 200) {
@@ -142,3 +207,4 @@ if (-not $NoTray) {
 Write-Host 'Status     : npm run startup:status'
 Write-Host 'Uninstall  : npm run startup:uninstall'
 Write-Host 'No tray    : npm run startup:install -- --NoTray'
+Write-Host 'Collector  : npm run startup:install -- -ExtensionId <chrome-extension-id>'
