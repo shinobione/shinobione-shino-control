@@ -18,7 +18,6 @@ jobs:
           node-version: '20'
       - name: Syntax checks
         run: |
-          node --check server.mjs
           node --check server-entry.mjs
           node --check lib/derive.mjs
           node --check lib/resume-engine.mjs
@@ -27,6 +26,7 @@ jobs:
           node --check lib/http-security.mjs
           node --check scripts-security-check.mjs
           node --check scripts-extension-security-check.mjs
+          node --check scripts-http-server-check.mjs
           node --check lib/public-snapshot.mjs
           node --check lib/github-incremental-sync.mjs
           node --check lib/chatgpt-delta-ingest.mjs
@@ -187,7 +187,10 @@ jobs:
           test -s lib/state-store.mjs
           grep -q 'state.local.json' .gitignore
           grep -q 'runtimeStatePath' server-entry.mjs
-          grep -q 'runtimeStatePath' server.mjs
+          test ! -e server.mjs
+          grep -q 'const server = http.createServer' server-entry.mjs
+          ! grep -q 'http.createServer = ' server-entry.mjs
+          ! grep -q "import('./server.mjs')" server-entry.mjs
           test -s public/ui-v10.css
           grep -q 'PREMIUM FEEL PASS' public/ui-v10.css
           test -s public/ui-v3.css
@@ -249,10 +252,6 @@ jobs:
           test ! -e scripts/generate-brand-assets.mjs
           if grep -q '/api/ingest/chatgpt-inventory' server-entry.mjs; then
             echo 'Retired ChatGPT inventory endpoint still present'
-            exit 1
-          fi
-          if grep -Eqi 'shino-sync|SHINO_SYNC_TOKEN|/api/ingest/chatgpt([^a-zA-Z-]|$)|async function syncGithub|resolveProjectDetailed' server.mjs; then
-            echo 'Legacy SHINO Sync / duplicate ingest architecture still present in server.mjs'
             exit 1
           fi
       - name: Derived-state regression checks
