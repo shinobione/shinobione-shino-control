@@ -19,7 +19,7 @@ assert.match(background,/CATCHUP_RUNNING_STALE_MS = 20 \* 60 \* 1000/);
 assert.match(background,/CATCHUP_RETRY_INTERVAL_MS = 10 \* 60 \* 1000/);
 assert.match(background,/CATCHUP_ALARM_NAME = 'shino-control-catchup-tick'/);
 assert.match(background,/CATCHUP_ALARM_PERIOD_MINUTES = 1/);
-assert.match(background,/CATCHUP_RECOVERY_FILES = \\['collector\\.js','catchup-api\\.js','catchup-client\\.js'\\]/);
+assert.match(background,/CATCHUP_RECOVERY_FILES = \['collector\.js','catchup-api\.js','catchup-client\.js'\]/);
 assert.match(background,/chrome\.scripting\.executeScript/);
 assert.match(background,/catchupSchedulerLastTickStatus:recovered \? 'recovered'/);
 assert.match(background,/catchupSchedulerLastClientVersion/);
