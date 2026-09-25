@@ -127,7 +127,7 @@ No npm install is required; CONTROL currently uses Node built-ins and browser AP
 
 CONTROL is a **loopback-only** application; a non-loopback deployment is not supported. All HTTP routes reject unexpected Host values and foreign browser origins. Local dashboard requests use same-origin access, and cross-origin CORS responses are disabled.
 
-For the unpacked Chrome Collector, identify its actual ID in `chrome://extensions`, then start CONTROL with `SHINO_CONTROL_EXTENSION_ID` set to that exact ID. Otherwise extension-originated requests are rejected. IDs can vary between machines or unpacked installations.
+For the unpacked Chrome Collector, identify its actual ID in `chrome://extensions`. Direct `npm start` launches must set `SHINO_CONTROL_EXTENSION_ID` to that exact ID; otherwise extension-originated requests are rejected. IDs can vary between machines or unpacked installations. The Windows startup installer can persist this value in its local startup configuration instead of relying on a user environment variable.
 
 `SHINO_CONTROL_TOKEN` adds bearer-token checks to mutations **and `/api/state`**, but this mode is not yet integrated with the dashboard, Windows tray/supervisor, or Collector configuration workflow. Leave it unset for the currently supported local installation; do not mistake loopback binding for protection against untrusted local processes. Cross-origin sites are additionally rejected by Host, Origin, and browser request-metadata checks.
 
@@ -137,9 +137,15 @@ State updates write an fsynced temporary file and atomically rename it into plac
 
 On Windows, CONTROL can install a per-user hidden supervisor. It requires no administrator rights.
 
+For a machine that uses the Chrome Collector, pass its extension ID on the first install:
+
 ```powershell
-npm run startup:install
+npm run startup:install -- -ExtensionId <chrome-extension-id>
 ```
+
+The ID is stored in `%LOCALAPPDATA%\\SHINO-Control\\startup.json` and is preserved by later `npm run startup:install` runs, so it only needs to be supplied again if Chrome assigns a different ID. If the ID changes while Core is already running, the installer requests one controlled Core restart so the new origin allowlist takes effect.
+
+If no Collector is used, the installer can still be run without `-ExtensionId`.
 
 The installer:
 
@@ -156,6 +162,8 @@ Check it at any time:
 ```powershell
 npm run startup:status
 ```
+
+The status output reports whether the Collector ID is persisted, missing, or only available through the legacy user environment variable.
 
 Remove autostart:
 
