@@ -39,7 +39,7 @@ Recent hardening completed:
 
 ## Next priorities
 
-### P0 — Serialized state mutations (planned #73)
+### P0 — Serialized state mutations
 
 Prevent lost updates when two requests mutate `state.local.json` at nearly the same time.
 
