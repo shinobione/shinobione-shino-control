@@ -20,7 +20,7 @@ ChatGPT capture is handled by the tiny browser sensor in:
 extension/control-collector
 ```
 
-The Collector has no popup, project inventory, backfill crawler or business logic. It watches the active ChatGPT conversation, waits for the DOM to settle, fingerprints the rendered conversation tail and sends a delta to CONTROL.
+The Collector has no popup, project inventory, backfill crawler or business logic. It watches the active ChatGPT conversation, waits for the DOM to settle, fingerprints the rendered conversation tail and sends a delta to CONTROL. Targeted ChatGPT API catch-up runs entirely in the extension's isolated content-script world; CONTROL does not inject a MAIN-world script and does not bridge conversation data through `window.postMessage`.
 
 Local ingest endpoint:
 
@@ -179,7 +179,7 @@ Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and
 extension/control-collector
 ```
 
-The extension intentionally exposes no popup. Status is kept internally in `chrome.storage.local` and normal operation is automatic.
+The extension intentionally exposes no popup. Status is kept internally in `chrome.storage.local` and normal operation is automatic. Collector v0.2.9 loads `collector.js`, `catchup-api.js` and `catchup-client.js` in Chrome's isolated extension world; the previous MAIN-world `catchup-main.js` bridge was removed.
 
 ## GitHub Pages
 

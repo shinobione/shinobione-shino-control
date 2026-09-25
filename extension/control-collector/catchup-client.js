@@ -2,21 +2,24 @@
   if (globalThis.__SHINO_CONTROL_CATCHUP_CLIENT_V1__) return;
   globalThis.__SHINO_CONTROL_CATCHUP_CLIENT_V1__ = true;
 
-  const CHANNEL = 'SHINO_CONTROL_CATCHUP_V1';
   const ACTIVE_REQUEST_STALE_MS = 20 * 60 * 1000;
   const CLIENT_RUNNING_STALE_MS = 20 * 60 * 1000;
   const CLIENT_PARTIAL_COOLDOWN_MS = 10 * 60 * 1000;
   const RATE_LIMIT_COOLDOWN_MS = 15 * 60 * 1000;
   const EXECUTION_PLAN_LIMIT = 8;
-  const CLIENT_VERSION = '0.2.8';
+  const CLIENT_VERSION = '0.2.9';
   let activeRequest = null;
-
-  function requestId(prefix) {
-    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
-  }
 
   async function askBackground(type, payload = {}) {
     return chrome.runtime.sendMessage({type, ...payload});
+  }
+
+  function chatgptApi() {
+    const api = globalThis.__SHINO_CONTROL_CHATGPT_API_V1__;
+    if (!api || typeof api.inventory !== 'function' || typeof api.fetchChanged !== 'function') {
+      throw new Error('CONTROL_ISOLATED_CHATGPT_API_UNAVAILABLE');
+    }
+    return api;
   }
 
   async function clientCooldownAllowsAttempt() {
@@ -54,35 +57,39 @@
     }).catch(()=>{});
   }
 
+  async function fail(stage, error) {
+    const text = String(error?.message || error || 'catch-up failed');
+    await askBackground('CONTROL_CATCHUP_FAILED',{stage,error:text}).catch(()=>{});
+    activeRequest = null;
+  }
+
   async function startCatchup() {
     await clearStaleActiveRequest();
     if (activeRequest) return;
     if (!await clientCooldownAllowsAttempt()) return;
+
     const gate = await askBackground('CONTROL_CATCHUP_SHOULD_RUN').catch(() => null);
     if (!gate?.ok || !gate.run) return;
-    const id = requestId('inventory');
-    activeRequest = {stage:'inventory',id,startedAt:Date.now()};
-    window.postMessage({channel:CHANNEL,type:'CONTROL_CATCHUP_INVENTORY_REQUEST',requestId:id}, '*');
-  }
 
-  window.addEventListener('message', async event => {
-    if (event.source !== window || event.data?.channel !== CHANNEL || !activeRequest) return;
-    if (event.data.requestId !== activeRequest.id) return;
+    const startedAt = Date.now();
+    try {
+      const api = chatgptApi();
 
-    if (event.data.type === 'CONTROL_CATCHUP_INVENTORY_RESULT' && activeRequest.stage === 'inventory') {
-      if (!event.data.ok) {
-        await askBackground('CONTROL_CATCHUP_FAILED',{stage:'inventory',error:event.data.error || 'inventory failed'}).catch(()=>{});
-        activeRequest = null;
-        return;
-      }
-      const planned = await askBackground('CONTROL_CATCHUP_PLAN',{inventory:event.data.result}).catch(error=>({ok:false,error:String(error)}));
-      if (!planned?.ok) {
-        await askBackground('CONTROL_CATCHUP_FAILED',{stage:'plan',error:planned?.error || 'planning failed'}).catch(()=>{});
-        activeRequest = null;
-        return;
-      }
+      activeRequest = {stage:'inventory',startedAt};
+      const inventory = await api.inventory();
+
+      activeRequest = {stage:'plan',startedAt};
+      const planned = await askBackground('CONTROL_CATCHUP_PLAN',{inventory})
+        .catch(error=>({ok:false,error:String(error?.message || error)}));
+      if (!planned?.ok) throw new Error(planned?.error || 'planning failed');
+
       if (!planned.plan?.length) {
-        await askBackground('CONTROL_CATCHUP_COMPLETE',{plan:planned,ingested:{attempted:0,changed:0,skipped:0,failed:0}}).catch(()=>{});
+        activeRequest = {stage:'complete',startedAt,plan:planned};
+        const completed = await askBackground('CONTROL_CATCHUP_COMPLETE',{
+          plan:planned,
+          ingested:{attempted:0,changed:0,skipped:0,failed:0}
+        }).catch(error=>({ok:false,error:String(error?.message || error)}));
+        if (!completed?.ok) throw new Error(completed?.error || 'completion failed');
         activeRequest = null;
         return;
       }
@@ -94,43 +101,38 @@
         plan,
         deferredCount:Number(planned.deferredCount || 0) + Math.max(0, fullPlan.length - plan.length)
       };
-      const id = requestId('fetch');
-      activeRequest = {stage:'fetch',id,plan:executionPlan,startedAt:Date.now()};
-      window.postMessage({channel:CHANNEL,type:'CONTROL_CATCHUP_FETCH_REQUEST',requestId:id,plan}, '*');
-      return;
-    }
 
-    if (event.data.type === 'CONTROL_CATCHUP_FETCH_RESULT' && activeRequest.stage === 'fetch') {
-      if (!event.data.ok) {
-        await askBackground('CONTROL_CATCHUP_FAILED',{stage:'fetch',error:event.data.error || 'targeted fetch failed'}).catch(()=>{});
-        activeRequest = null;
-        return;
-      }
-
-      const fetchResult = event.data.result || {};
-      const unprocessedCount = Math.max(0, Number(fetchResult.unprocessedCount || 0));
+      activeRequest = {stage:'fetch',startedAt,plan:executionPlan};
+      const fetchResult = await api.fetchChanged(plan);
+      const unprocessedCount = Math.max(0, Number(fetchResult?.unprocessedCount || 0));
       if (unprocessedCount) {
         activeRequest.plan = {
           ...activeRequest.plan,
           deferredCount:Number(activeRequest.plan?.deferredCount || 0) + unprocessedCount
         };
       }
-      if (fetchResult.rateLimited) {
+      if (fetchResult?.rateLimited) {
         await chrome.storage.local.set({catchupRateLimitedUntil:Date.now() + RATE_LIMIT_COOLDOWN_MS}).catch(()=>{});
       }
 
+      activeRequest.stage = 'ingest';
       const ingested = await askBackground('CONTROL_CATCHUP_INGEST',{
-        payloads:fetchResult.payloads || [],
-        failures:fetchResult.failures || []
-      }).catch(error=>({ok:false,error:String(error)}));
-      if (!ingested?.ok) {
-        await askBackground('CONTROL_CATCHUP_FAILED',{stage:'ingest',error:ingested?.error || 'ingest failed'}).catch(()=>{});
-      } else {
-        await askBackground('CONTROL_CATCHUP_COMPLETE',{plan:activeRequest.plan,ingested}).catch(()=>{});
-      }
+        payloads:fetchResult?.payloads || [],
+        failures:fetchResult?.failures || []
+      }).catch(error=>({ok:false,error:String(error?.message || error)}));
+      if (!ingested?.ok) throw new Error(ingested?.error || 'ingest failed');
+
+      activeRequest.stage = 'complete';
+      const completed = await askBackground('CONTROL_CATCHUP_COMPLETE',{
+        plan:activeRequest.plan,
+        ingested
+      }).catch(error=>({ok:false,error:String(error?.message || error)}));
+      if (!completed?.ok) throw new Error(completed?.error || 'completion failed');
       activeRequest = null;
+    } catch (error) {
+      await fail(activeRequest?.stage || 'api', error);
     }
-  });
+  }
 
   const attempt = () => startCatchup().catch(()=>{});
   const boot = () => setTimeout(attempt, 5000);

@@ -8,7 +8,7 @@ const CATCHUP_RETRY_INTERVAL_MS = 10 * 60 * 1000;
 const CATCHUP_RUNNING_STALE_MS = 20 * 60 * 1000;
 const CATCHUP_ALARM_NAME = 'shino-control-catchup-tick';
 const CATCHUP_ALARM_PERIOD_MINUTES = 1;
-const CATCHUP_RECOVERY_FILES = ['collector.js','catchup-client.js'];
+const CATCHUP_RECOVERY_FILES = ['collector.js','catchup-api.js','catchup-client.js'];
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 

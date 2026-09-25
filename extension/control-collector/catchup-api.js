@@ -1,4 +1,6 @@
 (() => {
+  if (globalThis.__SHINO_CONTROL_CHATGPT_API_V1__) return;
+
   const ORIGIN = location.origin;
   const CHANNEL = 'SHINO_CONTROL_CATCHUP_V1';
   const DEFAULT_FETCH_TIMEOUT_MS = 30000;
@@ -215,7 +217,7 @@
           conversationUpdatedAt:item.updatedAt || conversation?.update_time || conversation?.updated_at || new Date().toISOString(),
           conversationCreatedAt:item.createdAt || conversation?.create_time || conversation?.created_at || null,
           clientTimestamp:new Date().toISOString(),
-          collectorVersion:'0.2.6',
+          collectorVersion:'0.2.9',
           catchupReason:item.reason || 'targeted-catchup'
         }};
       } catch (error) {
@@ -259,24 +261,8 @@
     return {payloads,failures,rateLimited,unprocessedCount};
   }
 
-  window.addEventListener('message', async event => {
-    if (event.source !== window || event.data?.channel !== CHANNEL) return;
-    const {type,requestId} = event.data;
-    if (type === 'CONTROL_CATCHUP_INVENTORY_REQUEST') {
-      try {
-        const result = await inventory();
-        window.postMessage({channel:CHANNEL,type:'CONTROL_CATCHUP_INVENTORY_RESULT',requestId,ok:true,result}, '*');
-      } catch (error) {
-        window.postMessage({channel:CHANNEL,type:'CONTROL_CATCHUP_INVENTORY_RESULT',requestId,ok:false,error:String(error?.message || error)}, '*');
-      }
-    }
-    if (type === 'CONTROL_CATCHUP_FETCH_REQUEST') {
-      try {
-        const result = await fetchChanged(Array.isArray(event.data.plan) ? event.data.plan : []);
-        window.postMessage({channel:CHANNEL,type:'CONTROL_CATCHUP_FETCH_RESULT',requestId,ok:true,result}, '*');
-      } catch (error) {
-        window.postMessage({channel:CHANNEL,type:'CONTROL_CATCHUP_FETCH_RESULT',requestId,ok:false,error:String(error?.message || error)}, '*');
-      }
-    }
+  globalThis.__SHINO_CONTROL_CHATGPT_API_V1__ = Object.freeze({
+    inventory,
+    fetchChanged
   });
 })();

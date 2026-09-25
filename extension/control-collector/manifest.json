@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SHINO // CONTROL Collector",
-  "version": "0.2.8",
-  "description": "ChatGPT delta sensor + targeted metadata catch-up for SHINO // CONTROL. No DOM crawler or conversation backfill.",
+  "version": "0.2.9",
+  "description": "ChatGPT delta sensor + targeted metadata catch-up for SHINO // CONTROL. ChatGPT API access stays in the extension isolated world.",
   "permissions": [
     "storage",
     "alarms",
@@ -25,18 +25,8 @@
         "https://chat.openai.com/*"
       ],
       "js": [
-        "catchup-main.js"
-      ],
-      "run_at": "document_idle",
-      "world": "MAIN"
-    },
-    {
-      "matches": [
-        "https://chatgpt.com/*",
-        "https://chat.openai.com/*"
-      ],
-      "js": [
         "collector.js",
+        "catchup-api.js",
         "catchup-client.js"
       ],
       "run_at": "document_idle"

@@ -26,6 +26,7 @@ jobs:
           node --check lib/state-store.mjs
           node --check lib/http-security.mjs
           node --check scripts-security-check.mjs
+          node --check scripts-extension-security-check.mjs
           node --check lib/public-snapshot.mjs
           node --check lib/github-incremental-sync.mjs
           node --check lib/chatgpt-delta-ingest.mjs
@@ -74,7 +75,7 @@ jobs:
           node --check scripts/build-pages.mjs
           node --check extension/control-collector/background.js
           node --check extension/control-collector/collector.js
-          node --check extension/control-collector/catchup-main.js
+          node --check extension/control-collector/catchup-api.js
           node --check extension/control-collector/catchup-client.js
           node --check public/state-filter.js
           node --check public/site-bootstrap.js
@@ -112,25 +113,25 @@ jobs:
           grep -q '0.13.0' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
-          grep -q '"version": "0.2.8"' extension/control-collector/manifest.json
+          grep -q '"version": "0.2.9"' extension/control-collector/manifest.json
           grep -q '"alarms"' extension/control-collector/manifest.json
           grep -q '"scripting"' extension/control-collector/manifest.json
-          test -s extension/control-collector/catchup-main.js
+          test -s extension/control-collector/catchup-api.js
           test -s extension/control-collector/catchup-client.js
-          grep -q 'chatgpt-project-api-metadata-v1' extension/control-collector/catchup-main.js
-          grep -q '/backend-api/conversation/' extension/control-collector/catchup-main.js
-          grep -q 'DEFAULT_FETCH_TIMEOUT_MS = 30000' extension/control-collector/catchup-main.js
-          grep -q 'SLOW_FETCH_TIMEOUT_MS = 90000' extension/control-collector/catchup-main.js
-          grep -q 'DEEP_SLOW_FETCH_TIMEOUT_MS = 120000' extension/control-collector/catchup-main.js
-          grep -q 'conversationFetchTimeout' extension/control-collector/catchup-main.js
-          grep -q 'FETCH_CONCURRENCY = 1' extension/control-collector/catchup-main.js
-          grep -q 'FETCH_MAX_ATTEMPTS = 1' extension/control-collector/catchup-main.js
-          grep -q 'FETCH_INTER_ITEM_DELAY_MS = 1500' extension/control-collector/catchup-main.js
-          grep -q "RATE_LIMIT_FAILURE = {kind:'rate-limited'}" extension/control-collector/catchup-main.js
-          grep -q "kind:'inaccessible'" extension/control-collector/catchup-main.js
+          grep -q 'chatgpt-project-api-metadata-v1' extension/control-collector/catchup-api.js
+          grep -q '/backend-api/conversation/' extension/control-collector/catchup-api.js
+          grep -q 'DEFAULT_FETCH_TIMEOUT_MS = 30000' extension/control-collector/catchup-api.js
+          grep -q 'SLOW_FETCH_TIMEOUT_MS = 90000' extension/control-collector/catchup-api.js
+          grep -q 'DEEP_SLOW_FETCH_TIMEOUT_MS = 120000' extension/control-collector/catchup-api.js
+          grep -q 'conversationFetchTimeout' extension/control-collector/catchup-api.js
+          grep -q 'FETCH_CONCURRENCY = 1' extension/control-collector/catchup-api.js
+          grep -q 'FETCH_MAX_ATTEMPTS = 1' extension/control-collector/catchup-api.js
+          grep -q 'FETCH_INTER_ITEM_DELAY_MS = 1500' extension/control-collector/catchup-api.js
+          grep -q "RATE_LIMIT_FAILURE = {kind:'rate-limited'}" extension/control-collector/catchup-api.js
+          grep -q "kind:'inaccessible'" extension/control-collector/catchup-api.js
           grep -q '__SHINO_CONTROL_COLLECTOR_V1__' extension/control-collector/collector.js
           grep -q '__SHINO_CONTROL_CATCHUP_CLIENT_V1__' extension/control-collector/catchup-client.js
-          grep -q "CLIENT_VERSION = '0.2.8'" extension/control-collector/catchup-client.js
+          grep -q "CLIENT_VERSION = '0.2.9'" extension/control-collector/catchup-client.js
           grep -q 'ACTIVE_REQUEST_STALE_MS = 20 \* 60 \* 1000' extension/control-collector/catchup-client.js
           grep -q 'CLIENT_RUNNING_STALE_MS = 20 \* 60 \* 1000' extension/control-collector/catchup-client.js
           grep -q 'CLIENT_PARTIAL_COOLDOWN_MS = 10 \* 60 \* 1000' extension/control-collector/catchup-client.js
@@ -141,13 +142,17 @@ jobs:
           grep -q 'CATCHUP_RETRY_INTERVAL_MS = 10 \* 60 \* 1000' extension/control-collector/background.js
           grep -q 'CATCHUP_RUNNING_STALE_MS = 20 \* 60 \* 1000' extension/control-collector/background.js
           grep -q "CATCHUP_ALARM_NAME = 'shino-control-catchup-tick'" extension/control-collector/background.js
-          grep -q "CATCHUP_RECOVERY_FILES = \['collector.js','catchup-client.js'\]" extension/control-collector/background.js
+          grep -q "CATCHUP_RECOVERY_FILES = \['collector.js','catchup-api.js','catchup-client.js'\]" extension/control-collector/background.js
           grep -q 'chrome.scripting.executeScript' extension/control-collector/background.js
           grep -q 'catchupRunOwnerTabId' extension/control-collector/background.js
           grep -q 'CATCHUP_RUN_OWNED_BY_TAB_' extension/control-collector/background.js
           grep -q 'chrome.alarms.onAlarm' extension/control-collector/background.js
           grep -q 'catchupSchedulerLastClientVersion' extension/control-collector/background.js
           grep -q 'CONTROL_CATCHUP_PLAN' extension/control-collector/background.js
+          grep -q '__SHINO_CONTROL_CHATGPT_API_V1__' extension/control-collector/catchup-api.js
+          ! grep -q '"world": "MAIN"' extension/control-collector/manifest.json
+          ! grep -R -q 'window\.postMessage' extension/control-collector
+          test ! -e extension/control-collector/catchup-main.js
           grep -q '/api/chatgpt/catchup-plan' server-entry.mjs
           grep -q '/api/chatgpt/catchup-report' server-entry.mjs
           grep -q '/api/control/restart' server-entry.mjs
