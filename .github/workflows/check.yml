@@ -142,7 +142,7 @@ jobs:
           grep -q 'CATCHUP_RETRY_INTERVAL_MS = 10 \* 60 \* 1000' extension/control-collector/background.js
           grep -q 'CATCHUP_RUNNING_STALE_MS = 20 \* 60 \* 1000' extension/control-collector/background.js
           grep -q "CATCHUP_ALARM_NAME = 'shino-control-catchup-tick'" extension/control-collector/background.js
-          grep -q "CATCHUP_RECOVERY_FILES = \['collector.js','catchup-client.js'\]" extension/control-collector/background.js
+          grep -q "CATCHUP_RECOVERY_FILES = \['collector.js','catchup-api.js','catchup-client.js'\]" extension/control-collector/background.js
           grep -q 'chrome.scripting.executeScript' extension/control-collector/background.js
           grep -q 'catchupRunOwnerTabId' extension/control-collector/background.js
           grep -q 'CATCHUP_RUN_OWNED_BY_TAB_' extension/control-collector/background.js
