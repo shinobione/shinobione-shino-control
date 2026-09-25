@@ -44,23 +44,7 @@ jobs:
           node --check scripts-chatgpt-tail-state-check.mjs
           node --check scripts-focus-now-check.mjs
           node --check scripts-sync-health-check.mjs
-          node --check scripts-ui-v3-check.mjs
-          node --check scripts-ui-v4-check.mjs
-          node --check scripts-ui-v5-check.mjs
-          node --check scripts-ui-v6-check.mjs
-          node --check scripts-ui-v61-check.mjs
-          node --check scripts-ui-v62-check.mjs
-          node --check scripts-ui-v7-check.mjs
-          node --check scripts-ui-v8-check.mjs
-          node --check scripts-ui-v81-check.mjs
-          node --check scripts-ui-v82-check.mjs
-          node --check scripts-ui-v83-check.mjs
-          node --check scripts-ui-v84-check.mjs
-          node --check scripts-ui-v9-check.mjs
           node --check scripts-ui-v10-check.mjs
-          node --check scripts-ui-v11-check.mjs
-          node --check scripts-ui-v12-check.mjs
-          node --check scripts-ui-v13-check.mjs
           node --check scripts-ui-premium-check.mjs
           node --check scripts-project-management-check.mjs
           node --check scripts-source-manager-check.mjs
@@ -200,32 +184,18 @@ jobs:
           test -s public/sync-health.js
           test -s public/sync-health.css
           test -s public/radar-copy-cleaner.js
-          test -s public/ui-v2.css
           test -s lib/state-store.mjs
           grep -q 'state.local.json' .gitignore
           grep -q 'runtimeStatePath' server-entry.mjs
           grep -q 'runtimeStatePath' server.mjs
-          grep -q 'CONTROL UI v2' public/ui-v2.css
-          test -s public/ui-v6.css
-          grep -q 'CONTROL UI v6' public/ui-v6.css
-          grep -q 'screenshot-calibrated proportions' public/ui-v6.css
-          grep -q 'restore missing structural hero rules' public/ui-v6.css
-          test -s public/ui-v8.css
-          grep -q 'CONTROL UI v8' public/ui-v8.css
-          grep -q 'readability rescue' public/ui-v8.css
-          grep -q 'readability-first override' public/ui-v8.css
-          grep -q 'ultrawide calibration' public/ui-v8.css
-          grep -q 'art/detail pass' public/ui-v8.css
-          test -s public/ui-v9.css
-          grep -q 'reference fidelity pass' public/ui-v9.css
           test -s public/ui-v10.css
           grep -q 'PREMIUM FEEL PASS' public/ui-v10.css
-          test -s public/ui-v11.css
-          grep -q 'MASTER ASSET SYSTEM' public/ui-v11.css
-          test -s public/ui-v12.css
-          grep -q 'ASSET REVEAL' public/ui-v12.css
-          test -s public/ui-v13.css
-          grep -q 'VISUAL COHERENCE' public/ui-v13.css
+          test -s public/ui-v3.css
+          grep -q 'CONTROL UI v3' public/ui-v3.css
+          for retired in ui-v2.css ui-v4.css ui-v5.css ui-v6.css ui-v8.css ui-v9.css ui-v11.css ui-v12.css ui-v13.css; do
+            test ! -e "public/$retired"
+            ! grep -q "$retired" public/index.html
+          done
           test -s public/ui-premium.css
           grep -q 'Premium Presentation Layer v1' public/ui-premium.css
           test -s public/project-manager.css
@@ -251,27 +221,20 @@ jobs:
           grep -q 'function projectManagerModal' public/app.js
           grep -q 'function groupedProjectsPanel' public/app.js
           grep -q 'ui-premium.css' public/index.html
-          ! grep -q 'ui-v13.css' public/index.html
-          ! grep -q 'ui-v12.css' public/index.html
-          ! grep -q 'ui-v11.css' public/index.html
           test -s public/assets/ui/backgrounds/dashboard-hero-master.avif
           test -s public/assets/ui/backgrounds/project-hero-master.avif
           test -s public/assets/ui/brand/brand-emblem.avif
           grep -q 'PROJECT_VISUAL_FAMILIES' public/app.js
           grep -q 'projectVisualProfile' public/app.js
           grep -q 'ui-v10.css' public/index.html
-          ! grep -q 'ui-v9.css' public/index.html
           test -s public/assets/dashboard-premium.webp
           test -s public/assets/project-premium.webp
-          ! grep -q 'ui-v8.css' public/index.html
           test -s public/assets/control-hero-v9.svg
           test -s public/assets/project-hero-v9.svg
           test -s public/assets/control-mountains.svg
           test -s public/assets/project-workflow-art.svg
-          ! grep -q 'ui-v6.css' public/index.html
           grep -q 'function projectPage' public/app.js
           grep -q 'premiumProjectBoard' public/app.js
-          ! grep -q 'ui-v5.css' public/index.html
           grep -q 'view-${view}' public/app.js
           grep -q 'FOCUS NOW' public/focus-now.js
           grep -q 'CHATGPT SYNC HEALTH' public/sync-health.js
@@ -307,15 +270,7 @@ jobs:
           test -s dist/sync-health.css
           test -s dist/radar-copy-cleaner.js
           test -s dist/ui-v3.css
-          test -s dist/ui-v4.css
-          test -s dist/ui-v5.css
-          test -s dist/ui-v6.css
-          test -s dist/ui-v8.css
-          test -s dist/ui-v9.css
           test -s dist/ui-v10.css
-          test -s dist/ui-v11.css
-          test -s dist/ui-v12.css
-          test -s dist/ui-v13.css
           test -s dist/ui-premium.css
           test -s dist/project-manager.css
           test -s dist/source-manager.css
