@@ -12,7 +12,8 @@ import { authorized, guardRequest, json } from './lib/http-security.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA = runtimeStatePath();
-const originalCreateServer = http.createServer.bind(http);
+const PUBLIC = path.join(__dirname, 'public');
+const PORT = Number(process.env.PORT || 4177);
 const TIMEOUT_RETRY_DELAYS_MS = [30 * 60 * 1000, 2 * 60 * 60 * 1000, 6 * 60 * 60 * 1000, 24 * 60 * 60 * 1000];
 const COLLECTOR_COMPONENT = {
   id:'control-collector',
@@ -589,9 +590,37 @@ function assignDiscoveredManaged(state, payload = {}) {
   return {source, project};
 }
 
-http.createServer = function wrappedCreateServer(listener) {
-  return originalCreateServer(async (req, res) => {
-    try {
+function serveStatic(url, res) {
+  let pathname;
+  try { pathname = decodeURIComponent(url.pathname); }
+  catch { return json(res, 400, {error:'Invalid path'}); }
+
+  const relative = pathname === '/' ? '/index.html' : pathname;
+  const file = path.resolve(PUBLIC, `.${relative}`);
+  const publicPrefix = `${path.resolve(PUBLIC)}${path.sep}`;
+  if (!file.startsWith(publicPrefix) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+    res.writeHead(404, {'Content-Type':'text/plain; charset=utf-8', 'Cache-Control':'no-store'});
+    return res.end('Not found');
+  }
+
+  const types = {
+    '.html':'text/html; charset=utf-8',
+    '.css':'text/css; charset=utf-8',
+    '.js':'text/javascript; charset=utf-8',
+    '.json':'application/json; charset=utf-8',
+    '.svg':'image/svg+xml',
+    '.png':'image/png',
+    '.ico':'image/x-icon'
+  };
+  res.writeHead(200, {
+    'Content-Type':types[path.extname(file).toLowerCase()] || 'application/octet-stream',
+    'Cache-Control':'no-store'
+  });
+  fs.createReadStream(file).pipe(res);
+}
+
+const server = http.createServer(async (req, res) => {
+  try {
       if (!guardRequest(req, res)) return;
       if (req.method === 'OPTIONS') return json(res, 204, {});
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
@@ -784,8 +813,34 @@ http.createServer = function wrappedCreateServer(listener) {
     }
 
     res.once('finish', scrubStateFile);
-    return listener(req, res);
-  });
-};
 
-await import('./server.mjs');
+    if (req.method === 'POST' && url.pathname === '/api/remap') {
+      if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+      const payload = await readBody(req);
+      const state = readState();
+      const mapped = assignDiscoveredManaged(state, payload);
+      if (!mapped) return json(res, 404, {error:'Source/project not found'});
+      writeState(state);
+      return json(res, 200, {ok:true, sourceId:mapped.source.id, projectId:mapped.project.id});
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/discovered/ignore') {
+      if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+      const payload = await readBody(req);
+      const state = readState();
+      state.discovered = state.discovered.filter(item => item.id !== payload.id);
+      deriveAll(state);
+      writeState(state);
+      return json(res, 200, {ok:true});
+    }
+
+    if (url.pathname.startsWith('/api/')) return json(res, 404, {error:'Unknown CONTROL API route'});
+    return serveStatic(url, res);
+  } catch (error) {
+    return json(res, 500, {error:String(error?.message || error)});
+  }
+});
+
+server.listen(PORT, '127.0.0.1', () => {
+  console.log(`SHINO // CONTROL → http://127.0.0.1:${PORT}`);
+});
