@@ -143,7 +143,7 @@ For a machine that uses the Chrome Collector, pass its extension ID on the first
 npm run startup:install -- -ExtensionId <chrome-extension-id>
 ```
 
-The ID is stored in `%LOCALAPPDATA%\\SHINO-Control\\startup.json` and is preserved by later `npm run startup:install` runs, so it only needs to be supplied again if Chrome assigns a different ID. If the ID changes while Core is already running, the installer requests one controlled Core restart so the new origin allowlist takes effect.
+The ID is stored in `%LOCALAPPDATA%\SHINO-Control\startup.json` and is preserved by later `npm run startup:install` runs, so it only needs to be supplied again if Chrome assigns a different ID. If the ID changes while Core is already running, the installer requests one controlled Core restart so the new origin allowlist takes effect.
 
 If no Collector is used, the installer can still be run without `-ExtensionId`.
 
