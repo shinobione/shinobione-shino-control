@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { request as httpRequest } from 'node:http';
 
 assert.equal(fs.existsSync('server.mjs'), false, 'legacy compatibility server must stay removed');
 const entry = fs.readFileSync('server-entry.mjs','utf8');
@@ -78,8 +79,20 @@ try {
   }});
   assert.equal(foreign.status,403);
 
-  const forgedHost = await fetch(`${base}/api/state`,{headers:{Host:'attacker.invalid:4177'}});
-  assert.equal(forgedHost.status,403);
+  // Node fetch normalizes Host to the request URL. Use raw HTTP so the
+  // invalid Host header actually reaches Core on Linux and Windows.
+  const forgedHostStatus = await new Promise((resolve,reject) => {
+    const request = httpRequest({
+      host:'127.0.0.1',port,path:'/api/state',
+      headers:{Host:'attacker.invalid:4177'}
+    }, response => {
+      response.resume();
+      response.on('end',() => resolve(response.statusCode));
+    });
+    request.on('error',reject);
+    request.end();
+  });
+  assert.equal(forgedHostStatus,403);
 } finally {
   child.kill();
   await new Promise(resolve => {
