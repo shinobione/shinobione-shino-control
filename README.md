@@ -2,6 +2,8 @@
 
 A **source-derived project radar and resume hub** for the SHINO ecosystem.
 
+Current engineering priorities are tracked in [ROADMAP.md](ROADMAP.md).
+
 For each project, CONTROL answers:
 
 - what is the actual current state according to evidence;
