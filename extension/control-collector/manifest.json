@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SHINO // CONTROL Collector",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "description": "ChatGPT delta sensor + targeted metadata catch-up for SHINO // CONTROL. ChatGPT API access stays in the extension isolated world.",
   "permissions": [
     "storage",

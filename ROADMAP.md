@@ -50,18 +50,15 @@ Reviewed and merged individually, retaining immutable SHA pinning:
 
 Each upgrade passed PR checks and the post-merge normal checks, Windows tray and live Pages deployment workflows.
 
+### 5. Local-only HTTP security model
+
+- Retired the incomplete `SHINO_CONTROL_TOKEN` bearer mode in Core and Collector.
+- Kept strict loopback, Host, Origin, fetch-metadata and installed Collector-ID checks.
+- Collector endpoint overrides accept only local HTTP destinations; obsolete extension token storage is cleared.
+- Regression tests cover local HTTP access with a leftover legacy token, unauthorized origins and Collector destination validation.
+- Untrusted native processes on the same machine are explicitly outside this security boundary.
+
 ## Next priorities
-
-### P1 — Decide and finish token mode
-
-`SHINO_CONTROL_TOKEN` exists as an additional local authorization layer, but the supported UI/tray/Collector workflow does not yet configure it end to end.
-
-Decision required:
-
-- either integrate token configuration across dashboard, Collector and Windows startup/tray;
-- or explicitly keep token mode unsupported/advanced and simplify the implementation/documentation around that choice.
-
-**Exit condition:** there is one clear, documented and tested security model rather than a half-integrated second mode.
 
 ### P2 — Repository/product polish
 

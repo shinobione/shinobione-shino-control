@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { guardRequest, authorized, json } from './lib/http-security.mjs';
+import { guardRequest, json } from './lib/http-security.mjs';
 import { writeRuntimeState } from './lib/state-store.mjs';
 function request(overrides={}) {return {method:'GET',headers:{host:'127.0.0.1:4177'},socket:{remoteAddress:'127.0.0.1'},...overrides};}
 function guard(req,options={}) {const res={status:200,writeHead(code,h){this.status=code;this.headers=h;},end(body){this.body=body;}};return {allowed:guardRequest(req,res,options),response:res};}
@@ -16,12 +16,19 @@ assert.equal(guard(request({headers:{host:'127.0.0.1:4177',origin:'chrome-extens
 assert.equal(guard(request({headers:{host:'127.0.0.1:4177',origin:'chrome-extension://trusted'}}),{extensionId:'trusted'}).allowed,true);
 assert.equal(guard(request({socket:{remoteAddress:'192.168.0.12'}})).response.status,403);
 assert.equal(guard(request({socket:{remoteAddress:'evil127.0.0.1'}})).response.status,403);
-assert.equal(authorized(request()),true);
-process.env.SHINO_CONTROL_TOKEN='unit-test-only';
-assert.equal(authorized(request()),false);
-assert.equal(authorized(request({headers:{host:'127.0.0.1:4177',authorization:'Bearer unit-test-only'}})),true);
-assert.equal(authorized(request({headers:{host:'127.0.0.1:4177',authorization:'Bearer wrong'}})),false);
-delete process.env.SHINO_CONTROL_TOKEN;
+// A retired environment token must not change the local-only guard, but an
+// Authorization header must never bypass Host, Origin or extension-ID checks.
+const previousToken = process.env.SHINO_CONTROL_TOKEN;
+try {
+  process.env.SHINO_CONTROL_TOKEN='retired-legacy-setting';
+  assert.equal(guard(request()).allowed,true);
+  assert.equal(guard(request({method:'POST',headers:{host:'127.0.0.1:4177','content-type':'application/json'}})).allowed,true);
+  assert.equal(guard(request({headers:{host:'127.0.0.1:4177',origin:'https://attacker.test',authorization:'Bearer retired-legacy-setting'}})).response.status,403);
+  assert.equal(guard(request({headers:{host:'127.0.0.1:4177',origin:'chrome-extension://attacker',authorization:'Bearer retired-legacy-setting'}}),{extensionId:'trusted'}).response.status,403);
+} finally {
+  if (previousToken === undefined) delete process.env.SHINO_CONTROL_TOKEN;
+  else process.env.SHINO_CONTROL_TOKEN=previousToken;
+}
 const res={writeHead(_,h){this.h=h;},end(){}};
 json(res,200,{});
 assert.equal('Access-Control-Allow-Origin' in res.h,false);

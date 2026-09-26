@@ -60,6 +60,7 @@ jobs:
           node --check scripts/generate-pages-snapshot.mjs
           node --check scripts/chatgpt-state-hygiene.mjs
           node --check scripts/build-pages.mjs
+          node --check extension/control-collector/control-endpoint.js
           node --check extension/control-collector/background.js
           node --check extension/control-collector/collector.js
           node --check extension/control-collector/catchup-api.js
@@ -100,7 +101,8 @@ jobs:
           grep -q '0.13.0' public/build-info.js
           test -s extension/control-collector/manifest.json
           grep -q 'SHINO // CONTROL Collector' extension/control-collector/manifest.json
-          grep -q '"version": "0.2.9"' extension/control-collector/manifest.json
+          grep -q '"version": "0.2.10"' extension/control-collector/manifest.json
+          test -s extension/control-collector/control-endpoint.js
           grep -q '"alarms"' extension/control-collector/manifest.json
           grep -q '"scripting"' extension/control-collector/manifest.json
           test -s extension/control-collector/catchup-api.js
@@ -118,7 +120,7 @@ jobs:
           grep -q "kind:'inaccessible'" extension/control-collector/catchup-api.js
           grep -q '__SHINO_CONTROL_COLLECTOR_V1__' extension/control-collector/collector.js
           grep -q '__SHINO_CONTROL_CATCHUP_CLIENT_V1__' extension/control-collector/catchup-client.js
-          grep -q "CLIENT_VERSION = '0.2.9'" extension/control-collector/catchup-client.js
+          grep -q "CLIENT_VERSION = '0.2.10'" extension/control-collector/catchup-client.js
           grep -q 'ACTIVE_REQUEST_STALE_MS = 20 \* 60 \* 1000' extension/control-collector/catchup-client.js
           grep -q 'CLIENT_RUNNING_STALE_MS = 20 \* 60 \* 1000' extension/control-collector/catchup-client.js
           grep -q 'CLIENT_PARTIAL_COOLDOWN_MS = 10 \* 60 \* 1000' extension/control-collector/catchup-client.js

@@ -143,7 +143,7 @@ const child = spawn(process.execPath,['--import',pathToFileURL(preloadPath).href
   cwd:process.cwd(),
   env:{...process.env,PORT:String(port),SHINO_CONTROL_STATE:statePath,
     CONTROL_REMOTE_STARTED:startedPath,CONTROL_REMOTE_RELEASED:releasedPath,
-    SHINO_CONTROL_TOKEN:'',SHINO_CONTROL_EXTENSION_ID:''},
+    SHINO_CONTROL_EXTENSION_ID:''},
   stdio:['ignore','pipe','pipe']
 });
 child.stdout.on('data',data => { stdout += data; });

@@ -51,6 +51,8 @@ jobs:
           node-version: '24'
       - name: Verify serialized-state concurrency on Windows
         run: node scripts-state-concurrency-check.mjs
+      - name: Verify local HTTP and Collector security on Windows
+        run: node scripts-security-check.mjs && node scripts-extension-security-check.mjs && node scripts-http-server-check.mjs
       - name: Verify Collector ID persistence
         shell: powershell
         run: |
