@@ -7,7 +7,7 @@ const background = fs.readFileSync('extension/control-collector/background.js','
 const api = fs.readFileSync('extension/control-collector/catchup-api.js','utf8');
 const client = fs.readFileSync('extension/control-collector/catchup-client.js','utf8');
 
-assert.equal(manifest.version, '0.2.9');
+assert.equal(manifest.version, '0.2.10');
 assert.equal(JSON.stringify(manifest).includes('"world":"MAIN"'), false, 'MAIN world must not be used');
 assert.equal(fs.existsSync('extension/control-collector/catchup-main.js'), false, 'legacy MAIN-world bridge must be removed');
 
@@ -21,7 +21,7 @@ assert.doesNotMatch(api, /addEventListener\(['"]message/);
 assert.doesNotMatch(client, /window\.postMessage/);
 assert.doesNotMatch(client, /addEventListener\(['"]message/);
 assert.match(client, /chatgptApi\(\)/);
-assert.match(client, /CLIENT_VERSION = '0\.2\.9'/);
+assert.match(client, /CLIENT_VERSION = '0\.2\.10'/);
 assert.match(background, /CATCHUP_RECOVERY_FILES = \['collector\.js','catchup-api\.js','catchup-client\.js'\]/);
 
 // Legacy credentials must not be sent by the Collector, and stored endpoint
