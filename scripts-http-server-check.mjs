@@ -18,7 +18,9 @@ let stdout = '';
 let stderr = '';
 const child = spawn(process.execPath, ['server-entry.mjs'], {
   cwd:process.cwd(),
-  env:{...process.env,PORT:String(port),SHINO_CONTROL_STATE:statePath},
+  env:{...process.env,PORT:String(port),SHINO_CONTROL_STATE:statePath,
+    SHINO_CONTROL_TOKEN:'legacy-setting-must-be-ignored',
+    SHINO_CONTROL_EXTENSION_ID:'abcdefghijklmnopabcdefghijklmnop'},
   stdio:['ignore','pipe','pipe']
 });
 child.stdout.on('data', chunk => { stdout += chunk; });
@@ -61,8 +63,23 @@ try {
   assert.equal(unknown.status,404);
   assert.equal((await unknown.json()).error,'Unknown CONTROL API route');
 
-  const foreign = await fetch(`${base}/api/state`,{headers:{Origin:'https://attacker.invalid'}});
+  const trustedExtension = await fetch(`${base}/api/state`,{
+    headers:{Origin:'chrome-extension://abcdefghijklmnopabcdefghijklmnop'}
+  });
+  assert.equal(trustedExtension.status,200);
+
+  const foreignExtension = await fetch(`${base}/api/state`,{
+    headers:{Origin:'chrome-extension://bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',Authorization:'Bearer legacy-setting-must-be-ignored'}
+  });
+  assert.equal(foreignExtension.status,403);
+
+  const foreign = await fetch(`${base}/api/state`,{headers:{
+    Origin:'https://attacker.invalid',Authorization:'Bearer legacy-setting-must-be-ignored'
+  }});
   assert.equal(foreign.status,403);
+
+  const forgedHost = await fetch(`${base}/api/state`,{headers:{Host:'attacker.invalid:4177'}});
+  assert.equal(forgedHost.status,403);
 } finally {
   child.kill();
   await new Promise(resolve => {
