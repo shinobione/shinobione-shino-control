@@ -23,6 +23,9 @@ jobs:
           node --check lib/resume-engine.mjs
           node --check lib/status-engine.mjs
           node --check lib/state-store.mjs
+          node --check lib/state-mutation-queue.mjs
+          node --check lib/github-sync-commit.mjs
+          node --check scripts-state-concurrency-check.mjs
           node --check lib/http-security.mjs
           node --check scripts-security-check.mjs
           node --check scripts-extension-security-check.mjs
