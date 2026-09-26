@@ -7,7 +7,7 @@
   const CLIENT_PARTIAL_COOLDOWN_MS = 10 * 60 * 1000;
   const RATE_LIMIT_COOLDOWN_MS = 15 * 60 * 1000;
   const EXECUTION_PLAN_LIMIT = 8;
-  const CLIENT_VERSION = '0.2.9';
+  const CLIENT_VERSION = '0.2.10';
   let activeRequest = null;
 
   async function askBackground(type, payload = {}) {
