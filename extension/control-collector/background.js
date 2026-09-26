@@ -1,7 +1,8 @@
+import { controlEndpointFor } from './control-endpoint.js';
+
 const DEFAULTS = {
   enabled: true,
-  endpoint: 'http://127.0.0.1:4177/api/ingest/chatgpt-delta',
-  token: ''
+  endpoint: 'http://127.0.0.1:4177/api/ingest/chatgpt-delta'
 };
 const CATCHUP_SUCCESS_INTERVAL_MS = 30 * 60 * 1000;
 const CATCHUP_RETRY_INTERVAL_MS = 10 * 60 * 1000;
@@ -27,16 +28,10 @@ async function controlPost(pathname, body = {}) {
   const cfg = await config();
   if (!cfg.enabled) return {ok:true,skipped:true,reason:'collector disabled'};
   if (!cfg.endpoint) throw new Error('CONTROL Collector endpoint is not configured');
-  const endpoint = new URL(cfg.endpoint);
-  endpoint.pathname = pathname;
-  endpoint.search = '';
-  endpoint.hash = '';
-  const response = await fetch(endpoint.href, {
+  const endpoint = controlEndpointFor(cfg.endpoint, pathname);
+  const response = await fetch(endpoint, {
     method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      ...(cfg.token ? {Authorization:`Bearer ${cfg.token}`} : {})
-    },
+    headers:{'Content-Type':'application/json'},
     body:JSON.stringify(body)
   });
   const data = await response.json().catch(()=>({}));
@@ -154,15 +149,17 @@ chrome.alarms.onAlarm.addListener(alarm => {
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  ensureCatchupAlarm().catch(()=>{});
+  // Drop retired credentials on extension update and whenever the worker resumes.
+// Requests never read or transmit this legacy setting.
+chrome.storage.local.remove('token').catch(()=>{});
+ensureCatchupAlarm().catch(()=>{});
 });
 
 chrome.runtime.onInstalled.addListener(async () => {
   const current = await chrome.storage.local.get(DEFAULTS);
   await chrome.storage.local.set({
     enabled: current.enabled ?? DEFAULTS.enabled,
-    endpoint: current.endpoint || DEFAULTS.endpoint,
-    token: current.token || ''
+    endpoint: current.endpoint || DEFAULTS.endpoint
   });
   await ensureCatchupAlarm();
 });
