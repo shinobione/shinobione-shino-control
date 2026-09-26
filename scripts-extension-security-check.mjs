@@ -26,9 +26,9 @@ assert.match(background, /CATCHUP_RECOVERY_FILES = \['collector\.js','catchup-ap
 
 // Legacy credentials must not be sent by the Collector, and stored endpoint
 // overrides must never turn the local browser sensor into a remote client.
-assert.match(background, /import \\{ controlEndpointFor \\} from '\\.\\/control-endpoint\\.js'/);
-assert.match(background, /chrome\\.storage\\.local\\.remove\\('token'\\)/);
-assert.doesNotMatch(background, /Authorization|Bearer|cfg\\.token|current\\.token/);
+assert.ok(background.includes("import { controlEndpointFor } from './control-endpoint.js'"));
+assert.ok(background.includes("chrome.storage.local.remove('token')"));
+assert.doesNotMatch(background, /Authorization|Bearer|cfg\.token|current\.token/);
 assert.equal(
   controlEndpointFor('http://127.0.0.1:4177/api/ingest/chatgpt-delta','/api/chatgpt/catchup-plan'),
   'http://127.0.0.1:4177/api/chatgpt/catchup-plan'
