@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { controlEndpointFor } from './extension/control-collector/control-endpoint.js';
 
 const manifest = JSON.parse(fs.readFileSync('extension/control-collector/manifest.json','utf8'));
 const background = fs.readFileSync('extension/control-collector/background.js','utf8');
@@ -22,5 +23,30 @@ assert.doesNotMatch(client, /addEventListener\(['"]message/);
 assert.match(client, /chatgptApi\(\)/);
 assert.match(client, /CLIENT_VERSION = '0\.2\.9'/);
 assert.match(background, /CATCHUP_RECOVERY_FILES = \['collector\.js','catchup-api\.js','catchup-client\.js'\]/);
+
+// Legacy credentials must not be sent by the Collector, and stored endpoint
+// overrides must never turn the local browser sensor into a remote client.
+assert.match(background, /import \\{ controlEndpointFor \\} from '\\.\\/control-endpoint\\.js'/);
+assert.match(background, /chrome\\.storage\\.local\\.remove\\('token'\\)/);
+assert.doesNotMatch(background, /Authorization|Bearer|cfg\\.token|current\\.token/);
+assert.equal(
+  controlEndpointFor('http://127.0.0.1:4177/api/ingest/chatgpt-delta','/api/chatgpt/catchup-plan'),
+  'http://127.0.0.1:4177/api/chatgpt/catchup-plan'
+);
+assert.equal(
+  controlEndpointFor('http://localhost:4211/legacy?secret=bad#fragment','/api/chatgpt/catchup-report'),
+  'http://localhost:4211/api/chatgpt/catchup-report'
+);
+for (const endpoint of [
+  'https://127.0.0.1:4177/',
+  'http://example.com:4177/',
+  'http://127.0.0.2:4177/',
+  'http://evil@localhost:4177/',
+  'file:///etc/passwd',
+  'not a URL'
+]) {
+  assert.throws(() => controlEndpointFor(endpoint,'/api/ingest/chatgpt-delta'), /loopback/);
+}
+assert.throws(() => controlEndpointFor('http://localhost:4177/','https://evil.invalid'), /API path/);
 
 console.log('CONTROL extension isolated-world security checks PASS');
