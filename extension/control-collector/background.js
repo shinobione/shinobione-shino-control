@@ -149,10 +149,7 @@ chrome.alarms.onAlarm.addListener(alarm => {
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  // Drop retired credentials on extension update and whenever the worker resumes.
-// Requests never read or transmit this legacy setting.
-chrome.storage.local.remove('token').catch(()=>{});
-ensureCatchupAlarm().catch(()=>{});
+  ensureCatchupAlarm().catch(()=>{});
 });
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -164,6 +161,9 @@ chrome.runtime.onInstalled.addListener(async () => {
   await ensureCatchupAlarm();
 });
 
+// A legacy token is never read or sent, and is removed whenever the service
+// worker starts (including unpacked-extension reloads and extension updates).
+chrome.storage.local.remove('token').catch(()=>{});
 ensureCatchupAlarm().catch(()=>{});
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
