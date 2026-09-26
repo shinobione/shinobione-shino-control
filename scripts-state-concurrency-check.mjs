@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { createMutationQueue } from './lib/state-mutation-queue.mjs';
 import { syncGithubIncremental } from './lib/github-incremental-sync.mjs';
 import { commitGithubSync } from './lib/github-sync-commit.mjs';
@@ -138,7 +139,7 @@ globalThis.fetch = async (resource, init) => {
 `);
 let stdout = '';
 let stderr = '';
-const child = spawn(process.execPath,['--import',preloadPath,'server-entry.mjs'],{
+const child = spawn(process.execPath,['--import',pathToFileURL(preloadPath).href,'server-entry.mjs'],{
   cwd:process.cwd(),
   env:{...process.env,PORT:String(port),SHINO_CONTROL_STATE:statePath,
     CONTROL_REMOTE_STARTED:startedPath,CONTROL_REMOTE_RELEASED:releasedPath,
