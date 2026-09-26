@@ -7,6 +7,8 @@ import { planChatgptCatchup } from './lib/chatgpt-catchup-plan.mjs';
 import { repairChatgptProjectOwnership } from './lib/chatgpt-project-ownership.mjs';
 import { deriveAll } from './lib/derive.mjs';
 import { syncGithubIncremental } from './lib/github-incremental-sync.mjs';
+import { commitGithubSync } from './lib/github-sync-commit.mjs';
+import { createMutationQueue } from './lib/state-mutation-queue.mjs';
 import { runtimeStatePath, writeRuntimeState } from './lib/state-store.mjs';
 import { authorized, guardRequest, json } from './lib/http-security.mjs';
 
@@ -619,12 +621,25 @@ function serveStatic(url, res) {
   fs.createReadStream(file).pipe(res);
 }
 
-const server = http.createServer(async (req, res) => {
-  try {
-      if (!guardRequest(req, res)) return;
-      if (req.method === 'OPTIONS') return json(res, 204, {});
-      const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+const enqueueStateMutation = createMutationQueue();
+const enqueueGithubSync = createMutationQueue();
 
+const STATE_MUTATION_PATHS = new Set([
+  '/api/projects/update',
+  '/api/projects/create',
+  '/api/projects/bulk',
+  '/api/projects/reorder',
+  '/api/sources/move',
+  '/api/sources/archive',
+  '/api/discovered/assign',
+  '/api/control/restart',
+  '/api/chatgpt/catchup-report',
+  '/api/ingest/chatgpt-delta',
+  '/api/remap',
+  '/api/discovered/ignore'
+]);
+
+async function dispatchRequest(req, res, url, parsedBody) {
       if (req.method === 'GET' && url.pathname === '/api/state') {
         if (process.env.SHINO_CONTROL_TOKEN && !authorized(req)) return json(res, 401, {error:'Unauthorized'});
         return json(res, 200, readState({ derive:true }));
@@ -632,7 +647,7 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'POST' && url.pathname === '/api/projects/update') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
-        const payload = await readBody(req);
+        const payload = parsedBody ?? await readBody(req);
         const state = readState();
         const project = updateManagedProject(state, payload);
         if (!project) return json(res, 404, {error:'Project not found'});
@@ -643,7 +658,7 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'POST' && url.pathname === '/api/projects/create') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
-        const payload = await readBody(req);
+        const payload = parsedBody ?? await readBody(req);
         const state = readState();
         const project = createManagedProject(state, payload);
         deriveAll(state, {dirtyProjectIds:[project.id]});
@@ -653,7 +668,7 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'POST' && url.pathname === '/api/projects/bulk') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
-        const payload = await readBody(req);
+        const payload = parsedBody ?? await readBody(req);
         const state = readState();
         const projects = bulkUpdateManagedProjects(state, payload);
         writeState(state);
@@ -662,7 +677,7 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'POST' && url.pathname === '/api/projects/reorder') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
-        const payload = await readBody(req);
+        const payload = parsedBody ?? await readBody(req);
         const state = readState();
         const result = reorderManagedProjects(state, payload);
         if (!result) return json(res, 404, {error:'Project not found'});
@@ -672,7 +687,7 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'POST' && url.pathname === '/api/sources/move') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
-        const payload = await readBody(req);
+        const payload = parsedBody ?? await readBody(req);
         const state = readState();
         const result = moveManagedSource(state, payload);
         if (!result) return json(res, 404, {error:'Source not found'});
@@ -682,7 +697,7 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'POST' && url.pathname === '/api/sources/archive') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
-        const payload = await readBody(req);
+        const payload = parsedBody ?? await readBody(req);
         const state = readState();
         const result = archiveManagedSource(state, payload);
         if (!result) return json(res, 404, {error:'Source not found'});
@@ -692,7 +707,7 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'POST' && url.pathname === '/api/discovered/assign') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
-        const payload = await readBody(req);
+        const payload = parsedBody ?? await readBody(req);
         const state = readState();
         const result = assignDiscoveredManaged(state, payload);
         if (!result) return json(res, 404, {error:'Discovered source not found'});
@@ -709,7 +724,7 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'POST' && url.pathname === '/api/chatgpt/catchup-plan') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
-        const payload = await readBody(req);
+        const payload = parsedBody ?? await readBody(req);
         const state = readState();
         const result = planChatgptCatchup(state, payload, {maxPlan:payload.maxPlan || 32});
         return json(res, 200, result);
@@ -717,7 +732,7 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'POST' && url.pathname === '/api/chatgpt/catchup-report') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
-        const payload = await readBody(req);
+        const payload = parsedBody ?? await readBody(req);
         const state = readState();
         state.settings ||= {};
         state.settings.chatgptInaccessible ||= {};
@@ -786,7 +801,7 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'POST' && url.pathname === '/api/ingest/chatgpt-delta') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
-        const payload = await readBody(req);
+        const payload = parsedBody ?? await readBody(req);
         const state = readState();
         const result = ingestChatgptDelta(state, payload);
         const conversationKey = String(payload.conversationKey || '').trim();
@@ -799,21 +814,13 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, {...result, timeoutQuarantineCleared:quarantineCleared});
       }
 
-      if (req.method === 'POST' && url.pathname === '/api/sync/github') {
-        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
-        const payload = await readBody(req);
-        const token = payload.token || process.env.GITHUB_TOKEN || '';
-        const state = readState();
-        const result = await syncGithubIncremental(state, token);
-        writeState(state);
-        return json(res, 200, {ok:true, ...result, state});
-      }
-
-      res.once('finish', scrubStateFile);
+      res.once('finish', () => {
+        void enqueueStateMutation(scrubStateFile).catch(error => console.error('CONTROL state scrub:', error));
+      });
 
       if (req.method === 'POST' && url.pathname === '/api/remap') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
-        const payload = await readBody(req);
+        const payload = parsedBody ?? await readBody(req);
         const state = readState();
         const mapped = assignDiscoveredManaged(state, payload);
         if (!mapped) return json(res, 404, {error:'Source/project not found'});
@@ -823,7 +830,7 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'POST' && url.pathname === '/api/discovered/ignore') {
         if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
-        const payload = await readBody(req);
+        const payload = parsedBody ?? await readBody(req);
         const state = readState();
         state.discovered = state.discovered.filter(item => item.id !== payload.id);
         deriveAll(state);
@@ -833,10 +840,45 @@ const server = http.createServer(async (req, res) => {
 
       if (url.pathname.startsWith('/api/')) return json(res, 404, {error:'Unknown CONTROL API route'});
       return serveStatic(url, res);
-    } catch (error) {
-      return json(res, 500, {error:String(error?.message || error)});
+}
+
+const server = http.createServer(async (req, res) => {
+  try {
+    if (!guardRequest(req, res)) return;
+    if (req.method === 'OPTIONS') return json(res, 204, {});
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+
+    if (req.method === 'POST' && url.pathname === '/api/sync/github') {
+      if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+      const payload = await readBody(req);
+      const token = payload.token || process.env.GITHUB_TOKEN || '';
+      // Serialize GitHub sync jobs with each other, but do not hold the state
+      // mutation queue across external HTTP requests.
+      return await enqueueGithubSync(async () => {
+        const baseline = await enqueueStateMutation(() => readState());
+        const staged = structuredClone(baseline);
+        const result = await syncGithubIncremental(staged, token);
+        return enqueueStateMutation(() => {
+          const state = readState();
+          const committed = commitGithubSync(state, baseline, staged, result);
+          writeState(state);
+          return json(res, 200, {ok:true, ...committed, state});
+        });
+      });
     }
+
+    if (req.method === 'POST' && STATE_MUTATION_PATHS.has(url.pathname)) {
+      if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+      // Parse/validate the inbound stream before entering the mutation queue.
+      const parsedBody = await readBody(req);
+      return await enqueueStateMutation(() => dispatchRequest(req, res, url, parsedBody));
+    }
+    return await dispatchRequest(req, res, url);
+  } catch (error) {
+    return json(res, 500, {error:String(error?.message || error)});
+  }
 });
+
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`SHINO // CONTROL → http://127.0.0.1:${PORT}`);
