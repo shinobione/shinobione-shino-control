@@ -133,7 +133,7 @@ For the unpacked Chrome Collector, identify its actual ID in `chrome://extension
 
 `SHINO_CONTROL_TOKEN` adds bearer-token checks to mutations **and `/api/state`**, but this mode is not yet integrated with the dashboard, Windows tray/supervisor, or Collector configuration workflow. Leave it unset for the currently supported local installation; do not mistake loopback binding for protection against untrusted local processes. Cross-origin sites are additionally rejected by Host, Origin, and browser request-metadata checks.
 
-State updates write an fsynced temporary file and atomically rename it into place. `data/state.local.json.bak` keeps the previous valid saved state as a recovery copy. The backup is not automatically restored if the active file becomes corrupt. Concurrent writes are not yet transactional; test and review this separately before treating the state layer as fully hardened.
+State updates write an fsynced temporary file and atomically rename it into place. `data/state.local.json.bak` keeps the previous valid saved state as a recovery copy. The backup is not automatically restored if the active file becomes corrupt. Core serializes the complete local read/mutate/derive/write cycle per process. GitHub network sync runs on a detached snapshot and merges only GitHub-owned changes into the latest state under the same queue; stale results are discarded if repository ownership changed while syncing. Separate OS processes or external programs writing the same state file are not supported by this in-process queue.
 
 ## Windows autonomous startup
 
