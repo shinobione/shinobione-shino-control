@@ -21,7 +21,7 @@ An unchanged fingerprint is a real no-op: CONTROL does not rewrite state just be
 
 To avoid manually reopening old conversations, the Collector periodically performs a metadata-only catch-up while ChatGPT is open:
 
-1. in ChatGPT's authenticated MAIN world, read project conversation metadata (`id`, project and `updatedAt`) through the same internal endpoints used by the web app;
+1. from the extension's isolated world, read ChatGPT project conversation metadata (`id`, project and `updatedAt`) through the internal endpoints used by the web app;
 2. send only that metadata to CONTROL Core;
 3. CONTROL compares live `updatedAt` values with its source-native conversation timestamps and returns a small refresh plan;
 4. fetch full conversation data only for conversations that are new, have a newer remote timestamp, or lack a trustworthy local baseline;
@@ -35,4 +35,4 @@ Default local endpoint:
 
 `http://127.0.0.1:4177/api/ingest/chatgpt-delta`
 
-The extension has no popup and is enabled by default. Advanced endpoint/token overrides remain available through `chrome.storage.local` for remote/private deployments.
+The extension has no popup and is enabled by default. A custom local port can still be configured through the `endpoint` key in `chrome.storage.local`, but the endpoint must use plain HTTP on `127.0.0.1` or `localhost`. Remote hosts, credentials in URLs and HTTPS endpoints are rejected. The retired `token` storage value is deleted when the background worker starts and is never sent in requests. CONTROL does not support a separate bearer-token mode; a GitHub sync token is a different credential and is not handled by this Collector.
