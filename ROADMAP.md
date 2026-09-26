@@ -36,21 +36,9 @@ Recent hardening completed:
 - **#70** — removed retired CSS and obsolete UI checks.
 - **#71** — replaced the monkey-patched dual-server design with one authoritative HTTP server.
 - **#72** — Windows startup now persists the Chrome Collector ID and injects it into Core automatically.
+- **#74** — serialized Core mutations across the complete `read -> mutate -> derive -> write` cycle; GitHub fetches use a detached snapshot and merge only GitHub-owned changes into the latest state. Deterministic concurrency and live HTTP tests pass on Linux and Windows. Scope: in-process consistency; direct writes from separate processes remain unsupported.
 
 ## Next priorities
-
-### P0 — Serialized state mutations
-
-Prevent lost updates when two requests mutate `state.local.json` at nearly the same time.
-
-Target design:
-
-- serialize the full `read -> mutate -> derive -> write` transaction, not only the final file write;
-- add deterministic concurrency tests that launch overlapping mutations and prove no update is lost;
-- keep atomic file replacement and recovery backup behavior;
-- handle long-running GitHub sync carefully so external network work does not unnecessarily block all local mutations.
-
-**Exit condition:** concurrent project/source/Collector mutations cannot silently overwrite one another.
 
 ### P1 — Review Dependabot major GitHub Actions upgrades
 
