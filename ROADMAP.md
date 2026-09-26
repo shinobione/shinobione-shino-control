@@ -38,11 +38,9 @@ Recent hardening completed:
 - **#72** — Windows startup now persists the Chrome Collector ID and injects it into Core automatically.
 - **#74** — serialized Core mutations across the complete `read -> mutate -> derive -> write` cycle; GitHub fetches use a detached snapshot and merge only GitHub-owned changes into the latest state. Deterministic concurrency and live HTTP tests pass on Linux and Windows. Scope: in-process consistency; direct writes from separate processes remain unsupported.
 
-## Next priorities
+### Completed — Dependabot major GitHub Actions upgrades
 
-### P1 — Review Dependabot major GitHub Actions upgrades
-
-Open major-version PRs currently include:
+Reviewed and merged individually, retaining immutable SHA pinning:
 
 - **#65** — `actions/configure-pages` 5 -> 6
 - **#66** — `actions/deploy-pages` 4 -> 5
@@ -50,12 +48,9 @@ Open major-version PRs currently include:
 - **#68** — `actions/setup-node` 4 -> 7
 - **#69** — `actions/checkout` 4 -> 7
 
-Rules:
+Each upgrade passed PR checks and the post-merge normal checks, Windows tray and live Pages deployment workflows.
 
-- review and test them one at a time;
-- do not bulk-merge major upgrades;
-- preserve immutable SHA pinning after each upgrade;
-- verify both normal checks and Windows/Pages workflows.
+## Next priorities
 
 ### P1 — Decide and finish token mode
 
