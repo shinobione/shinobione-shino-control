@@ -86,7 +86,8 @@ export function generatePagesSnapshot({ write = true, allowRegression = false } 
   let snapshot = candidate;
   let guarded = false;
   if (!allowRegression && baseline && snapshotRegresses(candidate, baseline)) {
-    snapshot = structuredClone(baseline);
+    // The fuller baseline must pass the same allowlist as a fresh candidate.
+    snapshot = buildPublicSnapshot(baseline, {version:PACKAGE.version,sha:process.env.GITHUB_SHA || null});
     guarded = true;
   }
 

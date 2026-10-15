@@ -23,6 +23,10 @@ If private reporting is unavailable, contact the repository owner privately befo
 
 ## Security boundaries
 
+HQ tasks, contacts, follow-ups, deliverables, expenses, preferences and activity live only in the private runtime state's `hq` object. Keep downloaded HQ backups out of Git and public/shared folders. HQ backup checksums detect corruption; they are not signatures or proof of a trusted author. Restore verifies schema and project references before replacing HQ, and preserves CONTROL projects/sources.
+
+Pages uses a typed field allowlist for JSON, including the coverage fallback, and an explicit frontend asset allowlist for distribution. HQ privacy checks exercise canary collections, unlisted files and build logs. Public CONTROL project presentation fields retain their existing public classification; adding a private HQ task does not promote it into those fields.
+
 CONTROL is designed for loopback-only use. A non-loopback deployment is unsupported.
 
 The Chrome Collector is expected to keep ChatGPT API/session access inside Chrome's isolated extension world. Conversation data must not be bridged through page-visible `window.postMessage` channels.

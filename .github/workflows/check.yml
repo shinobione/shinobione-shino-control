@@ -23,6 +23,17 @@ jobs:
           node --check lib/resume-engine.mjs
           node --check lib/status-engine.mjs
           node --check lib/state-store.mjs
+          node --check lib/hq-store.mjs
+          node --check lib/hq-backup.mjs
+          node --check lib/public-artifacts.mjs
+          node --check public/hq-model.js
+          node --check public/hq-views.js
+          node --check public/hq.js
+          node --check scripts-hq-check.mjs
+          node --check scripts-hq-http-check.mjs
+          node --check scripts-hq-ui-check.mjs
+          node --check scripts-hq-privacy-check.mjs
+          node --check scripts-hq-demo.mjs
           node --check lib/state-mutation-queue.mjs
           node --check lib/github-sync-commit.mjs
           node --check scripts-state-concurrency-check.mjs
@@ -288,6 +299,12 @@ jobs:
           test -s dist/assets/project-workflow-art.svg
           test -s dist/build-info.js
           grep -q '"publicSnapshot": true' dist/state.json
+          node -e "const s=require('./dist/state.json'); for(const key of ['hq','actions','contacts','deliverables','activity']) if(Object.hasOwn(s,key)) throw new Error('Private HQ collection in public snapshot');"
+          test ! -e dist/state.local.json
+          test -s dist/hq-model.js
+          test -s dist/hq-views.js
+          test -s dist/hq.js
+          test -s dist/hq.css
           grep -q '"version": "0.13.0"' dist/state.json
           node -e "const s=require('./dist/state.json'); const c=s.settings?.lastChatgptInventory?.conversationCount||0; if((s.projects?.length||0)<18||(s.derived?.length||0)<17||c<131){throw new Error('Pages coverage regression: '+JSON.stringify({projects:s.projects?.length,derived:s.derived?.length,conversations:c}))}"
           if grep -q 'lastChatgptCatchup' dist/state.json; then

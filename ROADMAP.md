@@ -1,6 +1,6 @@
 # SHINO // CONTROL Roadmap
 
-_Last updated: 2026-09-26_
+_Last updated: 2026-10-15_
 
 CONTROL is evolving from a source-ingestion utility into a reliable, source-derived project radar and resume hub. The roadmap below separates completed foundations from the next engineering priorities.
 
@@ -71,6 +71,14 @@ Decision required:
 - Continue removing obsolete compatibility paths when their real-world use has been disproved.
 
 ## Later product work
+
+### SHINO HQ v0.1 — implemented for owner validation
+
+- Four-universe private cockpit above CONTROL, with persistent tasks, contacts/relances, deliverables and local activity.
+- Explainable priorities, overdue/upcoming dates, filters/search and real CONTROL resume/GitHub links.
+- HQ-only checksum-verified backup/restore using existing Core atomic persistence and mutation queue.
+- Typed public projection, reprojected coverage fallback and explicit distributable-asset allowlist; private HQ collections never enter Pages.
+- [Windows launch, DEMO workflow, validation evidence and limits](docs/shino-hq.md). Delivery is a Draft PR; no merge/deployment is authorized. PR #77 remains the independent local-security-model decision.
 
 After the hardening backlog above is closed, return focus to the intelligence and day-to-day usefulness of the dashboard:
 
