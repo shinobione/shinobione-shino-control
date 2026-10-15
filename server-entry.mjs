@@ -11,6 +11,8 @@ import { commitGithubSync } from './lib/github-sync-commit.mjs';
 import { createMutationQueue } from './lib/state-mutation-queue.mjs';
 import { runtimeStatePath, writeRuntimeState } from './lib/state-store.mjs';
 import { authorized, guardRequest, json } from './lib/http-security.mjs';
+import { ensureHq, mutateHq, HqError } from './lib/hq-store.mjs';
+import { buildHqBackup, restoreHqBackup } from './lib/hq-backup.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA = runtimeStatePath();
@@ -140,6 +142,7 @@ function restorePersonnelProject(state) {
 }
 
 function normalizeState(state, { derive = false } = {}) {
+  ensureHq(state);
   restorePersonnelProject(state);
   retireLegacyShinoSync(state);
   const ownershipRepair = repairChatgptProjectOwnership(state);
@@ -625,6 +628,8 @@ const enqueueStateMutation = createMutationQueue();
 const enqueueGithubSync = createMutationQueue();
 
 const STATE_MUTATION_PATHS = new Set([
+  '/api/hq/mutate',
+  '/api/hq/restore',
   '/api/projects/update',
   '/api/projects/create',
   '/api/projects/bulk',
@@ -640,6 +645,27 @@ const STATE_MUTATION_PATHS = new Set([
 ]);
 
 async function dispatchRequest(req, res, url, parsedBody) {
+      if (req.method === 'GET' && ['/api/hq','/api/hq/backup'].includes(url.pathname)) {
+        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+        const hq = ensureHq(readState());
+        return json(res, 200, url.pathname.endsWith('/backup') ? buildHqBackup(hq) : {hq});
+      }
+
+      if (req.method === 'POST' && ['/api/hq/mutate','/api/hq/restore'].includes(url.pathname)) {
+        if (!authorized(req)) return json(res, 401, {error:'Unauthorized'});
+        const payload = parsedBody ?? await readBody(req);
+        const state = readState();
+        if (url.pathname.endsWith('/restore')) {
+          if (payload.confirm !== true) throw new HqError('HQ restore confirmation required');
+          restoreHqBackup(state, payload.backup);
+          writeState(state);
+          return json(res, 200, {ok:true,hq:state.hq});
+        }
+        const result = mutateHq(state, payload);
+        if (result.changed) writeState(state);
+        return json(res, 200, {ok:true,...result,hq:state.hq});
+      }
+
       if (req.method === 'GET' && url.pathname === '/api/state') {
         if (process.env.SHINO_CONTROL_TOKEN && !authorized(req)) return json(res, 401, {error:'Unauthorized'});
         return json(res, 200, readState({ derive:true }));
@@ -875,6 +901,7 @@ const server = http.createServer(async (req, res) => {
     }
     return await dispatchRequest(req, res, url);
   } catch (error) {
+    if (error instanceof HqError) return json(res, error.status, {error:error.message});
     return json(res, 500, {error:String(error?.message || error)});
   }
 });

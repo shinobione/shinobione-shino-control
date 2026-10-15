@@ -1,4 +1,7 @@
 import { cleanFocusSummary, selectFocusProject } from './focus-engine.js';
+import { mountHq } from './hq.js';
+import { controlRoute } from './control-route.js';
+let disposeHq = null;
 const $ = (s, root=document) => root.querySelector(s);
 const esc = (s='') => String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 const fmt = ts => ts ? new Intl.DateTimeFormat('fr-FR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(ts)) : '—';
@@ -13,7 +16,7 @@ const rel = ts => {
 const statusClass = status => `status-${String(status||'UNKNOWN').replace(/[^A-Z0-9]+/gi,'-').replace(/^-|-$/g,'')}`;
 const sourceClass = type => type==='github_repo'?'source-github':type==='chatgpt_thread'?'source-chatgpt':type==='github_component'?'source-component':'source-other';
 const sourceLabel = s => s.type==='github_repo'?'GitHub':s.type==='chatgpt_thread'?'ChatGPT':s.type==='chatgpt_archived'?'ChatGPT archive':s.type==='github_component'?(s.title||'Component'):s.type;
-let state = null, view='radar', query='', statusFilter='ALL', modalProject=null, manageProjectId=null, manageProjectSection='project', projectView=localStorage.getItem('controlProjectView') || 'board', statusPickerOutsideBound=false, activeDragPayload=null, dragSuppressUntil=0, selectedProjectIds=new Set(), undoAction=null;
+let state = null, view=window.SHINO_STATIC_MODE || location.hash.startsWith('#control')?'radar':'hq', query='', statusFilter='ALL', modalProject=null, manageProjectId=null, manageProjectSection='project', projectView=localStorage.getItem('controlProjectView') || 'board', statusPickerOutsideBound=false, activeDragPayload=null, dragSuppressUntil=0, selectedProjectIds=new Set(), undoAction=null;
 
 async function api(path, options={}) {
   const r = await fetch(path, {headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
@@ -21,7 +24,11 @@ async function api(path, options={}) {
   if(!r.ok) throw new Error(data.error || r.statusText);
   return data;
 }
-async function load(){ state=await api('/api/state'); render(); }
+async function load(){ const current=state?{view,modalProject}:null;state=await api('/api/state');({view,modalProject}=controlRoute({hash:location.hash,staticMode:window.SHINO_STATIC_MODE,projects:state.projects,current}));render(); }
+function applyHashRoute(){
+  ({view,modalProject}=controlRoute({hash:location.hash,staticMode:window.SHINO_STATIC_MODE,projects:state?.projects || []}));
+}
+window.addEventListener('hashchange',()=>{if(state){applyHashRoute();render();}});
 function toast(msg,action=null){
   const el=document.createElement('div');
   el.className='toast';
@@ -344,11 +351,14 @@ function activityItem(item){
 }
 
 function render(){
+  disposeHq?.();disposeHq=null;
+  if(view==='hq'&&!window.SHINO_STATIC_MODE){disposeHq=mountHq({state,root:$('#app')});return;}
+  document.title='SHINO // CONTROL';
   const s=stats();
   $('#app').innerHTML=`<div class="app view-${view}">
     <aside class="sidebar premium-sidebar">
       <div class="brand"><div class="brand-lockup"><div class="brand-mark">S</div><div><h1>SHINO // CONTROL</h1><p>PROJECT COMMAND</p></div></div></div>
-      <nav class="nav">${navBtn('radar',`<span class="nav-icon">${premiumIcon('dashboard')}</span><span>Tableau de bord</span>`)}${navBtn('discovered',`<span class="nav-icon">${premiumIcon('discover')}</span><span>Découvrir</span>`)}${navBtn('sources',`<span class="nav-icon">${premiumIcon('sync')}</span><span>Sources / Sync</span>`)}</nav>
+      <nav class="nav">${!window.SHINO_STATIC_MODE?'<a class="nav-btn" href="#hq">◈ SHINO // HQ</a>':''}${navBtn('radar',`<span class="nav-icon">${premiumIcon('dashboard')}</span><span>Tableau de bord</span>`)}${navBtn('discovered',`<span class="nav-icon">${premiumIcon('discover')}</span><span>Découvrir</span>`)}${navBtn('sources',`<span class="nav-icon">${premiumIcon('sync')}</span><span>Sources / Sync</span>`)}</nav>
       <div class="side-spacer"></div>
       <button class="sidebar-sync" data-view="sources"><span class="sidebar-sync-icon">${premiumIcon('github')}</span><div><b>Sync GitHub</b><small>Connecté</small></div><span class="sync-arrow">${premiumIcon('sync')}</span></button>
       <div class="sidebar-facts"><span>Dernière sync</span><b>${esc(rel(state.settings?.lastGithubSync?.at || state.settings?.lastChatgptCatchup?.at || state.derivedAt))} ago</b></div>

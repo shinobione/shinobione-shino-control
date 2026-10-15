@@ -2,6 +2,8 @@
 
 A **source-derived project radar and resume hub** for the SHINO ecosystem.
 
+The local home now includes **SHINO // HQ v0.1**, a private personal cockpit with four universes, persistent tasks, contacts/relances, deliverables, deadlines and direct CONTROL resume links. [Launch, privacy, backup and validation guide](docs/shino-hq.md). Use `npm run demo:hq` for an isolated, explicitly labeled demonstration on port 4417. Public GitHub Pages remains the read-only CONTROL dashboard.
+
 Current engineering priorities are tracked in [ROADMAP.md](ROADMAP.md).
 
 For each project, CONTROL answers:
