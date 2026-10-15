@@ -27,6 +27,7 @@ jobs:
           node --check lib/hq-backup.mjs
           node --check lib/public-artifacts.mjs
           node --check public/hq-model.js
+          node --check public/control-route.js
           node --check public/hq-views.js
           node --check public/hq.js
           node --check scripts-hq-check.mjs

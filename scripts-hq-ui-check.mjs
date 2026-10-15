@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { escapeHtml, externalLink, renderAction, renderProject } from './public/hq-views.js';
+import { controlRoute } from './public/control-route.js';
+assert.deepEqual(controlRoute({hash:'#control',current:{view:'discovered',modalProject:null}}),{view:'discovered',modalProject:null},'a CONTROL data refresh preserves Discover');
+assert.deepEqual(controlRoute({hash:'#control/demo',projects:[{id:'demo'}]}),{view:'radar',modalProject:'demo'});
+assert.deepEqual(controlRoute({hash:'#hq'}),{view:'hq',modalProject:null});
+assert.deepEqual(controlRoute({hash:'#hq',staticMode:true}),{view:'radar',modalProject:null});
 assert.equal(escapeHtml('<script>"&'), '&lt;script&gt;&quot;&amp;');
 assert.equal(externalLink('javascript:alert(1)','bad'),'');
 assert.equal(externalLink('https://user:pass@example.com','bad'),'');

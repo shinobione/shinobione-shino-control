@@ -1,4 +1,6 @@
 // Pure selectors shared by the local UI and Node regression checks.
+export const HQ_MAX_DATA_BYTES = 6_000_000;
+export const HQ_MAX_BACKUP_BYTES = 7_500_000;
 export const UNIVERSES = {
   MUSIC:{name:'SHINOBIWAN',label:'Music',color:'#bb9eff',glyph:'♫'},
   DEV:{name:'SHINO LAB',label:'Dev',color:'#80b6ff',glyph:'⌘'},

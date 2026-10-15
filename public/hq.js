@@ -1,4 +1,4 @@
-import { UNIVERSES, ACTION_STATUSES, localDate, selectActions, selectPriorities, selectDeadlines, isOverdue, matchesDate, projectUniverse } from './hq-model.js';
+import { UNIVERSES, ACTION_STATUSES, localDate, selectActions, selectPriorities, selectDeadlines, isOverdue, matchesDate, projectUniverse, HQ_MAX_BACKUP_BYTES } from './hq-model.js';
 import { escapeHtml as esc, externalLink, dateLabel, empty, universeTag, renderAction, renderProject } from './hq-views.js';
 
 const tabs={overview:'Vue d’ensemble',actions:'Tâches',contacts:'Contacts & relances',deliverables:'Livrables',activity:'Journal'};
@@ -28,11 +28,11 @@ export function mountHq({state,root}) {
     return value;
   }
   async function mutate(payload) {
-    const out=await request('/api/hq/mutate',payload);state.hq=out.hq;return out;
+    const out=await request('/api/hq/mutate',{expectedGeneration:hq().generation,...payload});state.hq=out.hq;return out;
   }
   function openEditor(collection,id) {
     const row=id ? hq()[collection]?.find(x=>x.id===id) : null;
-    editor={collection,id:row?.id || crypto.randomUUID(),revision:row?.revision,values:{...row,universe:row?.universe || (filters.universe==='ALL'?'PERSONAL':filters.universe)}};
+    editor={collection,id:row?.id || crypto.randomUUID(),revision:row?.revision,generation:hq().generation,values:{...row,universe:row?.universe || (filters.universe==='ALL'?'PERSONAL':filters.universe)}};
     render();
   }
   function projectCards(){
@@ -136,17 +136,17 @@ export function mountHq({state,root}) {
     if(form)form.onsubmit=async event=>{
       event.preventDefault();if(busy)return;busy=true;const button=form.querySelector('[type="submit"]') || form.querySelector('.hq-primary');button.disabled=true;
       const values=Object.fromEntries(new FormData(form));
-      try{await mutate({collection:editor.collection,operation:editor.revision?'update':editor.collection==='settings'?'update':'create',id:editor.id,expectedRevision:editor.revision,values});editor=null;report('Enregistrement local effectué.');render();}catch(error){form.querySelector('#hq-form-error').textContent=error.message;button.disabled=false;}finally{busy=false;}
+      try{await mutate({collection:editor.collection,operation:editor.revision?'update':editor.collection==='settings'?'update':'create',id:editor.id,expectedRevision:editor.revision,expectedGeneration:editor.generation || hq().generation,values});editor=null;report('Enregistrement local effectué.');render();}catch(error){form.querySelector('#hq-form-error').textContent=error.message;button.disabled=false;}finally{busy=false;}
     };
     root.querySelector('[data-delete]')?.addEventListener('click',async event=>{
       if(!window.confirm(`Supprimer « ${editor.values.title || editor.values.name} » ? Cette suppression sera enregistrée localement.`))return;
       const button=event.currentTarget;button.disabled=true;
-      try{await mutate({collection:editor.collection,operation:'delete',id:editor.id,confirmId:editor.id,expectedRevision:editor.revision});editor=null;report('Élément supprimé.');render();}catch(error){button.disabled=false;form.querySelector('#hq-form-error').textContent=error.message;}
+      try{await mutate({collection:editor.collection,operation:'delete',id:editor.id,confirmId:editor.id,expectedRevision:editor.revision,expectedGeneration:editor.generation});editor=null;report('Élément supprimé.');render();}catch(error){button.disabled=false;form.querySelector('#hq-form-error').textContent=error.message;}
     });
     root.querySelector('[data-refresh]').onclick=async event=>{const button=event.currentTarget;button.disabled=true;try{const out=await request('/api/state');Object.assign(state,out);report('État local actualisé. La synchronisation GitHub reste disponible dans CONTROL.');render();}catch(error){button.disabled=false;report(error.message,true);}};
-    root.querySelector('[data-backup]').onclick=async()=>{try{const backup=await request('/api/hq/backup'),blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`shino-hq-private-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);report('Sauvegarde privée téléchargée. Conserve ce fichier hors du dépôt.');}catch(error){report(error.message,true);}};
+    root.querySelector('[data-backup]').onclick=async()=>{try{const backup=await request('/api/hq/backup'),blob=new Blob([JSON.stringify(backup)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`shino-hq-private-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);report('Sauvegarde privée téléchargée. Conserve ce fichier hors du dépôt.');}catch(error){report(error.message,true);}};
     root.querySelector('[data-restore]').onclick=()=>root.querySelector('#hq-import').click();
-    root.querySelector('#hq-import').onchange=async event=>{const file=event.currentTarget.files[0];if(!file)return;try{if(file.size>7_500_000)throw new Error('Sauvegarde trop volumineuse (7,5 Mo maximum).');const backup=JSON.parse(await file.text());if(!window.confirm('Restaurer cette sauvegarde privée ? Elle remplacera les tâches, contacts, livrables et le journal HQ actuels. Les projets et sources CONTROL seront conservés.'))return;const out=await request('/api/hq/restore',{backup,confirm:true});state.hq=out.hq;report('Sauvegarde restaurée et vérifiée par son empreinte SHA-256.');render();}catch(error){report(error.message,true);}finally{event.target.value='';}};
+    root.querySelector('#hq-import').onchange=async event=>{const file=event.currentTarget.files[0];if(!file)return;try{if(file.size>HQ_MAX_BACKUP_BYTES)throw new Error('Sauvegarde trop volumineuse (7,5 Mo maximum).');const backup=JSON.parse(await file.text());if(!window.confirm('Restaurer cette sauvegarde privée ? Elle remplacera les tâches, contacts, livrables et le journal HQ actuels. Les projets et sources CONTROL seront conservés.'))return;const out=await request('/api/hq/restore',{backup,confirm:true});state.hq=out.hq;report('Sauvegarde restaurée et vérifiée par son empreinte SHA-256.');render();}catch(error){report(error.message,true);}finally{event.target.value='';}};
   }
   render();
   return ()=>{active=false;};

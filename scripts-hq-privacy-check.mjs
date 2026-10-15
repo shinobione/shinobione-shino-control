@@ -7,7 +7,7 @@ import { buildPublicSnapshot } from './lib/public-snapshot.mjs';
 
 const canary='HQ_PRIVATE_CANARY_DO_NOT_PUBLISH';
 const privateData={actions:[{title:canary}],contacts:[{note:canary}],deliverables:[{sourceUrl:canary}],activity:[{note:canary}]};
-const fixture={version:1,settings:{hq:privateData,githubRepos:[]},projects:[{id:'demo',name:'DEMO public project',universe:'DEV',hq:privateData,control:{note:canary,tags:['public',{secret:canary}]}}],sources:[],evidence:[],derived:[],discovered:[],hq:privateData,...privateData};
+const fixture={version:1,settings:{hq:privateData,githubRepos:[]},projects:[{id:'demo',name:'DEMO public project',universe:'DEV',hq:privateData,control:{note:canary,tags:['public',{secret:canary}]}}],sources:[],evidence:[],derived:[{projectId:[canary]},{projectId:[[canary]]}],discovered:[],hq:privateData,...privateData};
 const projected=JSON.stringify(buildPublicSnapshot(fixture));
 assert.equal(projected.includes(canary),false,'strict typed projection excludes all private collections and nested fields');
 assert.equal(JSON.parse(projected).hq,undefined);
@@ -23,6 +23,7 @@ try{
   const baseline=buildPublicSnapshot({...fixture,projects:[...fixture.projects,{id:'more',name:'DEMO coverage baseline'}]});
   baseline.hq=privateData;
   baseline.contacts=privateData.contacts;
+  baseline.derived.push({projectId:[[canary]]});
   fs.writeFileSync(path.join(dir,'data','state.pages.json'),JSON.stringify(baseline));
   const build=spawnSync(process.execPath,['scripts/build-pages.mjs'],{cwd:dir,env:{...process.env,SHINO_CONTROL_STATE:path.join(dir,'data','state.json')},encoding:'utf8'});
   assert.equal(build.status,0,'isolated Pages build succeeds');

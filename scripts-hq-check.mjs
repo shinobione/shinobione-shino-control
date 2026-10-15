@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { ensureHq, mutateHq } from './lib/hq-store.mjs';
 import { buildHqBackup, restoreHqBackup } from './lib/hq-backup.mjs';
-import { selectActions, selectPriorities, selectDeadlines, isOverdue, projectUniverse } from './public/hq-model.js';
+import { selectActions, selectPriorities, selectDeadlines, isOverdue, projectUniverse, HQ_MAX_DATA_BYTES, HQ_MAX_BACKUP_BYTES } from './public/hq-model.js';
 import { commitGithubSync } from './lib/github-sync-commit.mjs';
 
 const state = {version:1, projects:[{id:'music',universe:'MUSIC'},{id:'dev',universe:'SYSTEM',repo:'test/repo'}],sources:[],evidence:[],settings:{manualMappings:{keep:'music'}}};
@@ -11,10 +11,16 @@ assert.equal(hq.schemaVersion,1);
 assert.deepEqual(state.projects,original.projects);
 assert.deepEqual(state.settings,original.settings);
 assert.equal(ensureHq(state),hq,'migration is idempotent');
+const olderSchema={...structuredClone(original),hq:structuredClone(hq)};
+delete olderSchema.hq.generation;
+assert.equal(typeof ensureHq(olderSchema).generation,'string','existing v1 gains a stable generation compatibly');
+const migratedGeneration=olderSchema.hq.generation;
+assert.equal(ensureHq(olderSchema).generation,migratedGeneration);
 assert.throws(()=>ensureHq({hq:{schemaVersion:99}}),/schema/i);
 assert.throws(()=>ensureHq({hq:{schemaVersion:1,actions:'broken'}}),/HQ/i);
 const now = '2026-10-15T10:00:00.000Z';
-function create(collection,id,values) { return mutateHq(state,{collection,operation:'create',id,values},{now}); }
+function change(payload,options) { return mutateHq(state,{expectedGeneration:state.hq.generation,...payload},options); }
+function create(collection,id,values) { return change({collection,operation:'create',id,values},{now}); }
 for (const universe of ['MUSIC','DEV','WORK','PERSONAL']) create('actions',`task-${universe}`,{title:`DEMO ${universe}`,universe,priority:'P2'});
 assert.equal(state.hq.actions.length,4);
 assert.equal(create('actions','task-MUSIC',{title:'DEMO MUSIC',universe:'MUSIC',priority:'P2'}).changed,false);
@@ -26,13 +32,13 @@ for (const sourceUrl of ['javascript:alert(1)','file:///secret','https://user:pa
 assert.throws(()=>create('actions','bad',{title:'x',universe:'DEV',dueDate:'2026-02-30'}),/date/i);
 assert.throws(()=>create('actions','__proto__',{title:'x',universe:'DEV'}),/id/i);
 const beforeInvalid = structuredClone(hq);
-assert.throws(()=>mutateHq(state,{collection:'actions',operation:'update',id:'task-MUSIC',expectedRevision:1,values:[]}),/values/i);
-assert.throws(()=>mutateHq(state,{collection:'actions',operation:'update',id:'task-MUSIC',expectedRevision:1,values:{title:'changed',priority:'P9'}}),/priority/i);
+assert.throws(()=>change({collection:'actions',operation:'update',id:'task-MUSIC',expectedRevision:1,values:[]}),/values/i);
+assert.throws(()=>change({collection:'actions',operation:'update',id:'task-MUSIC',expectedRevision:1,values:{title:'changed',priority:'P9'}}),/priority/i);
 assert.deepEqual(hq,beforeInvalid,'invalid partial update is atomic');
-mutateHq(state,{collection:'actions',operation:'update',id:'task-MUSIC',expectedRevision:1,values:{status:'DONE'}},{now});
+change({collection:'actions',operation:'update',id:'task-MUSIC',expectedRevision:1,values:{status:'DONE'}},{now});
 assert.equal(hq.actions[0].closedAt,now);
-assert.throws(()=>mutateHq(state,{collection:'actions',operation:'update',id:'task-MUSIC',expectedRevision:1,values:{status:'TODO'}}),/conflict/i);
-mutateHq(state,{collection:'actions',operation:'update',id:'task-MUSIC',expectedRevision:2,values:{status:'TODO'}},{now});
+assert.throws(()=>change({collection:'actions',operation:'update',id:'task-MUSIC',expectedRevision:1,values:{status:'TODO'}}),/conflict/i);
+change({collection:'actions',operation:'update',id:'task-MUSIC',expectedRevision:2,values:{status:'TODO'}},{now});
 assert.equal(hq.actions[0].closedAt,null);
 assert.equal(hq.actions[0].createdAt,now);
 create('actions','first',{title:'Urgent',universe:'WORK',priority:'P1',dueDate:'2026-10-14',category:'RISO'});
@@ -47,13 +53,18 @@ assert.equal(selectActions(hq.actions,{priority:'P1'}).length,3);
 create('contacts','contact',{name:'DEMO label',universe:'MUSIC',relationship:'Label',followUpDate:'2026-10-16'});
 create('deliverables','delivery',{title:'DEMO release',projectId:'music',universe:'MUSIC',type:'Release',targetDate:'2026-10-17'});
 assert.equal(selectDeadlines(hq,'2026-10-15').length,3);
-mutateHq(state,{collection:'projects',operation:'update',id:'dev',values:{universe:'WORK'}},{now});
+change({collection:'projects',operation:'update',id:'dev',values:{universe:'WORK'}},{now});
 assert.equal(projectUniverse(state.projects[1],hq),'WORK');
 assert.equal(state.projects[1].universe,'SYSTEM');
 const backup = buildHqBackup(hq,{now});
 const restored = structuredClone(original);
 restoreHqBackup(restored,JSON.parse(JSON.stringify(backup)));
-assert.deepEqual(restored.hq,hq);
+assert.notEqual(restored.hq.generation,hq.generation,'restore invalidates every outstanding form generation');
+assert.deepEqual({...restored.hq,generation:hq.generation},hq);
+assert.throws(()=>mutateHq(restored,{collection:'actions',operation:'update',id:'task-MUSIC',expectedRevision:3,expectedGeneration:hq.generation,values:{title:'stale form'}}),/conflict/i);
+mutateHq(restored,{collection:'actions',operation:'update',id:'task-MUSIC',expectedRevision:3,expectedGeneration:restored.hq.generation,values:{status:'DONE'}});
+assert.throws(()=>mutateHq(restored,{collection:'actions',operation:'update',id:'task-MUSIC',expectedRevision:4,expectedGeneration:hq.generation,values:{status:'TODO'}}),/conflict/i,'restored revision numbers cannot admit a stale form from a former timeline');
+assert.equal(restored.hq.actions[0].status,'DONE');
 assert.deepEqual(restored.projects,original.projects);
 const tampered = structuredClone(backup);
 tampered.hq.actions[0].title='tampered';
@@ -66,9 +77,27 @@ staged.hq.actions=[];
 commitGithubSync(state,structuredClone(state),staged,{results:[{ok:true,projectId:'dev',changedKinds:[]}],summary:{}});
 commitGithubSync(state,structuredClone(state),staged,{results:[{ok:true,projectId:'dev',changedKinds:[]}],summary:{}});
 assert.deepEqual(state.hq,savedHq,'repeated GitHub merges preserve all private collections without duplication');
-assert.throws(()=>mutateHq(state,{collection:'contacts',operation:'delete',id:'contact',expectedRevision:1}),/confirm/i);
-mutateHq(state,{collection:'contacts',operation:'delete',id:'contact',confirmId:'contact',expectedRevision:1},{now});
+assert.throws(()=>change({collection:'contacts',operation:'delete',id:'contact',expectedRevision:1}),/confirm/i);
+change({collection:'contacts',operation:'delete',id:'contact',confirmId:'contact',expectedRevision:1},{now});
 assert.equal(hq.contacts.length,0);
 assert.ok(hq.activity.length>0);
 assert.ok(hq.activity.every(x=>!('title' in x)&&!('note' in x)));
+// Every accepted database must fit the compact download AND its restore POST envelope.
+const bulk=structuredClone(original);ensureHq(bulk);
+const template={...hq.actions[0],description:'界'.repeat(6000)};
+const rowBytes=Buffer.byteLength(JSON.stringify(template));
+bulk.hq.actions=Array.from({length:Math.floor((HQ_MAX_DATA_BYTES-40000)/rowBytes)},(_,i)=>({...template,id:`bulk-${i}`}));
+let quotaRejected=false;
+for(let i=0;i<10;i++){
+  const previous=structuredClone(bulk.hq);
+  try{mutateHq(bulk,{collection:'actions',operation:'create',id:`quota-${i}`,expectedGeneration:bulk.hq.generation,values:template},{now});}
+  catch(error){assert.equal(error.status,413);assert.deepEqual(bulk.hq,previous,'capacity rejection preserves readable state');quotaRejected=true;break;}
+}
+assert.equal(quotaRejected,true,'mutation validates its resulting capacity');
+ensureHq(bulk);
+const bigBackup=buildHqBackup(bulk.hq);
+assert.ok(Buffer.byteLength(JSON.stringify(bigBackup))<=HQ_MAX_BACKUP_BYTES);
+assert.ok(Buffer.byteLength(JSON.stringify({backup:bigBackup,confirm:true}))<8_000_000);
+const fromBigBackup=structuredClone(original);restoreHqBackup(fromBigBackup,bigBackup);
+assert.equal(fromBigBackup.hq.actions.length,bulk.hq.actions.length);
 console.log('HQ model, migration, priorities, validation, backup and sync preservation PASS');

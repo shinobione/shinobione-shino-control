@@ -12,6 +12,8 @@ Node built-ins, native browser modules and existing Core only; no new dependenci
 
 Actions: title, description, MUSIC/DEV/WORK/PERSONAL, optional existing projectId, P1/P2/P3, TODO/IN_PROGRESS/WAITING/BLOCKED/DONE, createdAt, updatedAt, dueDate (calendar date), closedAt, sourceUrl, category, optional decimal expense amount/currency for personal tracking. Contacts: name, organization, universe, relationship, lastContactDate, followUpDate, note, externalUrl. Deliverables: title, existing projectId, universe, type, status (TODO/IN_PROGRESS/BLOCKED/DONE), targetDate, sourceUrl. WORK categories include RISO/Kyocera/Other; generic references only. Activity records IDs, operation, entity type and time, without copying private text.
 
+Recovery/concurrency clarification from independent review: schema v1 includes a generation UUID, added compatibly when absent and rotated on restore. Mutations carry that generation as well as row revisions. Accepted HQ JSON is bounded to 6,000,000 UTF-8 bytes; compact backups stay below the 7,500,000-byte import and 8,000,000-character HTTP limits. Mutation candidates are validated before replacing live collections, so capacity rejection cannot persist an unreadable state.
+
 Backups export only the entire private HQ object in a versioned envelope with SHA-256 integrity checksum. Restore verifies checksum, schema, IDs and project references before replacing HQ, with an explicit UI confirmation; existing CONTROL projects/sources/evidence remain untouched. Core's `.bak` also covers HQ. Backups remain local downloads, never public assets.
 
 ## Product

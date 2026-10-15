@@ -26,9 +26,9 @@ if(!fs.existsSync(file)||process.argv.includes('--reset')){
     {title:'DEMO · Classer les justificatifs du mois',universe:'PERSONAL',projectId:'demo-personal',priority:'P2',dueDate:date(3),category:'Administration'},
     {title:'DEMO · Noter un achat de fournitures',universe:'PERSONAL',priority:'P3',amount:'18.50',currency:'EUR',status:'DONE'},
     {title:'DEMO · Préparer les actions de promotion',universe:'MUSIC',priority:'P2',dueDate:date(5),category:'Promotion'}
-  ].entries())mutateHq(state,{collection:'actions',operation:'create',id:`demo-action-${i}`,values});
-  mutateHq(state,{collection:'contacts',operation:'create',id:'demo-contact',values:{name:'DEMO · Contact label',organization:'Organisation fictive',universe:'MUSIC',relationship:'Label',followUpDate:date(2),note:'Exemple explicitement fictif, aucune personne réelle.'}});
-  mutateHq(state,{collection:'deliverables',operation:'create',id:'demo-delivery',values:{title:'DEMO · Briefing sortie',projectId:'demo-music',universe:'MUSIC',type:'Release',targetDate:date(7)}});
+  ].entries())mutateHq(state,{collection:'actions',operation:'create',id:`demo-action-${i}`,expectedGeneration:state.hq.generation,values});
+  mutateHq(state,{collection:'contacts',operation:'create',id:'demo-contact',expectedGeneration:state.hq.generation,values:{name:'DEMO · Contact label',organization:'Organisation fictive',universe:'MUSIC',relationship:'Label',followUpDate:date(2),note:'Exemple explicitement fictif, aucune personne réelle.'}});
+  mutateHq(state,{collection:'deliverables',operation:'create',id:'demo-delivery',expectedGeneration:state.hq.generation,values:{title:'DEMO · Briefing sortie',projectId:'demo-music',universe:'MUSIC',type:'Release',targetDate:date(7)}});
   fs.mkdirSync(path.dirname(file),{recursive:true});
   if(fs.existsSync(file))fs.copyFileSync(file,`${file}.bak`);
   fs.writeFileSync(file,JSON.stringify(state,null,2),{mode:0o600});

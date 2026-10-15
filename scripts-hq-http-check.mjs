@@ -9,7 +9,7 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'shino-hq-http-'));
 const statePath=path.join(dir,'state.json');
 fs.writeFileSync(statePath,JSON.stringify({version:1,projects:[{id:'demo-dev',name:'DEMO dev',universe:'DEV',kind:'MANUAL_PROJECT'}],sources:[],evidence:[],settings:{},discovered:[]}));
 const port=21000+(process.pid%1000),base=`http://127.0.0.1:${port}`;
-let child,output='';
+let child,output='',generation;
 async function start(token='') {
   child=spawn(process.execPath,['server-entry.mjs'],{env:{...process.env,PORT:String(port),SHINO_CONTROL_STATE:statePath,SHINO_CONTROL_TOKEN:token,SHINO_CONTROL_EXTENSION_ID:''},stdio:['ignore','pipe','pipe']});
   child.stdout.on('data',chunk=>{output+=chunk;});
@@ -25,10 +25,10 @@ async function stop() {
   const done=new Promise(resolve=>child.once('exit',resolve));
   child.kill(); await done;
 }
-const post=(route,body,headers={})=>fetch(`${base}${route}`,{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify(body)});
+const post=(route,body,headers={})=>fetch(`${base}${route}`,{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify(route==='/api/hq/mutate'?{expectedGeneration:generation,...body}:body)});
 try {
   await start();
-  assert.equal((await fetch(`${base}/api/hq`)).status,200);
+  const initial=await fetch(`${base}/api/hq`);assert.equal(initial.status,200);generation=(await initial.json()).hq.generation;
   const mutations=Array.from({length:12},(_,i)=>post('/api/hq/mutate',{collection:'actions',operation:'create',id:`demo-${i}`,values:{title:`DEMO ${i}`,universe:['MUSIC','DEV','WORK','PERSONAL'][i%4]}}));
   const responses=await Promise.all(mutations);
   assert.ok(responses.every(r=>r.status===200),'concurrent HQ writes succeed');
@@ -40,7 +40,10 @@ try {
   const deleted=await post('/api/hq/mutate',{collection:'actions',operation:'delete',id:'demo-0',confirmId:'demo-0',expectedRevision:1});
   assert.equal(deleted.status,200);
   assert.equal((await post('/api/hq/restore',{backup,confirm:false})).status,400);
-  assert.equal((await post('/api/hq/restore',{backup,confirm:true})).status,200);
+  const restoration=await post('/api/hq/restore',{backup,confirm:true});assert.equal(restoration.status,200);
+  generation=(await restoration.json()).hq.generation;
+  assert.notEqual(generation,before.hq.generation);
+  assert.equal((await post('/api/hq/mutate',{collection:'actions',operation:'update',id:'demo-0',expectedGeneration:before.hq.generation,expectedRevision:1,values:{title:'stale'}})).status,409);
   backup.sha256='corrupted';
   assert.equal((await post('/api/hq/restore',{backup,confirm:true})).status,400);
   assert.equal((await post('/api/hq/mutate',{collection:'actions',operation:'create',id:'bad',values:{title:'DEMO',universe:'WRONG'}})).status,400);
@@ -54,7 +57,8 @@ try {
   await stop();
   await start();
   const after=await (await fetch(`${base}/api/hq`)).json();
-  assert.deepEqual(after.hq,before.hq,'all HQ data survives restart and restore');
+  assert.deepEqual({...after.hq,generation:before.hq.generation},before.hq,'all HQ content survives restart and restore');
+  assert.equal(after.hq.generation,generation,'restore generation survives process restart');
   const core=await (await fetch(`${base}/api/state`)).json();
   assert.equal(core.projects.find(p=>p.id==='demo-dev').name,'DEMO renamed','HQ restore preserves latest CONTROL changes');
   assert.ok(fs.existsSync(`${statePath}.bak`));

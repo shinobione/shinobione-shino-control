@@ -1,5 +1,6 @@
 import { cleanFocusSummary, selectFocusProject } from './focus-engine.js';
 import { mountHq } from './hq.js';
+import { controlRoute } from './control-route.js';
 let disposeHq = null;
 const $ = (s, root=document) => root.querySelector(s);
 const esc = (s='') => String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
@@ -23,14 +24,9 @@ async function api(path, options={}) {
   if(!r.ok) throw new Error(data.error || r.statusText);
   return data;
 }
-async function load(){ state=await api('/api/state'); applyHashRoute(); render(); }
+async function load(){ const current=state?{view,modalProject}:null;state=await api('/api/state');({view,modalProject}=controlRoute({hash:location.hash,staticMode:window.SHINO_STATIC_MODE,projects:state.projects,current}));render(); }
 function applyHashRoute(){
-  if(window.SHINO_STATIC_MODE)return;
-  if(location.hash.startsWith('#control')){
-    view='radar';
-    let projectId='';try{projectId=decodeURIComponent(location.hash.split('/')[1]||'')}catch{}
-    modalProject=state?.projects.some(p=>p.id===projectId)?projectId:null;
-  }else{view='hq';modalProject=null;}
+  ({view,modalProject}=controlRoute({hash:location.hash,staticMode:window.SHINO_STATIC_MODE,projects:state?.projects || []}));
 }
 window.addEventListener('hashchange',()=>{if(state){applyHashRoute();render();}});
 function toast(msg,action=null){
